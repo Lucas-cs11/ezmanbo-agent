@@ -1,0 +1,6 @@
+{"case_id":"dc_dc_001","input":"我需要一个 12V 转 5V、3A 的车规级降压芯片，工作温度 -40°C 到 125°C，优先国产替代。","expected":{"category":"dc_dc_converter","topology":"buck","output_voltage_v":5,"output_current_a":3,"temperature_min_c":-40,"temperature_max_c":125,"preferences":["domestic_alternative"]}}
+{"case_id":"dc_dc_002","input":"需要 24V 转 12V、2A 的降压方案，工作温度 -40°C 到 85°C。","expected":{"category":"dc_dc_converter","topology":"buck","output_voltage_v":12,"output_current_a":2}}
+{"case_id":"dc_dc_003","input":"我需要 12V 转 5V、4A 的降压芯片，非车规，室温使用。","expected":{"category":"dc_dc_converter","topology":"buck","output_voltage_v":5,"output_current_a":4}}
+{"case_id":"dc_dc_004","input":"12V转5V，3A，温度范围 -20C 到 85C，优先低供应链风险。","expected":{"category":"dc_dc_converter","topology":"buck","output_voltage_v":5,"output_current_a":3,"temperature_min_c":-20,"temperature_max_c":85,"preferences":["low_supply_risk"]}}
+{"case_id":"dc_dc_005","input":"请给我一个 5V 到 3.3V 的降压芯片，输出 1A。","expected":{"category":"dc_dc_converter","topology":"buck","output_voltage_v":3.3,"output_current_a":1}}
+
