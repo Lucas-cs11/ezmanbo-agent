@@ -9,6 +9,8 @@ def run():
     out_lines = []
     with open(CASES, "r", encoding="utf-8") as f:
         for ln in f:
+            if not ln.strip():
+                continue
             case = json.loads(ln)
             cid = case.get("case_id")
             inp = case.get("input")
