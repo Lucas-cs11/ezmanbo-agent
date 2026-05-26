@@ -76,31 +76,31 @@ def search_parts(constraints: RequirementConstraints) -> List[PartIR]:
     results: List[PartIR] = []
 
     if ez_key:
-        # Use remote API search endpoint; use raw_input as keyword if specific fields not available
-        keyword = constraints.raw_input if getattr(constraints, "raw_input", None) else None
-        params: Dict[str, Any] = {}
-        if keyword:
-            params["keyword"] = keyword
-        if getattr(constraints, "output_current_a", None):
-            params["minOutputCurrentA"] = constraints.output_current_a
-        # pageSize default
-        params.setdefault("pageSize", 50)
-        status, body = _request_json(ez_base, ez_key, "/api/v1/api-key/parts", params)
-        items = []
-        if status == 200:
-            items = body.get("data") or []
+        # EZ-PLM API only supports keyword search (by MPN/name), not spec-based filtering.
+        topology = getattr(constraints, "topology", None) or ""
+        category = getattr(constraints, "category", None) or ""
+        if topology == "buck":
+            keyword = "DC-DC Buck"
+        elif topology == "boost":
+            keyword = "DC-DC Boost"
+        elif category == "dc_dc_converter":
+            keyword = "DC-DC"
         else:
-            # fallback to mock on error
-            items = _load_parts()
-        for p in items:
-            mapped = _map_api_part_to_partir(p)
-            if mapped:
-                # apply hard filters locally as well
-                if _part_matches_constraints(mapped, constraints):
+            keyword = topology or category or "DC-DC"
+        params: Dict[str, Any] = {"keyword": keyword, "pageSize": 50}
+        status, body = _request_json(ez_base, ez_key, "/api/v1/api-key/parts", params)
+        api_items = []
+        if status == 200:
+            api_items = body.get("data") or []
+        if api_items:
+            for p in api_items:
+                mapped = _map_api_part_to_partir(p)
+                if mapped and _part_matches_constraints(mapped, constraints):
                     results.append(mapped)
-        return results
+            return results
+        # API returned empty (whitelist restriction) — fall through to mock data
 
-    # fallback: local mock filtering
+    # local mock filtering (also used as fallback when API is empty)
     parts = _load_parts()
     for p in parts:
         try:
@@ -139,30 +139,114 @@ def find_replacements(part_number: str) -> List[PartIR]:
     return replacements
 
 
-def _map_api_part_to_partir(api_obj: Dict[str, Any]) -> PartIR | None:
-    """把 EZ-PLM API 返回的器件对象映射到 PartIR。根据实际返回字段调整映射。"""
+_EZPLM_CATEGORY_MAP = {
+    "DC-DC": "dc_dc_converter",
+    "电源管理": "dc_dc_converter",
+    "PMIC": "dc_dc_converter",
+    "降压": "dc_dc_converter",
+    "升压": "dc_dc_converter",
+    "buck": "dc_dc_converter",
+    "boost": "dc_dc_converter",
+}
+
+_DOMESTIC_MANUFACTURERS = {
+    "立锜", "圣邦", "南芯", "华润", "矽力杰", "思瑞浦", "芯朋", "英集芯",
+    "纳芯微", "杰华特", "芯源系统", "美芯晟", "晶丰明源", "上海贝岭",
+}
+
+
+def _parse_attrs(attrs: list) -> Dict[str, Any]:
+    """从 EZ-PLM attributes 数组中提取电气参数。"""
+    result: Dict[str, Any] = {}
+    for a in (attrs or []):
+        name = str(a.get("name", ""))
+        val = str(a.get("value", "")).strip()
+        if not val or val == "None":
+            continue
+        try:
+            if "输入电压" in name and "最大" in name:
+                result["input_voltage_max_v"] = float(val)
+            elif "输入电压" in name and "最小" in name:
+                result["input_voltage_min_v"] = float(val)
+            elif "输出电流" in name and "最大" in name:
+                result["output_current_max_a"] = float(val)
+            elif "温度" in name and ("范围" in name or "工作" in name):
+                import re as _re
+                m = _re.search(r"(-?\d+(?:\.\d+)?)\s*(?:to|~|至|～)\s*(-?\d+(?:\.\d+)?)", val)
+                if m:
+                    result["temperature_min_c"] = float(m.group(1))
+                    result["temperature_max_c"] = float(m.group(2))
+            elif "封装" in name or "package" in name.lower():
+                result["package"] = val
+        except (ValueError, TypeError):
+            pass
+    return result
+
+
+def _map_api_part_to_partir(api_obj: Dict[str, Any]) -> "PartIR | None":
+    """把 EZ-PLM API 真实返回格式映射到 PartIR。
+
+    实际字段：mpn, manufacturer{name}, category{name}, attributes[], pdf{url}, id
+    """
     if not isinstance(api_obj, dict):
         return None
-    # Common fields mapping with safe access
     try:
+        part_number = (
+            api_obj.get("mpn") or api_obj.get("partNumber")
+            or api_obj.get("pn") or api_obj.get("part_number")
+            or api_obj.get("id")
+        )
+        if not part_number:
+            return None
+
+        # manufacturer: may be nested {"name": "..."}
+        mfr_raw = api_obj.get("manufacturer") or {}
+        if isinstance(mfr_raw, dict):
+            manufacturer = mfr_raw.get("name") or mfr_raw.get("id")
+        else:
+            manufacturer = str(mfr_raw)
+
+        # category: may be nested {"name": "..."}
+        cat_raw = api_obj.get("category") or {}
+        cat_name = cat_raw.get("name", "") if isinstance(cat_raw, dict) else str(cat_raw)
+        category = next(
+            (v for k, v in _EZPLM_CATEGORY_MAP.items() if k in cat_name), None
+        )
+
+        # is_domestic: check manufacturer name against known domestic list
+        is_domestic = False
+        if manufacturer:
+            is_domestic = any(d in manufacturer for d in _DOMESTIC_MANUFACTURERS)
+
+        # pdf url as datasheet
+        pdf_raw = api_obj.get("pdf") or {}
+        datasheet_url = (
+            pdf_raw.get("url") if isinstance(pdf_raw, dict)
+            else api_obj.get("datasheetUrl") or api_obj.get("datasheet_url")
+        )
+
+        # parse attributes array for electrical specs
+        attrs = _parse_attrs(api_obj.get("attributes") or [])
+
         return PartIR.parse_obj({
-            "part_number": api_obj.get("partNumber") or api_obj.get("pn") or api_obj.get("part_number") or api_obj.get("id"),
-            "manufacturer": api_obj.get("manufacturer") or api_obj.get("mfr"),
-            "category": api_obj.get("category"),
+            "part_number": part_number,
+            "manufacturer": manufacturer,
+            "category": category,
             "topology": api_obj.get("topology"),
-            "is_domestic": api_obj.get("isDomestic") if api_obj.get("isDomestic") is not None else api_obj.get("is_domestic", False),
+            "is_domestic": is_domestic,
             "description": api_obj.get("description") or api_obj.get("summary"),
-            "input_voltage_min_v": api_obj.get("inputVoltageMinV") or api_obj.get("input_voltage_min_v"),
-            "input_voltage_max_v": api_obj.get("inputVoltageMaxV") or api_obj.get("input_voltage_max_v"),
-            "output_current_max_a": api_obj.get("outputCurrentMaxA") or api_obj.get("output_current_max_a") or api_obj.get("iOutMax"),
-            "temperature_min_c": api_obj.get("temperatureMinC") or api_obj.get("temperature_min_c"),
-            "temperature_max_c": api_obj.get("temperatureMaxC") or api_obj.get("temperature_max_c"),
-            "package": api_obj.get("package"),
-            "automotive_grade": api_obj.get("automotiveGrade") or api_obj.get("automotive_grade", False),
+            "input_voltage_min_v": attrs.get("input_voltage_min_v"),
+            "input_voltage_max_v": attrs.get("input_voltage_max_v"),
+            "output_current_max_a": attrs.get("output_current_max_a"),
+            "temperature_min_c": attrs.get("temperature_min_c"),
+            "temperature_max_c": attrs.get("temperature_max_c"),
+            "package": attrs.get("package") or api_obj.get("package"),
+            "automotive_grade": False,
             "lifecycle_status": api_obj.get("lifecycleStatus") or api_obj.get("lifecycle_status"),
-            "stock": api_obj.get("stock") or api_obj.get("inventory") or api_obj.get("qty"),
-            "unit_price_cny": api_obj.get("unitPriceCny") or api_obj.get("unit_price") or api_obj.get("price"),
-            "datasheet_url": api_obj.get("datasheetUrl") or api_obj.get("datasheet_url") or api_obj.get("datasheet"),
+            "stock": api_obj.get("stock") or api_obj.get("inventory"),
+            "unit_price_cny": api_obj.get("unitPriceCny") or api_obj.get("unit_price"),
+            "datasheet_url": datasheet_url,
+            "ezplm_part_id": api_obj.get("id"),
             "replacement_for": api_obj.get("replacementFor") or api_obj.get("replacement_for") or [],
             "source": "ezplm",
         })
@@ -171,10 +255,10 @@ def _map_api_part_to_partir(api_obj: Dict[str, Any]) -> PartIR | None:
 
 
 def _part_matches_constraints(part: PartIR, constraints: RequirementConstraints) -> bool:
-    # category/topology
-    if constraints.category and part.category != constraints.category:
+    # category/topology — skip filter if part field is None (API may not return these)
+    if constraints.category and part.category and part.category != constraints.category:
         return False
-    if constraints.topology and part.topology != constraints.topology:
+    if constraints.topology and part.topology and part.topology != constraints.topology:
         return False
     # input voltage nominal
     if constraints.input_voltage_nominal_v is not None and part.input_voltage_min_v is not None and part.input_voltage_max_v is not None:

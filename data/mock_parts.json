@@ -568,5 +568,43 @@
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/IMPORT-BUCK-007",
     "replacement_for": []
+  },
+  {
+    "part_number": "MOCK-BUCK-HP-001",
+    "manufacturer": "SinoIC",
+    "category": "dc_dc_converter",
+    "topology": "buck",
+    "is_domestic": true,
+    "input_voltage_min_v": 18,
+    "input_voltage_max_v": 36,
+    "output_current_max_a": 12,
+    "temperature_min_c": -40,
+    "temperature_max_c": 125,
+    "automotive_grade": false,
+    "package": "HSOP",
+    "stock": 3000,
+    "unit_price_cny": 14.5,
+    "lifecycle_status": "active",
+    "datasheet_url": "mock://datasheet/MOCK-BUCK-HP-001",
+    "replacement_for": []
+  },
+  {
+    "part_number": "MOCK-BUCK-HP-002",
+    "manufacturer": "PowerChina",
+    "category": "dc_dc_converter",
+    "topology": "buck",
+    "is_domestic": true,
+    "input_voltage_min_v": 15,
+    "input_voltage_max_v": 40,
+    "output_current_max_a": 15,
+    "temperature_min_c": -40,
+    "temperature_max_c": 125,
+    "automotive_grade": false,
+    "package": "HSOP",
+    "stock": 2500,
+    "unit_price_cny": 18.0,
+    "lifecycle_status": "active",
+    "datasheet_url": "mock://datasheet/MOCK-BUCK-HP-002",
+    "replacement_for": []
   }
 ]
