@@ -18,8 +18,7 @@
     "datasheet_url": "mock://datasheet/MOCK-BUCK-AEC-001",
     "replacement_for": [
       "IMPORT-BUCK-001"
-    ],
-    "has_datasheet": false
+    ]
   },
   {
     "part_number": "MOCK-BUCK-AEC-002",
@@ -38,8 +37,7 @@
     "unit_price_cny": 6.5,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-AEC-002",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "IMPORT-BUCK-001",
@@ -58,8 +56,7 @@
     "unit_price_cny": 12.5,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/IMPORT-BUCK-001",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-AEC-003",
@@ -80,8 +77,7 @@
     "datasheet_url": "mock://datasheet/MOCK-BUCK-AEC-003",
     "replacement_for": [
       "IMPORT-BUCK-002"
-    ],
-    "has_datasheet": false
+    ]
   },
   {
     "part_number": "IMPORT-BUCK-002",
@@ -100,8 +96,7 @@
     "unit_price_cny": 15.0,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/IMPORT-BUCK-002",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-004",
@@ -122,8 +117,7 @@
     "datasheet_url": "mock://datasheet/MOCK-BUCK-004",
     "replacement_for": [
       "IMPORT-BUCK-003"
-    ],
-    "has_datasheet": false
+    ]
   },
   {
     "part_number": "MOCK-BUCK-005",
@@ -142,8 +136,7 @@
     "unit_price_cny": 6.0,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-005",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-006",
@@ -162,8 +155,7 @@
     "unit_price_cny": 3.9,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-006",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-007",
@@ -184,8 +176,7 @@
     "datasheet_url": "mock://datasheet/MOCK-BUCK-007",
     "replacement_for": [
       "IMPORT-BUCK-004"
-    ],
-    "has_datasheet": false
+    ]
   },
   {
     "part_number": "IMPORT-BUCK-003",
@@ -204,8 +195,7 @@
     "unit_price_cny": 11.0,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/IMPORT-BUCK-003",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-008",
@@ -224,8 +214,7 @@
     "unit_price_cny": 2.8,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-008",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-009",
@@ -244,8 +233,7 @@
     "unit_price_cny": 8.5,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-009",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-010",
@@ -264,8 +252,7 @@
     "unit_price_cny": 1.9,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-010",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-011",
@@ -284,8 +271,7 @@
     "unit_price_cny": 5.2,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-011",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-012",
@@ -304,8 +290,7 @@
     "unit_price_cny": 13.5,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-012",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-013",
@@ -324,8 +309,7 @@
     "unit_price_cny": 7.9,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-013",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-014",
@@ -344,8 +328,7 @@
     "unit_price_cny": 0.95,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-014",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-015",
@@ -364,8 +347,7 @@
     "unit_price_cny": 10.0,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-015",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-016",
@@ -384,8 +366,7 @@
     "unit_price_cny": 8.8,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-016",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-017",
@@ -406,8 +387,7 @@
     "datasheet_url": "mock://datasheet/MOCK-BUCK-017",
     "replacement_for": [
       "IMPORT-BUCK-005"
-    ],
-    "has_datasheet": false
+    ]
   },
   {
     "part_number": "IMPORT-BUCK-004",
@@ -426,8 +406,7 @@
     "unit_price_cny": 18.0,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/IMPORT-BUCK-004",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "IMPORT-BUCK-005",
@@ -446,8 +425,7 @@
     "unit_price_cny": 22.0,
     "lifecycle_status": "obsolete",
     "datasheet_url": "mock://datasheet/IMPORT-BUCK-005",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-018",
@@ -466,8 +444,7 @@
     "unit_price_cny": 0.75,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-018",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-019",
@@ -486,8 +463,7 @@
     "unit_price_cny": 16.5,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-019",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-020",
@@ -506,8 +482,7 @@
     "unit_price_cny": 6.8,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-020",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-021",
@@ -526,8 +501,7 @@
     "unit_price_cny": 0.55,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-021",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-022",
@@ -546,8 +520,7 @@
     "unit_price_cny": 9.9,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-022",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "IMPORT-BUCK-006",
@@ -566,8 +539,7 @@
     "unit_price_cny": 9.5,
     "lifecycle_status": "discontinued",
     "datasheet_url": "mock://datasheet/IMPORT-BUCK-006",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-023",
@@ -586,8 +558,7 @@
     "unit_price_cny": 7.6,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-023",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "IMPORT-BUCK-007",
@@ -606,8 +577,7 @@
     "unit_price_cny": 28.0,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/IMPORT-BUCK-007",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-HP-001",
@@ -626,8 +596,7 @@
     "unit_price_cny": 14.5,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-HP-001",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "MOCK-BUCK-HP-002",
@@ -646,8 +615,7 @@
     "unit_price_cny": 18.0,
     "lifecycle_status": "active",
     "datasheet_url": "mock://datasheet/MOCK-BUCK-HP-002",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LDO40LPU33RY",
@@ -666,8 +634,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FngVnY8BCCFFKVhNH2ABbB-xq2ma.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:dMgPUv5QbSAZAK7VS-dftOwAKJc=&attname=LDO40LPU33RY.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LDO40LPU50RY",
@@ -686,8 +653,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FngVnY8BCCFFKVhNH2ABbB-xq2ma.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:dMgPUv5QbSAZAK7VS-dftOwAKJc=&attname=LDO40LPU33RY.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LDO40LPURY",
@@ -706,8 +672,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FngVnY8BCCFFKVhNH2ABbB-xq2ma.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:dMgPUv5QbSAZAK7VS-dftOwAKJc=&attname=LDO40LPU33RY.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "KITLDO0221",
@@ -726,8 +691,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Flx_fnuA8qICyhuECBQJdLhIDKxZ.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:2K_NH-VTMGphXJaDXTyzzkZ_IXg=&attname=KITLDO0221.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1100D",
@@ -746,8 +710,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FpDj6M4pV33SIWtAjCSfg5usurKm.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:lh9Af-FBevR92ydyHmI_LpVVNC8=&attname=TPS1100PWR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1100DR",
@@ -766,8 +729,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FpDj6M4pV33SIWtAjCSfg5usurKm.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:lh9Af-FBevR92ydyHmI_LpVVNC8=&attname=TPS1100PWR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1100PWR",
@@ -786,8 +748,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FpDj6M4pV33SIWtAjCSfg5usurKm.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:lh9Af-FBevR92ydyHmI_LpVVNC8=&attname=TPS1100PWR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1101D",
@@ -806,8 +767,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/project/Fi_ig2ow2av-gogLN-Uhf3fru1Id.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:1MBMzUhrU42NAxevyyY4yWE0sGM=&attname=TPS1101D.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1101DR",
@@ -826,8 +786,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fi_ig2ow2av-gogLN-Uhf3fru1Id.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:A18C6Cy6VWTp5wc_zZwGTusWEeg=&attname=TPS1101PWR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1101PWR",
@@ -846,8 +805,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fi_ig2ow2av-gogLN-Uhf3fru1Id.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:A18C6Cy6VWTp5wc_zZwGTusWEeg=&attname=TPS1101PWR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1120D",
@@ -866,8 +824,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnzftaoxb0A6fvCXSxDVYcIZnnLe.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:WaAkGk2MYiWp6KG8Py1Tr89fNxk=&attname=TPS1120DR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1120DR",
@@ -886,8 +843,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnzftaoxb0A6fvCXSxDVYcIZnnLe.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:WaAkGk2MYiWp6KG8Py1Tr89fNxk=&attname=TPS1120DR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS12110AQDGXRQ1",
@@ -906,8 +862,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FhN4M8oAQIhGdzUZNb8AHlbFJUSw.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:eyjvo9Kl9YVOO2gXgH_XL9xARQQ=&attname=TPS12111LQDGXRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS12111LQDGXRQ1",
@@ -926,8 +881,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FhN4M8oAQIhGdzUZNb8AHlbFJUSw.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:eyjvo9Kl9YVOO2gXgH_XL9xARQQ=&attname=TPS12111LQDGXRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS12112AQDGXRQ1",
@@ -946,8 +900,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://www.ezplm.cn/part/TPS12112AQDGXRQ1",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16410DRCR",
@@ -966,8 +919,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fj6mEGvQBURqPoaElzch8rpQGgL2.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5x8bnbf-BcCTWYvoFIiGjV00KpI=&attname=TPS16417DRCR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16411DRCR",
@@ -986,8 +938,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fj6mEGvQBURqPoaElzch8rpQGgL2.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5x8bnbf-BcCTWYvoFIiGjV00KpI=&attname=TPS16417DRCR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16412DRCR",
@@ -1006,8 +957,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fj6mEGvQBURqPoaElzch8rpQGgL2.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5x8bnbf-BcCTWYvoFIiGjV00KpI=&attname=TPS16417DRCR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16413DRCR",
@@ -1026,8 +976,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fj6mEGvQBURqPoaElzch8rpQGgL2.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5x8bnbf-BcCTWYvoFIiGjV00KpI=&attname=TPS16417DRCR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16414DRCR",
@@ -1046,8 +995,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fj6mEGvQBURqPoaElzch8rpQGgL2.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5x8bnbf-BcCTWYvoFIiGjV00KpI=&attname=TPS16417DRCR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16415DRCR",
@@ -1066,8 +1014,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fj6mEGvQBURqPoaElzch8rpQGgL2.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5x8bnbf-BcCTWYvoFIiGjV00KpI=&attname=TPS16417DRCR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16416DRCR",
@@ -1086,8 +1033,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fj6mEGvQBURqPoaElzch8rpQGgL2.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5x8bnbf-BcCTWYvoFIiGjV00KpI=&attname=TPS16417DRCR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16417DRCR",
@@ -1106,8 +1052,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fj6mEGvQBURqPoaElzch8rpQGgL2.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5x8bnbf-BcCTWYvoFIiGjV00KpI=&attname=TPS16417DRCR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16530PWPR",
@@ -1126,8 +1071,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lom6KNPi-FDGron1_xzrifhbNPRs.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:bUV0o4rugIgoYxBK1UxZuf2ZVjk=&attname=TPS16530RGER.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16530RGER",
@@ -1146,8 +1090,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lom6KNPi-FDGron1_xzrifhbNPRs.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:bUV0o4rugIgoYxBK1UxZuf2ZVjk=&attname=TPS16530RGER.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16630PWPR",
@@ -1166,8 +1109,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/ljN38mdmkP6nQKigdGOpBjXJZaZo.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:1SIRLuaGWezuK0Q7PcoVJGyC-zE=&attname=TPS16632RGET.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16630PWPT",
@@ -1186,8 +1128,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/ljN38mdmkP6nQKigdGOpBjXJZaZo.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:1SIRLuaGWezuK0Q7PcoVJGyC-zE=&attname=TPS16632RGET.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16630RGER",
@@ -1206,8 +1147,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/ljN38mdmkP6nQKigdGOpBjXJZaZo.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:1SIRLuaGWezuK0Q7PcoVJGyC-zE=&attname=TPS16632RGET.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16630RGET",
@@ -1226,8 +1166,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/ljN38mdmkP6nQKigdGOpBjXJZaZo.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:1SIRLuaGWezuK0Q7PcoVJGyC-zE=&attname=TPS16632RGET.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16632RGER",
@@ -1246,8 +1185,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/ljN38mdmkP6nQKigdGOpBjXJZaZo.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:1SIRLuaGWezuK0Q7PcoVJGyC-zE=&attname=TPS16632RGET.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16632RGET",
@@ -1266,8 +1204,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/ljN38mdmkP6nQKigdGOpBjXJZaZo.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:1SIRLuaGWezuK0Q7PcoVJGyC-zE=&attname=TPS16632RGET.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16637PWPR",
@@ -1286,8 +1223,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/ljN38mdmkP6nQKigdGOpBjXJZaZo.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:1SIRLuaGWezuK0Q7PcoVJGyC-zE=&attname=TPS16632RGET.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS16637RGER",
@@ -1306,8 +1242,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/ljN38mdmkP6nQKigdGOpBjXJZaZo.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:1SIRLuaGWezuK0Q7PcoVJGyC-zE=&attname=TPS16632RGET.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1H000AQDGNRQ1",
@@ -1326,8 +1261,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FuIP5lPxXovxuwSxxEAdwgdcLpe_.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:QXF5TzJCtLL5LLcQ0FmAw_ZNbBk=&attname=TPS1H000AQDGNRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1H100AQPWPRQ1",
@@ -1346,8 +1280,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fu52M_WLYVDV1Oge-DGPPB96hrs3.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:cA_dcg3EA9Wuhj--4zR4NfSevqU=&attname=TPS1H100AQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1H100BQPWPRQ1",
@@ -1366,8 +1299,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fu52M_WLYVDV1Oge-DGPPB96hrs3.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:cA_dcg3EA9Wuhj--4zR4NfSevqU=&attname=TPS1H100AQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1H200AQDGNRQ1",
@@ -1386,8 +1318,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FvFfGdf_ms1gjzC_muO1j4AR1ME-.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:zbIEqh08sizEX8tWv8p9c0xQ8_Q=&attname=TPS1H200AQDGNRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HA08AQPWPRQ1",
@@ -1406,8 +1337,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FsZo2pnfImyvPIwGtKCjWOuCVmM_.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:vHw48uTnhXjr4zZTwD6IawgwzMw=&attname=TPS1HA08AQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HA08BQPWPRQ1",
@@ -1426,8 +1356,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FsZo2pnfImyvPIwGtKCjWOuCVmM_.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:vHw48uTnhXjr4zZTwD6IawgwzMw=&attname=TPS1HA08AQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HA08CQPWPRQ1",
@@ -1446,8 +1375,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FsZo2pnfImyvPIwGtKCjWOuCVmM_.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:vHw48uTnhXjr4zZTwD6IawgwzMw=&attname=TPS1HA08AQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HA08DQPWPRQ1",
@@ -1466,8 +1394,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FsZo2pnfImyvPIwGtKCjWOuCVmM_.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:vHw48uTnhXjr4zZTwD6IawgwzMw=&attname=TPS1HA08AQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HA08EQPWPRQ1",
@@ -1486,8 +1413,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FsZo2pnfImyvPIwGtKCjWOuCVmM_.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:vHw48uTnhXjr4zZTwD6IawgwzMw=&attname=TPS1HA08AQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HB08AQPWPRQ1",
@@ -1506,8 +1432,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtuMTU5VdGJ7h8zUKxFkuGfq86GJ.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:lC8oyC0A3pcWvyT-MRsiF2BitIY=&attname=TPS1HB08BQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HB08BQPWPRQ1",
@@ -1526,8 +1451,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtuMTU5VdGJ7h8zUKxFkuGfq86GJ.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:lC8oyC0A3pcWvyT-MRsiF2BitIY=&attname=TPS1HB08BQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HB08FQPWPRQ1",
@@ -1546,8 +1470,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtuMTU5VdGJ7h8zUKxFkuGfq86GJ.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:lC8oyC0A3pcWvyT-MRsiF2BitIY=&attname=TPS1HB08BQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HB16AQPWPRQ1",
@@ -1566,8 +1489,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FlJQwTrEP-aht5DH2NW3X1XzVSPL.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:zxgIsUJ5t2vRFA9W2woAPtbcYUg=&attname=TPS1HB16FQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HB16BQPWPRQ1",
@@ -1586,8 +1508,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FlJQwTrEP-aht5DH2NW3X1XzVSPL.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:zxgIsUJ5t2vRFA9W2woAPtbcYUg=&attname=TPS1HB16FQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HB16FQPWPRQ1",
@@ -1606,8 +1527,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FlJQwTrEP-aht5DH2NW3X1XzVSPL.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:zxgIsUJ5t2vRFA9W2woAPtbcYUg=&attname=TPS1HB16FQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HB35AQPWPRQ1",
@@ -1626,8 +1546,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtIAN-23dyxuR0h6iTyvUC4EgV56.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_eZoTngJHehHBcTMJ0fcjvkRd8w=&attname=TPS1HB35AQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HB35BQPWPRQ1",
@@ -1646,8 +1565,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtIAN-23dyxuR0h6iTyvUC4EgV56.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_eZoTngJHehHBcTMJ0fcjvkRd8w=&attname=TPS1HB35AQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HB35CQPWPRQ1",
@@ -1666,8 +1584,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtIAN-23dyxuR0h6iTyvUC4EgV56.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_eZoTngJHehHBcTMJ0fcjvkRd8w=&attname=TPS1HB35AQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HB35FQPWPRQ1",
@@ -1686,8 +1603,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtIAN-23dyxuR0h6iTyvUC4EgV56.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_eZoTngJHehHBcTMJ0fcjvkRd8w=&attname=TPS1HB35AQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HB50AQPWPRQ1",
@@ -1706,8 +1622,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtI1RbPwZUu34hkyhVfzfKfw1DoM.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:c8dpdLkcFoK5Vm-0zFwapEvKEjE=&attname=TPS1HB50AQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS1HB50BQPWPRQ1",
@@ -1726,8 +1641,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtI1RbPwZUu34hkyhVfzfKfw1DoM.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:c8dpdLkcFoK5Vm-0zFwapEvKEjE=&attname=TPS1HB50AQPWPRQ1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317AEMP",
@@ -1746,8 +1660,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/project/lurKH6J4IXzyiNuL4zNMY7Q7KoGv.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5DS8SUbY3EomC5c1GtdZROE0nZY=&attname=lm317a.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317AEMP/NOPB",
@@ -1766,8 +1679,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lvKsZ7eOwuMo-p_wfdZmngrZ7RjE.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:udT1CIVpfkHRJ0lLCm3iw5HzzLU=&attname=LM317AT%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317AEMPX",
@@ -1786,8 +1698,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lvKsZ7eOwuMo-p_wfdZmngrZ7RjE.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:udT1CIVpfkHRJ0lLCm3iw5HzzLU=&attname=LM317AT%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317AEMPX/NOPB",
@@ -1806,8 +1717,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lvKsZ7eOwuMo-p_wfdZmngrZ7RjE.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:udT1CIVpfkHRJ0lLCm3iw5HzzLU=&attname=LM317AT%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317AH",
@@ -1826,8 +1736,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lvKsZ7eOwuMo-p_wfdZmngrZ7RjE.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:udT1CIVpfkHRJ0lLCm3iw5HzzLU=&attname=LM317AT%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317AH/NOPB",
@@ -1846,8 +1755,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lvKsZ7eOwuMo-p_wfdZmngrZ7RjE.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:udT1CIVpfkHRJ0lLCm3iw5HzzLU=&attname=LM317AT%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317AMDT",
@@ -1866,8 +1774,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lvKsZ7eOwuMo-p_wfdZmngrZ7RjE.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:udT1CIVpfkHRJ0lLCm3iw5HzzLU=&attname=LM317AT%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317AMDT/NOPB",
@@ -1886,8 +1793,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lvKsZ7eOwuMo-p_wfdZmngrZ7RjE.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:udT1CIVpfkHRJ0lLCm3iw5HzzLU=&attname=LM317AT%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317AMDTX",
@@ -1906,8 +1812,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lvKsZ7eOwuMo-p_wfdZmngrZ7RjE.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:udT1CIVpfkHRJ0lLCm3iw5HzzLU=&attname=LM317AT%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317AMDTX/NOPB",
@@ -1926,8 +1831,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lvKsZ7eOwuMo-p_wfdZmngrZ7RjE.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:udT1CIVpfkHRJ0lLCm3iw5HzzLU=&attname=LM317AT%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317AT",
@@ -1946,8 +1850,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lvKsZ7eOwuMo-p_wfdZmngrZ7RjE.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:udT1CIVpfkHRJ0lLCm3iw5HzzLU=&attname=LM317AT%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317AT/NOPB",
@@ -1966,8 +1869,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lvKsZ7eOwuMo-p_wfdZmngrZ7RjE.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:udT1CIVpfkHRJ0lLCm3iw5HzzLU=&attname=LM317AT%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317BT",
@@ -1986,8 +1888,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FqAb5isdlc5rYpzf8-UXQZPU_z9V.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:JVF4ONopmHWsha2L1RgYvLsjlfg=&attname=LM317T-DG.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317D2T-TR",
@@ -2006,8 +1907,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FqAb5isdlc5rYpzf8-UXQZPU_z9V.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:JVF4ONopmHWsha2L1RgYvLsjlfg=&attname=LM317T-DG.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317DCY",
@@ -2026,8 +1926,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtMhabyTZ2H8PUEVyjjHoRmZg-xV.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:pTVcH-SrJH2pcP2uw37iVrdg2Ws=&attname=LM317KCS.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317DCYR",
@@ -2046,8 +1945,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtMhabyTZ2H8PUEVyjjHoRmZg-xV.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:pTVcH-SrJH2pcP2uw37iVrdg2Ws=&attname=LM317KCS.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317EMP",
@@ -2066,8 +1964,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/loy8FkMIa2_M_YFdmNm1VNk0S1p3.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5CYOr1f1uJlvUB8CHMF1bp9Y-00=&attname=LM317SX%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317EMP/NOPB",
@@ -2086,8 +1983,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/loy8FkMIa2_M_YFdmNm1VNk0S1p3.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5CYOr1f1uJlvUB8CHMF1bp9Y-00=&attname=LM317SX%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317EMPX/NOPB",
@@ -2106,8 +2002,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/loy8FkMIa2_M_YFdmNm1VNk0S1p3.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5CYOr1f1uJlvUB8CHMF1bp9Y-00=&attname=LM317SX%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317H",
@@ -2126,8 +2021,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/loy8FkMIa2_M_YFdmNm1VNk0S1p3.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5CYOr1f1uJlvUB8CHMF1bp9Y-00=&attname=LM317SX%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317H/NOPB",
@@ -2146,8 +2040,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/loy8FkMIa2_M_YFdmNm1VNk0S1p3.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:5CYOr1f1uJlvUB8CHMF1bp9Y-00=&attname=LM317SX%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317HVH",
@@ -2166,8 +2059,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FkLcXQgHGYwMMniwW1Pg9cLjvJMI.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:DTteybTVJSI5kAS-fJ-k8vX2PcU=&attname=LM317HVH.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317HVH/NOPB",
@@ -2186,8 +2078,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FkLcXQgHGYwMMniwW1Pg9cLjvJMI.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:DTteybTVJSI5kAS-fJ-k8vX2PcU=&attname=LM317HVH.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317HVK STEEL",
@@ -2206,8 +2097,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FkLcXQgHGYwMMniwW1Pg9cLjvJMI.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:DTteybTVJSI5kAS-fJ-k8vX2PcU=&attname=LM317HVH.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317HVK STEEL/NOPB",
@@ -2226,8 +2116,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FkLcXQgHGYwMMniwW1Pg9cLjvJMI.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:DTteybTVJSI5kAS-fJ-k8vX2PcU=&attname=LM317HVH.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317HVT/NOPB",
@@ -2246,8 +2135,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fv1xztIHOpFywN0vBsiiOCDtAPW7.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:3Fc2Kqc9tV2Z58czEk_XvV2vfAI=&attname=LM317HVT%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317KCS",
@@ -2266,8 +2154,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtMhabyTZ2H8PUEVyjjHoRmZg-xV.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:pTVcH-SrJH2pcP2uw37iVrdg2Ws=&attname=LM317KCS.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317KCT",
@@ -2286,8 +2173,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtMhabyTZ2H8PUEVyjjHoRmZg-xV.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:pTVcH-SrJH2pcP2uw37iVrdg2Ws=&attname=LM317KCS.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317K STEEL",
@@ -2306,8 +2192,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://www.ezplm.cn/part/LM317K STEEL",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317K STEEL/NOPB",
@@ -2326,8 +2211,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://www.ezplm.cn/part/LM317K STEEL/NOPB",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317KTTR",
@@ -2346,8 +2230,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FtMhabyTZ2H8PUEVyjjHoRmZg-xV.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:pTVcH-SrJH2pcP2uw37iVrdg2Ws=&attname=LM317KCS.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LCD",
@@ -2366,8 +2249,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LCDR",
@@ -2386,8 +2268,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LCDRG4",
@@ -2406,8 +2287,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LCLP",
@@ -2426,8 +2306,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LCLPR",
@@ -2446,8 +2325,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LCPK",
@@ -2466,8 +2344,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LCPW",
@@ -2486,8 +2363,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LCPWR",
@@ -2506,8 +2382,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LD13TR",
@@ -2526,8 +2401,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FlY4yrPcWmn_zhb0VfuItfXmV3Ns.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:szVsKUoUfHvNBGPn2xRaK8Y08Ko=&attname=LM317LD13TR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LID",
@@ -2546,8 +2420,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LIDR",
@@ -2566,8 +2439,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LIDRG4",
@@ -2586,8 +2458,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LILP",
@@ -2606,8 +2477,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LILPR",
@@ -2626,8 +2496,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LIPK",
@@ -2646,8 +2515,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LIPW",
@@ -2666,8 +2534,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LIPWR",
@@ -2686,8 +2553,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fr8t2aimpVw2_KQ7RsfltXhiw0IR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:_76SyS9vLlqpzfGAK1saKTgxiFI=&attname=LM317LIDR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LITP/NOPB",
@@ -2706,8 +2572,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FmOpIkmjqjSmZInLFR-bxmaz_gPd.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:gF_DanMeMGrWD7_yNLMYef0jl3E=&attname=LM317LZ%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "LM317LITPX/NOPB",
@@ -2726,8 +2591,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FmOpIkmjqjSmZInLFR-bxmaz_gPd.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:gF_DanMeMGrWD7_yNLMYef0jl3E=&attname=LM317LZ%2FNOPB.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431-1",
@@ -2746,8 +2610,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FgWWYTCmPWuQujYV8ytlyW6cUhIR.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:YJRvcVkb1x8a4aavfCIQJNSUz0U=&attname=TL431-1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACCT",
@@ -2766,8 +2629,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FiSpUEYnt64Stg1I_MxPV5eTmstv.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:vIx7dsOPAp2nEsK1gOvyEIuLKTo=&attname=TL431AIDT.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACD",
@@ -2786,8 +2648,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDBVR",
@@ -2806,8 +2667,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDBVRE4",
@@ -2826,8 +2686,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FrfC60J37rJDURlD0r8CL9XTm3wk.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:3EeOXrO6H3QVZXSQzDH8uFFLqa8=&attname=TL431CLPM5.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDBVRG4",
@@ -2846,8 +2705,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDBVT",
@@ -2866,8 +2724,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDBVTE4",
@@ -2886,8 +2743,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FrfC60J37rJDURlD0r8CL9XTm3wk.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:3EeOXrO6H3QVZXSQzDH8uFFLqa8=&attname=TL431CLPM5.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDBVTG4",
@@ -2906,8 +2762,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FrfC60J37rJDURlD0r8CL9XTm3wk.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:3EeOXrO6H3QVZXSQzDH8uFFLqa8=&attname=TL431CLPM5.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDBZR",
@@ -2926,8 +2781,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDBZRG4",
@@ -2946,8 +2800,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDBZT",
@@ -2966,8 +2819,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDBZTG4",
@@ -2986,8 +2838,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDCKR",
@@ -3006,8 +2857,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDCKT",
@@ -3026,8 +2876,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FrfC60J37rJDURlD0r8CL9XTm3wk.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:3EeOXrO6H3QVZXSQzDH8uFFLqa8=&attname=TL431CLPM5.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDCKTE4",
@@ -3046,8 +2895,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FrfC60J37rJDURlD0r8CL9XTm3wk.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:3EeOXrO6H3QVZXSQzDH8uFFLqa8=&attname=TL431CLPM5.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDCKTG4",
@@ -3066,8 +2914,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FrfC60J37rJDURlD0r8CL9XTm3wk.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:3EeOXrO6H3QVZXSQzDH8uFFLqa8=&attname=TL431CLPM5.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDG4",
@@ -3086,8 +2933,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fk3Ci-EYQjVnY02Hx7xxtz372FYd.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:7terPVO1n31v-X5zXgoh35BjS7k=&attname=TL431ACLPE3.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDR",
@@ -3106,8 +2952,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDRE4",
@@ -3126,8 +2971,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FrfC60J37rJDURlD0r8CL9XTm3wk.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:3EeOXrO6H3QVZXSQzDH8uFFLqa8=&attname=TL431CLPM5.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDRG4",
@@ -3146,8 +2990,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACDT",
@@ -3166,8 +3009,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FiSpUEYnt64Stg1I_MxPV5eTmstv.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:vIx7dsOPAp2nEsK1gOvyEIuLKTo=&attname=TL431AIDT.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACL3T",
@@ -3186,8 +3028,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FiSpUEYnt64Stg1I_MxPV5eTmstv.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:vIx7dsOPAp2nEsK1gOvyEIuLKTo=&attname=TL431AIDT.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACL5T",
@@ -3206,8 +3047,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FiSpUEYnt64Stg1I_MxPV5eTmstv.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:vIx7dsOPAp2nEsK1gOvyEIuLKTo=&attname=TL431AIDT.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACLP",
@@ -3226,8 +3066,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACLPE3",
@@ -3246,8 +3085,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fk3Ci-EYQjVnY02Hx7xxtz372FYd.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:7terPVO1n31v-X5zXgoh35BjS7k=&attname=TL431ACLPE3.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACLPM",
@@ -3266,8 +3104,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACLPME3",
@@ -3286,8 +3123,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FrfC60J37rJDURlD0r8CL9XTm3wk.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:3EeOXrO6H3QVZXSQzDH8uFFLqa8=&attname=TL431CLPM5.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACLPR",
@@ -3306,8 +3142,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACLPRE3",
@@ -3326,8 +3161,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fk3Ci-EYQjVnY02Hx7xxtz372FYd.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:7terPVO1n31v-X5zXgoh35BjS7k=&attname=TL431ACLPE3.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACP",
@@ -3346,8 +3180,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACPK",
@@ -3366,8 +3199,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACPKG3",
@@ -3386,8 +3218,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FrfC60J37rJDURlD0r8CL9XTm3wk.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:3EeOXrO6H3QVZXSQzDH8uFFLqa8=&attname=TL431CLPM5.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACPS",
@@ -3406,8 +3237,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACPSR",
@@ -3426,8 +3256,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACPW",
@@ -3446,8 +3275,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACPWR",
@@ -3466,8 +3294,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACZ",
@@ -3486,8 +3313,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FiSpUEYnt64Stg1I_MxPV5eTmstv.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:vIx7dsOPAp2nEsK1gOvyEIuLKTo=&attname=TL431AIDT.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACZ-AP",
@@ -3506,8 +3332,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FiSpUEYnt64Stg1I_MxPV5eTmstv.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:vIx7dsOPAp2nEsK1gOvyEIuLKTo=&attname=TL431AIDT.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431ACZT",
@@ -3526,8 +3351,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FiSpUEYnt64Stg1I_MxPV5eTmstv.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:vIx7dsOPAp2nEsK1gOvyEIuLKTo=&attname=TL431AIDT.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431AICT",
@@ -3546,8 +3370,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FiSpUEYnt64Stg1I_MxPV5eTmstv.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:vIx7dsOPAp2nEsK1gOvyEIuLKTo=&attname=TL431AIDT.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431AID",
@@ -3566,8 +3389,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431AIDBVR",
@@ -3586,8 +3408,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431AIDBVRE4",
@@ -3606,8 +3427,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FrfC60J37rJDURlD0r8CL9XTm3wk.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:3EeOXrO6H3QVZXSQzDH8uFFLqa8=&attname=TL431CLPM5.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431AIDBVRG4",
@@ -3626,8 +3446,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431AIDBVT",
@@ -3646,8 +3465,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431AIDBVTG4",
@@ -3666,8 +3484,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TL431AIDBZR",
@@ -3686,8 +3503,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fnjv9xeWP17t6UtVRFIWSDp8eJrH.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:ypQMalMb_oVNz_676THlb4l61vU=&attname=TL431AIDBZR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "RH-PMICL1AK1",
@@ -3706,8 +3522,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fi3ngCcBi61t3nJ31qhVgMnxbQ7D.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:uwV3RAWRfDSiMcIyghLlrHJFyX4=&attname=RH-PMICL1AK1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "RH-PMICL1AKX",
@@ -3726,8 +3541,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fi3ngCcBi61t3nJ31qhVgMnxbQ7D.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:uwV3RAWRfDSiMcIyghLlrHJFyX4=&attname=RH-PMICL1AK1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "RHRPMICL1AK01V",
@@ -3746,8 +3560,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fi3ngCcBi61t3nJ31qhVgMnxbQ7D.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:uwV3RAWRfDSiMcIyghLlrHJFyX4=&attname=RH-PMICL1AK1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "RHRPMICL1AK02V",
@@ -3766,8 +3579,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fi3ngCcBi61t3nJ31qhVgMnxbQ7D.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:uwV3RAWRfDSiMcIyghLlrHJFyX4=&attname=RH-PMICL1AK1.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC02",
@@ -3786,8 +3598,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fh_y_XgATTXIlbDY5h67Ogfm-mMs.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:a13TMIXKXuHS5DHt09crR8yHKiE=&attname=STPMIC02TR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC02TR",
@@ -3806,8 +3617,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/Fh_y_XgATTXIlbDY5h67Ogfm-mMs.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:a13TMIXKXuHS5DHt09crR8yHKiE=&attname=STPMIC02TR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC06",
@@ -3826,8 +3636,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FlqHob5agEGW1oQ5WWbC-wtDKbVp.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:JxGgQ5Ml04D3J0Rh4zZiQcem20E=&attname=STPMIC06TR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC06T",
@@ -3846,8 +3655,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FlqHob5agEGW1oQ5WWbC-wtDKbVp.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:JxGgQ5Ml04D3J0Rh4zZiQcem20E=&attname=STPMIC06TR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC06TR",
@@ -3866,8 +3674,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FlqHob5agEGW1oQ5WWbC-wtDKbVp.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:JxGgQ5Ml04D3J0Rh4zZiQcem20E=&attname=STPMIC06TR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC07M",
@@ -3886,8 +3693,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FoEPYbK2TyvZ4NEle1Hyj5rmRWem.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:gjs0ZxCV5qV3VDEf6wdGS_j1Dgo=&attname=STPMIC07MTR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC07MTR",
@@ -3906,8 +3712,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/FoEPYbK2TyvZ4NEle1Hyj5rmRWem.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:gjs0ZxCV5qV3VDEf6wdGS_j1Dgo=&attname=STPMIC07MTR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC1APQR",
@@ -3926,8 +3731,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lv5WFUDbX68wt5AZCFSu6JF_WWNM.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:hqMUD4w_OWafZ1DjsG-rg7t8ecs=&attname=STPMIC1DPQR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC1BPQR",
@@ -3946,8 +3750,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lv5WFUDbX68wt5AZCFSu6JF_WWNM.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:hqMUD4w_OWafZ1DjsG-rg7t8ecs=&attname=STPMIC1DPQR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC1CPQR",
@@ -3966,8 +3769,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lv5WFUDbX68wt5AZCFSu6JF_WWNM.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:hqMUD4w_OWafZ1DjsG-rg7t8ecs=&attname=STPMIC1DPQR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC1DPQR",
@@ -3986,8 +3788,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lv5WFUDbX68wt5AZCFSu6JF_WWNM.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:hqMUD4w_OWafZ1DjsG-rg7t8ecs=&attname=STPMIC1DPQR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC1EPQR",
@@ -4006,8 +3807,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lv5WFUDbX68wt5AZCFSu6JF_WWNM.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:hqMUD4w_OWafZ1DjsG-rg7t8ecs=&attname=STPMIC1DPQR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC25APQR",
@@ -4026,8 +3826,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lh2ysnDbMPw1ULw2r2J6LwNCQ_iw.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:XZaVcolRUWz2iYQBIrn7NYPaUcY=&attname=STPMIC25DPQR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC25BPQR",
@@ -4046,8 +3845,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lh2ysnDbMPw1ULw2r2J6LwNCQ_iw.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:XZaVcolRUWz2iYQBIrn7NYPaUcY=&attname=STPMIC25DPQR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "STPMIC25DPQR",
@@ -4066,8 +3864,7 @@
     "unit_price_cny": 5.0,
     "lifecycle_status": "active",
     "datasheet_url": "https://qn.ezplm.com/pdf/lh2ysnDbMPw1ULw2r2J6LwNCQ_iw.pdf?e=1779867000&token=tgzQ82sQVUXXBg14Fdus5pr0RKhyf-FtQZFFrx2_:XZaVcolRUWz2iYQBIrn7NYPaUcY=&attname=STPMIC25DPQR.pdf",
-    "replacement_for": [],
-    "has_datasheet": false
+    "replacement_for": []
   },
   {
     "part_number": "TPS61030DSG",
