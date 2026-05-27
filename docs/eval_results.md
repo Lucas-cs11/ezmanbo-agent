@@ -17,7 +17,7 @@
   {
     "case_id": "dc_dc_004",
     "passed": true,
-    "recommended_count": 12
+    "recommended_count": 11
   },
   {
     "case_id": "dc_dc_005",
@@ -42,7 +42,7 @@
   {
     "case_id": "dc_dc_009",
     "passed": true,
-    "recommended_count": 7
+    "recommended_count": 8
   },
   {
     "case_id": "dc_dc_010",
