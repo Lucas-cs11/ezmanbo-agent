@@ -1,0 +1,91 @@
+% ============================================================
+% 第3章：原理分析与硬件电路图
+% ============================================================
+
+\section{选型决策的工程原理}
+
+本系统的核心决策链遵循电子工程设计方法论，将元器件选型从“参数对照”提升为“知识增强的多维决策”。以下以Buck降压转换器选型为例阐述核心原理。
+
+\subsection{需求解析原理}
+
+需求解析模块采用四级解析策略，由粗到精逐步锁定约束条件：
+
+\textbf{第一级——LLM语义解析}：调用DeepSeek-V3模型，将自然语言转换为结构化JSON。Prompt中预定义字段模板（application、category、topology、input\_voltage\_nominal\_v、output\_voltage\_v、output\_current\_a、temperature\_min\_c/max\_c、grade、preferences），要求只返回JSON不附加文字。对LLM输出进行归一化映射（如“降压”→buck，“DC-DC”→dc\_dc\_converter）。
+
+\textbf{第二级——规则化Category/Topology覆盖}：通过关键词匹配（“降压”/“buck”，“升压”/“boost”，“ldo”/“线性稳压”）和电压转换句式识别（“NV转/to MV”），以规则覆盖LLM可能的误判。
+
+\textbf{第三级——电压比较兜底}：当category=dc\_dc\_converter且Vin、Vout均已知时，按$V_{\text{in}} > V_{\text{out}} \Rightarrow \text{buck}$、$V_{\text{in}} < V_{\text{out}} \Rightarrow \text{boost}$的物理规律强制修正topology，解决LLM将“5V转3.3V”误标为ldo的问题。
+
+\textbf{第四级——温度范围匹配}：设计双模式温度提取——优先匹配“X到Y°C”/“X~Y°C”范围模式，兜底匹配单个“X°C”模式。支持负温度值（-40°C）和无°C后缀的数字（“-40到85°C”）。
+
+\subsection{器件检索与匹配原理}
+
+器件检索采用“API优先+Mock兜底”双路径策略。eZ-PLM API路径通过HMAC-SHA256签名认证（签名串=method+path+query+timestamp+nonce），按制造商前缀关键词分组查询，每组最多50条，总计不超过200条。对于API返回为空或API Key未配置的场景，回退至本地209条Mock数据。
+
+器件匹配函数\texttt{\_part\_matches\_constraints()}实现了五维过滤逻辑：
+
+\begin{enumerate}[label=(\arabic*)]
+  \item \textbf{类别/拓扑过滤}：category和topology精确匹配，允许None值跳过；
+  \item \textbf{输入电压过滤}：器件$V_{\text{in,min}} \leq V_{\text{in,nominal}} \leq V_{\text{in,max}}$；
+  \item \textbf{固定输出电压过滤}：从MPN推断固定电压（如LM2596S-5.0$\rightarrow$5.0V），仅允许可调器件（Vout=None）或匹配$\pm$5\%的固定电压器件通过。此设计解决了原系统将LM2596S-12（12V输出）错误推荐给5V需求的严重Bug；
+  \item \textbf{输出电流过滤}：$I_{\text{out,max,part}} \geq I_{\text{out,demand}}$；
+  \item \textbf{温度与认证过滤}：温度和车规等级按约束条件精确匹配。
+\end{enumerate}
+
+\section{典型应用电路拓扑分析}
+
+\subsection{Buck降压转换器拓扑}
+
+图\ref{fig:buck-topology}展示了非同步Buck转换器的功能模块级拓扑框图。以MOCK-BUCK-005（模拟一款12V转5V/3A工业级降压芯片）为例，核心通路为：输入滤波网络→控制器IC→续流二极管/功率开关→储能电感→输出滤波电容→负载。
+
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2.5cm}
+  \small\textbf{Buck转换器拓扑框图}\\
+  VIN(12V) → CIN(输入电容) → IC(MOCK-BUCK-005)\\
+  IC → 续流二极管(D) → 电感(L=6.5μH) → COUT(22μF×2) → VOUT(5V/3A)\\
+  COUT → FB → 反馈分压(Rfbt/Rfbb) → IC\\
+  PGND(功率地) — IC — 续流二极管
+\vspace{2.5cm}}}
+\caption{非同步Buck转换器功能模块级拓扑框图}
+\label{fig:buck-topology}
+\end{figure}
+
+\subsection{关键外围元件设计计算}
+
+基于RAG工程知识库检索到的Buck电感选型公式，对12V转5V/3A应用进行元件计算：
+
+\textbf{占空比}：
+\begin{equation}
+D = \frac{V_{\text{out}}}{V_{\text{in}}} = \frac{5}{12} \approx 0.417
+\end{equation}
+
+\textbf{电感值}（取纹波电流$\Delta I_L = 30\% \times I_{\text{out}} = 0.9$A，开关频率$f_{\text{sw}} = 500$kHz）：
+\begin{equation}
+L = \frac{(V_{\text{in}} - V_{\text{out}}) \times D}{f_{\text{sw}} \times \Delta I_L} = \frac{(12-5) \times 0.417}{500\text{k} \times 0.9} \approx 6.5\mu\text{H}
+\end{equation}
+推荐选用6.8$\mu$H屏蔽式功率电感，饱和电流$I_{\text{sat}} > I_{\text{out}} + \Delta I_L/2 = 3.45$A。
+
+\textbf{输出电容}（允许纹波$\Delta V_{\text{out}} = 1\% \times V_{\text{out}} = 50$mV）：
+\begin{equation}
+C_{\text{out}} \geq \frac{\Delta I_L}{8 \times f_{\text{sw}} \times \Delta V_{\text{out}}} = \frac{0.9}{8 \times 500\text{k} \times 0.05} \approx 4.5\mu\text{F}
+\end{equation}
+实际选用2×22$\mu$F X7R MLCC并联，考虑DC偏压降额后有效容值约24$\mu$F，ESR$<10$m$\Omega$。
+
+\subsection{热性能估算}
+
+非同步Buck在12V→5V/3A工况下的热分析：
+
+\textbf{效率估算}（含续流二极管损耗）：$\eta \approx 82\%$
+
+\textbf{输出功率}：$P_{\text{out}} = 5.0\text{V} \times 3.0\text{A} = 15.0$W
+
+\textbf{总功耗}：$P_{\text{loss}} = P_{\text{out}}/\eta - P_{\text{out}} = 18.3 - 15.0 = 3.3$W
+
+\textbf{损耗分解}：开关损耗~30\%（0.99W）、二极管损耗~30\%（0.99W）、电感损耗~25\%（0.82W）、其他~15\%（0.49W）
+
+\textbf{结温估算}（自然散热，$\theta_{JA} \approx 50$°C/W，环境温度$T_A = 85$°C）：
+\begin{equation}
+T_J = T_A + P_{\text{loss}} \times \theta_{JA} = 85 + 3.3 \times 50 = 250\text{°C}
+\end{equation}
+此结温远超一般器件的$T_{J(\text{max})} = 125$°C，系统正确标记为“⚠ 热余量偏低”。在实际工程中，该工况需选用同步整流方案（效率提升至~90\%，$P_{\text{loss}} \approx 1.67$W）或增加散热措施。

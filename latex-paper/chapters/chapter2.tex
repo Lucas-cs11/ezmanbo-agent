@@ -1,0 +1,131 @@
+% ============================================================
+% 第2章：方案论证与设计
+% ============================================================
+
+\section{总体架构设计}
+
+系统采用“展示层—服务层—推理层—工具层—数据层”五层架构，如图\ref{fig:architecture}所示。
+
+\begin{figure}[H]
+\centering
+% 需替换为实际架构图
+\fbox{\parbox{0.85\textwidth}{\centering\vspace{3cm}
+  \small\textbf{系统总体架构图}\\
+  Streamlit → FastAPI → Agent/Pipeline → Tools\\
+  (Components Search | RAG Knowledge | Report Generator)\\
+  ChromaDB | eZ-PLM API | Mock Data
+\vspace{3cm}}}
+\caption{系统总体架构}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{展示层（Presentation Layer）}
+
+基于Streamlit框架构建Web界面，提供自然语言输入框、选型结果表格展示、Agent推理步骤可视化。支持单轮分析和多轮对话两种交互模式。
+
+\subsection{服务层（Service Layer）}
+
+基于FastAPI构建RESTful API服务，暴露三个核心端点：
+\begin{itemize}
+  \item \texttt{POST /analyze}：Pipeline模式，接收自然语言需求，返回完整SelectionReport JSON；
+  \item \texttt{POST /agent/chat}：Agent模式，支持session\_id多轮对话，返回推理过程与工具调用记录；
+  \item \texttt{POST /replacement}：替代器件查找，输入原始型号返回兼容替代方案。
+\end{itemize}
+
+\subsection{推理层（Reasoning Layer）}
+
+提供双模推理引擎：
+\begin{itemize}
+  \item \textbf{Pipeline模式}：五阶段线性流水线（需求解析→器件检索→多维评分→证据构建→报告生成），适用于批量处理和高吞吐场景；
+  \item \textbf{Agent模式}：基于LangChain 1.3 \texttt{create\_agent} API的ReAct Agent，配置search\_components、query\_design\_knowledge、find\_alternative\_parts、generate\_full\_report四个工具，Agent通过“思考→行动→观察”循环自主编排工具调用顺序。
+\end{itemize}
+
+\subsection{工具层（Tool Layer）}
+
+四个核心工具封装了系统的关键能力：
+\begin{enumerate}
+  \item \textbf{元器件搜索工具}：封装eZ-PLM API HMAC签名认证与mock数据兜底逻辑，支持按类别/拓扑/电参数的多维过滤；
+  \item \textbf{工程知识检索工具}：基于ChromaDB向量数据库的语义检索，使用all-MiniLM-L6-v2嵌入模型，支持中英文查询；
+  \item \textbf{替代器件查找工具}：通过replacement\_for字段交叉匹配与同类拓扑筛选，实现国产替代和功能等效替代推荐；
+  \item \textbf{完整报告生成工具}：整合分析结果，输出BOM清单（Markdown）、风险评估报告（Markdown）、拓扑分析文档（Markdown + Mermaid）和TopologyIR结构数据（JSON）。
+\end{enumerate}
+
+\subsection{数据层（Data Layer）}
+
+\begin{itemize}
+  \item \textbf{eZ-PLM API}：通过HMAC-SHA256签名认证调用/api/v1/api-key/parts和/api/v1/api-key/reference-designs接口，获取白名单供应商的物料参数与参考设计；
+  \item \textbf{ChromaDB向量库}：持久化存储12条工程知识条目，涵盖Buck/Boost/LDO设计公式、热管理、车规认证、PCB Layout规范、供应链评估框架等；
+  \item \textbf{Mock数据}：209条本地器件数据（含国产/进口、车规/非车规、Buck/Boost/LDO），作为eZ-PLM API未覆盖场景的兜底数据源。
+\end{itemize}
+
+\section{关键技术选型论证}
+
+表\ref{tab:tech-selection}给出了核心技术栈的选型论证。
+
+\begin{table}[H]
+\centering
+\caption{核心技术栈选型论证}
+\label{tab:tech-selection}
+\begin{tabular}{p{2.8cm}p{3.5cm}p{3.5cm}p{3.5cm}}
+\toprule
+\textbf{技术类别} & \textbf{选用方案} & \textbf{备选方案} & \textbf{选择理由} \\
+\midrule
+大语言模型 & DeepSeek-V3 (OpenAI-compatible API) & GPT-4o, Claude Sonnet & 中文理解准确，成本低，可本地部署 \\
+Agent框架 & LangChain 1.3 & 自研ReAct循环, CrewAI & 行业主流，工具调用/记忆完整支持 \\
+向量数据库 & ChromaDB 0.4 & FAISS, Milvus & 本地部署，零配置，持久化支持 \\
+嵌入模型 & all-MiniLM-L6-v2 & BGE-large, text2vec & 轻量（80MB），速度快，中英文通用 \\
+后端框架 & FastAPI + uvicorn & Flask, Django & 高性能异步，自动API文档 \\
+前端界面 & Streamlit & React, Vue & 纯Python快速构建，开发成本低 \\
+数据建模 & Pydantic v2 & dataclass, JSON Schema & 类型安全，自动验证，直接序列化 \\
+外部集成 & eZ-PLM API (HMAC-SHA256) & 自建数据库 & 赛题要求，110万+真实物料数据 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{IR数据模型设计}
+
+为满足eZ-PLM平台的数据互通要求，设计了三种标准化中间表示（Intermediate Representation），均以Pydantic v2实现类型安全与自动序列化。同时保留dataclass回退版本以兼容无Pydantic的轻量化部署环境。
+
+\subsection{PartIR——器件信息中间表示}
+
+PartIR定义了电子元器件的完整参数描述，包含23个字段，覆盖制造商信息、电气参数、封装、认证等级、库存与价格、生命周期状态等。关键字段包括：part\_number（型号）、manufacturer（制造商）、category（类别）、topology（拓扑）、input\_voltage\_min\_v/max\_v（输入电压范围）、output\_voltage\_v（固定输出电压）、output\_current\_max\_a（最大输出电流）、automotive\_grade（车规认证）、lifecycle\_status（生命周期状态）、is\_domestic（是否国产）。
+
+针对固定输出电压器件（如LM2596S-5.0输出5.0V），设计了型号电压推断函数\texttt{\_infer\_output\_voltage\_from\_mpn()}，通过正则表达式从MPN中提取固定电压值，并优先于API属性字段，以避免eZ-PLM“最大输出电压”范围值被误用为固定输出。
+
+\subsection{RiskIR——风险评估中间表示}
+
+RiskIR包含整体风险等级（overall\_risk\_level）和风险条目列表（risk\_items）。每条RiskItem记录风险类型（供应链/工程技术）、严重程度（高/中/低）、描述、相关器件型号和缓解建议。系统内置13条风险检测规则，覆盖无候选器件、单点依赖、库存水平、生命周期状态、供应商集中度、数据完整性缺失、地缘政治合规、车规认证符合性、参数匹配充裕度等维度。在此基础上扩展了FMEA RPN量化分析（严重度$\times$发生概率$\times$检测难度），以1-5分制对每项风险进行定量评估。
+
+\subsection{TopologyIR——拓扑结构中间表示}
+
+TopologyIR是本次新增的结构化模型，包含四个子模型：（1）TopoNode：拓扑功能节点（8-10个节点，含node\_id、类型、信号流向和邻接关系）；（2）ExternalComponent：外围元件（7-8个被动器件，含参考位号、类型、推荐值、容差、耐压、封装和选型备注）；（3）ThermalEstimate：热性能估算（效率、输出功率、总功耗、结温、热余量、散热需求判断）；（4）顶层TopologyIR：整合nodes+components+thermal+mermaid\_diagram+layout\_rules+design\_references。模型通过\texttt{\_detect\_converter\_type()}自动识别集成式Converter与外置MOSFET Controller，生成差异化的节点拓扑图。
+
+\section{评分模型设计}
+
+系统采用五维加权评分模型，支持双模式自适应切换。
+
+\subsection{纯规则模式（Rule-Only）}
+
+当LLM API Key不可用或检索无参考设计时，系统回退至纯规则模式：
+\begin{equation}
+S_{\text{total}} = 0.80 \times S_{\text{param}} + 0.20 \times S_{\text{supply}}
+\end{equation}
+其中$S_{\text{param}}$基于参数检查数动态归一化（公式\ref{eq:param-score}），$S_{\text{supply}}$基于库存水平和生命周期状态分段计算。
+
+\begin{equation}
+S_{\text{param}} = \frac{\sum_{i=1}^{N} s_i}{N} \times 100
+\label{eq:param-score}
+\end{equation}
+式中$N$为实际执行的参数检查项数，$s_i \in [0,1]$为单项得分。当无可检查参数时返回中性分50分。
+
+\subsection{LLM增强模式（LLM-Enhanced）}
+
+当LLM可用且有参考设计数据时，启用四维加权：
+\begin{equation}
+S_{\text{total}} = 0.40 S_{\text{param}} + 0.10 S_{\text{supply}} + 0.25 S_{\text{app}} + 0.25 S_{\text{design}}
+\end{equation}
+新增维度$S_{\text{app}}$（应用场景适配度）和$S_{\text{design}}$（设计成熟度）由LLM结合eZ-PLM参考设计库数据综合评估。
+
+\subsection{去重与推荐分级}
+
+针对eZ-PLM API返回的多封装变体（如LM2596S-5.0/NOPB与LM2596SX-5.0/NOPB），系统通过核心型号提取函数\texttt{\_extract\_core\_mpn()}进行去重合并，仅保留同系列最高分变体。推荐分级采用Top-N策略：Top 5为推荐（$\geq$75分），6-15为备选（50-74分），其余不推荐。
