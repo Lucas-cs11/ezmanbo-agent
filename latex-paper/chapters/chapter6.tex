@@ -4,45 +4,26 @@
 
 \section{工作总结}
 
-本文面向第二十一届中国研究生电子设计竞赛AI智能体赛道，完成了一套面向eZ-PLM平台的电子元器件智能选型与风险评估Agent系统。主要工作成果总结如下：
+本文面向第二十一届中国研究生电子设计竞赛AI智能体赛道，完成了一套面向eZ-PLM平台的电子元器件智能选型与风险评估Agent系统。主要工作成果如下：
 
 \begin{enumerate}[label=(\arabic*)]
-  \item \textbf{完成五阶段选型Pipeline}：实现了从自然语言需求解析到标准化报告输出的全链路自动化，覆盖Buck/Boost/LDO三类电源拓扑，支持中英文输入；
-  \item \textbf{构建RAG工程知识库}：基于ChromaDB向量数据库和sentence-transformers嵌入模型，建成了包含12条专业工程知识的检索增强系统，使拓扑分析报告的工程规范覆盖率从25\%提升至100\%；
-  \item \textbf{实现ReAct Agent}：基于LangChain 1.3框架实现了多工具自主编排的智能体，支持单轮选型和多轮国产替代追问场景，Agent工具调用控制在2-4次以内；
-  \item \textbf{定义三层IR标准}：完成PartIR（23字段）、RiskIR（13条风险规则+FMEA量化）和TopologyIR（4子模型）的Pydantic数据模型设计，实现与eZ-PLM平台的结构化数据互通；
-  \item \textbf{修复6项工程Bug}：包括固定电压器件误推荐、API属性优先级错误、否定句式解析失败、温度范围匹配缺陷等，评测通过率保持100\%。
+  \item 实现了从自然语言需求解析到标准化报告输出的全链路自动化五阶段选型Pipeline，覆盖Buck/Boost/LDO三类电源拓扑，支持中英文输入；
+  \item 基于ChromaDB向量数据库和sentence-transformers嵌入模型，建成了含12条专业工程知识的RAG检索增强系统，使拓扑分析报告的工程规范覆盖率从25\%提升至100\%；
+  \item 基于LangChain 1.3框架实现了多工具自主编排的ReAct Agent，支持单轮选型和多轮国产替代追问场景，工具调用控制在2-4次以内；
+  \item 完成了PartIR（23字段）、RiskIR（13条风险规则+FMEA量化）和TopologyIR（4子模型）的Pydantic数据模型设计，实现与eZ-PLM平台的结构化数据互通；
+  \item 发现并修复了固定电压器件误推荐、否定句式解析失败、温度范围匹配缺陷等6项工程Bug，评测通过率保持100\%。
 \end{enumerate}
-
-\section{创新点回顾}
-
-本系统的核心创新体现在以下方面：
-\begin{itemize}
-  \item \textbf{方法论创新}：提出了“LLM优先解析+规则兜底”的双重需求理解机制和“Pipeline+Agent”双模推理架构，在工程准确性与交互灵活性之间取得平衡；
-  \item \textbf{技术创新}：将RAG知识增强引入元器件选型决策链，使设计公式、工程标准和Layout规范可追溯，突破了传统选型工具“纯参数匹配”的局限；
-  \item \textbf{工程创新}：定义了可对接工业PLM系统的标准化IR数据模型（PartIR/RiskIR/TopologyIR），为AI选型结果直接融入企业研发流程提供了数据桥梁。
-\end{itemize}
 
 \section{不足与展望}
 
 当前系统存在以下不足，将在后续工作中改进：
 
 \begin{enumerate}[label=(\arabic*)]
-  \item \textbf{知识库规模有限}：当前12条知识条目仅覆盖基础场景，后续将通过自动文档分块+向量化摄入脚本，批量导入eZ-PLM操作手册、TI/Analog Devices应用笔记、IPC标准等专业文档，目标扩展至100+条目；
-  \item \textbf{Agent幻觉问题}：在数据库无结果时，LLM可能编造不存在的替代型号。计划引入validate-before-reply中间件，在Agent回复前校验所有型号是否存在于PartIR数据库；
-  \item \textbf{Mock数据覆盖不全}：车规固定5V器件和大电流（>10A）器件缺失，导致dc\_dc\_001、dc\_dc\_008、dc\_dc\_010三个用例无推荐。后续将扩充Mock数据库至500+条并接入更多真实API数据源；
-  \item \textbf{Streamlit前端未完全对接}：当前前端仍为Pipeline模式，尚未展示Agent的推理步骤可视化。计划在Streamlit界面中增加工具调用步骤卡片和中间结果折叠面板；
-  \item \textbf{缺少量化评测基准}：RAG对比实验目前依赖人工评估，后续将建立自动化的RAG质量评测基准（如检索命中率、报告规范覆盖度打分），为论文提供更可靠的量化数据；
-  \item \textbf{多语言支持}：当前仅支持中英文需求输入，后续计划扩展至日文、韩文等东亚市场常用语言，服务更多地区工程师群体。
+  \item \textbf{知识库规模有限}：当前12条知识仅覆盖基础场景。后续将通过自动文档分块+向量化摄入脚本，批量导入eZ-PLM操作手册、TI/Analog Devices应用笔记、IPC标准等专业文档，目标扩展至100+条目；
+  \item \textbf{Agent幻觉问题}：数据库无结果时LLM可能编造替代型号。计划引入validate-before-reply中间件，在Agent回复前校验型号是否存于PartIR数据库；
+  \item \textbf{Mock数据覆盖不全}：车规固定5V器件和大电流器件缺失。后续将扩充Mock数据库至500+条并接入更多真实API数据源；
+  \item \textbf{前端未完全对接}：当前前端为Pipeline模式，尚未展示Agent推理步骤。计划在Streamlit界面增加工具调用步骤卡片和中间结果面板；
+  \item \textbf{量化评测基准缺失}：RAG对比实验依赖人工评估，后续建立自动化评测基准（检索命中率、报告规范覆盖度打分）。
 \end{enumerate}
 
-\section{竞赛展望}
-
-本作品已完成项目规划中W1-W3的全部核心开发任务（IR数据模型、eZ-PLM API对接、ChromaDB知识库、LangChain ReAct Agent），并实现了规划外的多项增强（报告质量全面改进、TopologyIR结构化输出、6项P0 Bug修复）。在竞赛截止前的剩余3周内，将重点推进以下工作：
-
-\begin{itemize}
-  \item W4（6/4-6/10）：完成Streamlit前端与Agent的对接联调，三个演示场景（USB-C PD方案、车规降压、国产替代追问）全链路跑通；
-  \item W5（6/11-6/20）：完成演示视频录制（3-5分钟）、答辩PPT制作（15-20页）、门型展架设计及全部竞赛材料提交。
-\end{itemize}
-
-本作品的工程实用价值体现在：将传统2小时的人工选型流程压缩至5分钟以内（Agent模式），输出的标准化报告可直接用于设计评审和供应链决策，知识增强推理使选型结果具备可追溯的工程依据。在国产替代、供应链多元化等国家战略背景下，该系统为电子工程师提供了一种高效、可靠、可扩展的AI辅助选型工具。
+本作品的工程实用价值体现在：将传统2小时人工选型流程压缩至5分钟以内（Agent模式），输出的标准化报告可直接用于设计评审和供应链决策，知识增强推理使选型结果具备可追溯的工程依据。在国产替代、供应链多元化等国家战略背景下，该系统为电子工程师提供了一种高效、可靠、可扩展的AI辅助选型工具。
