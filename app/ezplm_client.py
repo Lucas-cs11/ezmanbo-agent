@@ -194,6 +194,35 @@ _API_MAX_PER_KEYWORD = 50   # 每个 keyword 最多取 N 条
 _API_MAX_TOTAL = 200        # 总条数上限，避免过多请求
 
 
+# ── 型号输出固定电压解析（如 LM2596S-5.0 → 5.0V）────────────
+import re as _re_mpn
+
+_MPN_VOUT_PAT = _re_mpn.compile(
+    r"(?:^|[-\s])(\d+[.]?\d*)\s*[Vv]?(?:$|[-\s/])"
+)
+
+
+def _infer_output_voltage_from_mpn(part_number: str) -> "float | None":
+    """从型号中推断固定输出电压（如 LM2596S-5.0 → 5.0V）。
+    仅当型号含有明确电压数字时提取，ADJ 后缀的不提取。
+    """
+    if not part_number:
+        return None
+    if "ADJ" in part_number.upper():
+        return None
+    # 查找 -X.X 或 -XXV 模式（如 -5.0, -12, -3.3, -1.8V）
+    m = _re_mpn.search(_MPN_VOUT_PAT, part_number)
+    if not m:
+        return None
+    try:
+        v = float(m.group(1))
+        if 0.5 <= v <= 60:  # 合理的输出电压范围
+            return v
+    except ValueError:
+        pass
+    return None
+
+
 def _parse_attrs(attrs: list) -> Dict[str, Any]:
     """从 EZ-PLM attributes 数组中提取电气参数。"""
     result: Dict[str, Any] = {}
@@ -207,6 +236,10 @@ def _parse_attrs(attrs: list) -> Dict[str, Any]:
                 result["input_voltage_max_v"] = float(val)
             elif "输入电压" in name and "最小" in name:
                 result["input_voltage_min_v"] = float(val)
+            elif "输出电压" in name and ("标称" in name or "nominal" in name.lower()):
+                result["output_voltage_v"] = float(val)
+            elif "输出电压" in name:
+                result["output_voltage_v"] = float(val)
             elif "输出电流" in name and "最大" in name:
                 result["output_current_max_a"] = float(val)
             elif "温度" in name and ("范围" in name or "工作" in name):
@@ -276,6 +309,12 @@ def _map_api_part_to_partir(api_obj: Dict[str, Any]) -> "PartIR | None":
         # parse attributes array for electrical specs
         attrs = _parse_attrs(api_obj.get("attributes") or [])
 
+        # MPN 推断优先于 API attrs：固定电压器件的型号电压比 API 属性更可靠
+        # （API attrs 可能返回"最大输出电压"等范围值，不可用于固定输出判定）
+        output_voltage_v = _infer_output_voltage_from_mpn(part_number)
+        if output_voltage_v is None:
+            output_voltage_v = attrs.get("output_voltage_v")
+
         return PartIR.parse_obj({
             "part_number": part_number,
             "manufacturer": manufacturer,
@@ -285,6 +324,7 @@ def _map_api_part_to_partir(api_obj: Dict[str, Any]) -> "PartIR | None":
             "description": api_obj.get("description") or api_obj.get("summary"),
             "input_voltage_min_v": attrs.get("input_voltage_min_v"),
             "input_voltage_max_v": attrs.get("input_voltage_max_v"),
+            "output_voltage_v": output_voltage_v,
             "output_current_max_a": attrs.get("output_current_max_a"),
             "temperature_min_c": attrs.get("temperature_min_c"),
             "temperature_max_c": attrs.get("temperature_max_c"),
@@ -311,6 +351,19 @@ def _part_matches_constraints(part: PartIR, constraints: RequirementConstraints)
     # input voltage nominal
     if constraints.input_voltage_nominal_v is not None and part.input_voltage_min_v is not None and part.input_voltage_max_v is not None:
         if not (part.input_voltage_min_v <= constraints.input_voltage_nominal_v <= part.input_voltage_max_v):
+            return False
+    # ── 输出固定电压匹配（P0修复：过滤固定电压不匹配的器件）────
+    part_vout = part.output_voltage_v
+    if part_vout is None:
+        # 尝试从型号推断
+        part_vout = _infer_output_voltage_from_mpn(part.part_number)
+        if part_vout is not None:
+            part.output_voltage_v = part_vout  # 回填
+    if (constraints.output_voltage_v is not None
+            and part_vout is not None
+            and part.topology in ("buck", None)):
+        # 对于固定输出器件，允许 ±5% 容差匹配
+        if not (0.95 * constraints.output_voltage_v <= part_vout <= 1.05 * constraints.output_voltage_v):
             return False
     # output current
     if constraints.output_current_a is not None and (part.output_current_max_a is None or part.output_current_max_a < constraints.output_current_a):
