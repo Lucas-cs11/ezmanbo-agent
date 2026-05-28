@@ -1,0 +1,201 @@
+% ============================================================
+% 第二十一届中国研究生电子设计竞赛 — 技术论文
+% 论文题目：面向eZ-PLM的电子元器件智能选型与风险评估Agent系统
+% 编译方式：XeLaTeX → BibTeX → XeLaTeX → XeLaTeX
+% ============================================================
+
+\documentclass[12pt,a4paper]{ctexbook}
+
+% ── 页面设置 ──────────────────────────────────────────────────
+\usepackage[top=2.54cm,bottom=2.54cm,left=3.18cm,right=3.18cm]{geometry}
+\usepackage{setspace}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{titletoc}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{cite}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{minted}
+\usepackage{footmisc}
+
+% ── 图表编号（章内重新编号）─────────────────────────────────
+\renewcommand{\thefigure}{\thechapter-\arabic{figure}}
+\renewcommand{\thetable}{\thechapter-\arabic{table}}
+\renewcommand{\theequation}{\thechapter-\arabic{equation}}
+
+% ── 章节标题格式 ────────────────────────────────────────────
+% 第X章 大标题：黑体 小二号 18pt 居中
+\CTEXsetup[format={\centering\heiti\zihao{-2}},beforeskip={0pt},afterskip={20pt}]{chapter}
+% 一级节标题：黑体 小三号 14pt
+\CTEXsetup[format={\heiti\zihao{-3}},beforeskip={20pt},afterskip={10pt}]{section}
+% 二级节标题：黑体 小四号 12pt
+\CTEXsetup[format={\heiti\zihao{-4}},beforeskip={15pt},afterskip={6pt}]{subsection}
+
+% ── 行间距固定20pt ──────────────────────────────────────────
+\setlength{\baselineskip}{20pt}
+\setlength{\parskip}{0pt}
+
+% ── 页眉页脚 ────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[C]{\zihao{5}\songti%
+  第二十一届中国研究生电子设计竞赛\\
+  面向eZ-PLM的电子元器件智能选型与风险评估Agent系统}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyfoot[C]{\thepage}
+\renewcommand{\footrulewidth}{0pt}
+
+% ── 脚注设置 ────────────────────────────────────────────────
+\renewcommand{\thefootnote}{\textsuperscript{\arabic{footnote}}}
+
+% ── 图表标题格式 ────────────────────────────────────────────
+\captionsetup{font=small,labelfont=bf,labelsep=quad}
+\captionsetup[table]{position=above}
+\captionsetup[figure]{position=below}
+
+% ── 超链接设置 ──────────────────────────────────────────────
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=black,
+  urlcolor=blue,
+}
+
+% ── 代码块设置 ──────────────────────────────────────────────
+\lstset{
+  basicstyle=\ttfamily\zihao{5},
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny,
+  tabsize=2,
+  captionpos=b,
+  language=Python,
+}
+
+% ── 参考文献格式 ────────────────────────────────────────────
+\bibliographystyle{gbt7714-2005}
+
+% ================================================================
+\begin{document}
+
+% ═══════════════════════════════════════════════════════════════
+% 封面
+% ═══════════════════════════════════════════════════════════════
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{center}
+
+\vspace*{2cm}
+
+{\heiti\zihao{1} 第二十一届中国研究生电子设计竞赛}\\[0.8cm]
+{\heiti\zihao{1} 技术论文}\\[3cm]
+
+{\heiti\zihao{-2} 论文题目：}\\[0.5cm]
+{\heiti\zihao{-2} 面向eZ-PLM的电子元器件智能选型与}\\[0.3cm]
+{\heiti\zihao{-2} 风险评估Agent系统}\\[0.8cm]
+{\heiti\zihao{-2} An Intelligent Agent System for Electronic}\\[0.3cm]
+{\heiti\zihao{-2} Component Selection and Risk Assessment}\\[0.3cm]
+{\heiti\zihao{-2} on eZ-PLM Platform}\\[3cm]
+
+{\heiti\zihao{-3} 参赛单位：上海大学}\\[1cm]
+{\heiti\zihao{-3} 队伍名称：EE-AI-Agent}\\[1cm]
+{\heiti\zihao{-3} 指导老师：XXXXX}\\[1cm]
+{\heiti\zihao{-3} 参赛队员：陆杰 \quad XXXXX \quad XXXXX}\\[1cm]
+{\heiti\zihao{-3} 完成时间：2026年6月}\\[3cm]
+
+\end{center}
+\end{titlepage}
+
+% ═══════════════════════════════════════════════════════════════
+% 目录
+% ═══════════════════════════════════════════════════════════════
+\newpage
+\thispagestyle{empty}
+\renewcommand{\contentsname}{\centering\heiti\zihao{3} 目\quad 录}
+\tableofcontents
+
+% ═══════════════════════════════════════════════════════════════
+% 中文摘要
+% ═══════════════════════════════════════════════════════════════
+\newpage
+\pagenumbering{Roman}
+\setcounter{page}{1}
+\thispagestyle{empty}
+
+\begin{center}
+{\heiti\zihao{3} 摘\quad 要}
+\end{center}
+\vspace{1cm}
+
+\input{chapters/abstract-cn}
+
+\vspace{1cm}
+\noindent{\heiti 关键词：}电子元器件选型；AI Agent；RAG知识增强；供应链风险评估；eZ-PLM
+
+% ═══════════════════════════════════════════════════════════════
+% 英文摘要
+% ═══════════════════════════════════════════════════════════════
+\newpage
+\thispagestyle{empty}
+
+\begin{center}
+{\heiti\zihao{3} ABSTRACT}
+\end{center}
+\vspace{1cm}
+
+\input{chapters/abstract-en}
+
+\vspace{1cm}
+\noindent{\bfseries Keywords:} Electronic Component Selection; AI Agent; RAG Knowledge Enhancement; Supply Chain Risk Assessment; eZ-PLM
+
+% ═══════════════════════════════════════════════════════════════
+% 正文（页码从1开始）
+% ═══════════════════════════════════════════════════════════════
+\newpage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+% ── 第1章 ──────────────────────────────────────────────────────
+\chapter{作品难点与创新}
+\input{chapters/chapter1}
+
+% ── 第2章 ──────────────────────────────────────────────────────
+\chapter{方案论证与设计}
+\input{chapters/chapter2}
+
+% ── 第3章 ──────────────────────────────────────────────────────
+\chapter{原理分析与硬件电路图}
+\input{chapters/chapter3}
+
+% ── 第4章 ──────────────────────────────────────────────────────
+\chapter{软件设计与流程}
+\input{chapters/chapter4}
+
+% ── 第5章 ──────────────────────────────────────────────────────
+\chapter{系统测试与分析}
+\input{chapters/chapter5}
+
+% ── 第6章 ──────────────────────────────────────────────────────
+\chapter{总结}
+\input{chapters/chapter6}
+
+% ═══════════════════════════════════════════════════════════════
+% 参考文献
+% ═══════════════════════════════════════════════════════════════
+\newpage
+\addcontentsline{toc}{chapter}{参考文献}
+\bibliography{references}
+
+\end{document}
