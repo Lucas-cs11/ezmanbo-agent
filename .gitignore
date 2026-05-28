@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 .omc/
 .idea/
+data/chroma_db/
+docs/reports/

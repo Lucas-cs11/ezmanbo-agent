@@ -1,4 +1,5 @@
 import os
+import re as _re_core
 from typing import List, Optional, Dict, Any
 from .schemas import RequirementConstraints, PartIR, ScoredPart, ScoreBreakdown
 
@@ -13,6 +14,15 @@ _HYBRID_WEIGHTS = {
     "llm_application":  0.25,
     "llm_design_risk":  0.25,
 }
+
+# ── 推荐上限 ──────────────────────────────────────────────────────
+_MAX_RECOMMENDED = 5   # 最多推荐 Top N 款
+_MAX_LISTED = 15       # BOM 最多列出 N 款（含推荐+备选）
+
+# ── 核心型号归一化（去重合并用）────────────────────────────────────
+_CORE_MPN_RE = _re_core.compile(
+    r"^([A-Za-z]+[0-9]+[A-Za-z0-9]*)"  # 基础型号前缀
+)
 
 
 def _normalize(v, vmin, vmax):
@@ -44,6 +54,20 @@ def _compute_param_score(constraints: RequirementConstraints, p: PartIR) -> tupl
                 f"输入电压不匹配（需 {constraints.input_voltage_nominal_v}V，"
                 f"范围 {p.input_voltage_min_v}–{p.input_voltage_max_v}V）"
             )
+
+    # ── 输出电压匹配（P0修复：固定电压器件须匹配需求输出）────────
+    if constraints.output_voltage_v is not None and p.output_voltage_v is not None:
+        param_checks += 1
+        delta = abs(p.output_voltage_v - constraints.output_voltage_v)
+        if delta < 0.01:  # 几乎精确匹配
+            param_score += 1.0
+            reasons.append(f"输出电压匹配 ✓（{p.output_voltage_v}V = 需求 {constraints.output_voltage_v}V）")
+        elif delta / constraints.output_voltage_v <= 0.05:  # 5% 容差
+            param_score += 0.6
+            reasons.append(f"输出电压接近（{p.output_voltage_v}V vs 需求 {constraints.output_voltage_v}V, 偏差 {delta/constraints.output_voltage_v*100:.1f}%）")
+        else:
+            param_score += 0.1
+            reasons.append(f"⚠ 输出电压偏差大（{p.output_voltage_v}V vs 需求 {constraints.output_voltage_v}V）")
 
     if constraints.output_current_a is not None and p.output_current_max_a is not None:
         param_checks += 1
@@ -109,6 +133,36 @@ def _compute_supply_score(p: PartIR) -> tuple:
             reasons.append("生命周期：在产")
 
     return supply_score, reasons
+
+
+def _extract_core_mpn(part_number: str) -> str:
+    """从完整型号中提取核心型号（去掉封装/卷带后缀）。
+    如 LM2596S-5.0/NOPB → LM2596S, TPS54020RUWT → TPS54020
+    """
+    if not part_number:
+        return part_number
+    # 常见分隔符截断
+    for sep in ("/", "-TR", "-T&R", "T&R", "TR-"):
+        idx = part_number.find(sep)
+        if idx > 3:
+            part_number = part_number[:idx]
+    # 去掉末尾的封装后缀（如 RUWT, RUWR）
+    m = _CORE_MPN_RE.match(part_number)
+    if m:
+        return m.group(1)
+    return part_number
+
+
+def _merge_variant_info(kept: ScoredPart, dropped: ScoredPart):
+    """将 dropped 的变体信息合并到 kept 的 reasons 中。"""
+    if dropped.part.package and dropped.part.package != kept.part.package:
+        kept.score.reasons.append(
+            f"同类变体：{dropped.part.part_number}（{dropped.part.package}）"
+        )
+    else:
+        kept.score.reasons.append(
+            f"同类变体：{dropped.part.part_number}"
+        )
 
 
 def score_candidates(
@@ -208,13 +262,36 @@ def score_candidates(
         scored.append(ScoredPart(part=p, score=sb))
 
     scored.sort(key=lambda s: s.score.total_score, reverse=True)
-    for idx, s in enumerate(scored, start=1):
+
+    # ── 去重合并：同核心型号保留最高分变体 ────────────────────────
+    seen_cores: Dict[str, int] = {}  # core_mpn → index in scored
+    deduped: List[ScoredPart] = []
+    for s in scored:
+        core = _extract_core_mpn(s.part.part_number)
+        if core and core in seen_cores:
+            prev_idx = seen_cores[core]
+            prev = deduped[prev_idx]
+            # 保留得分更高者，合并变体信息到 reasons
+            if s.score.total_score > prev.score.total_score:
+                _merge_variant_info(s, prev)
+                deduped[prev_idx] = s
+                seen_cores[core] = prev_idx
+            else:
+                _merge_variant_info(prev, s)
+            continue
+        if core:
+            seen_cores[core] = len(deduped)
+        deduped.append(s)
+
+    # ── 排名 + 分级（Top-N 限制）─────────────────────────────────
+    for idx, s in enumerate(deduped, start=1):
         s.rank = idx
-        if s.score.total_score >= 75:
+        if s.score.total_score >= 75 and idx <= _MAX_RECOMMENDED:
             s.recommendation_level = "recommended"
         elif s.score.total_score >= 50:
             s.recommendation_level = "backup"
         else:
             s.recommendation_level = "not_recommended"
 
-    return scored
+    # 仅返回前 _MAX_LISTED 条
+    return deduped[:_MAX_LISTED]
