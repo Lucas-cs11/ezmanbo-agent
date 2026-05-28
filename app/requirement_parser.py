@@ -6,6 +6,12 @@ VOLTAGE_PAT    = re.compile(r"(\d+(?:\.\d+)?)\s*[Vv]")
 CURRENT_PAT    = re.compile(r"(\d+(?:\.\d+)?)\s*[Aa]")
 CURRENT_MA_PAT = re.compile(r"(\d+(?:\.\d+)?)\s*m[Aa]")   # 毫安，需转换 ÷1000
 TEMP_PAT       = re.compile(r"(-?\d+)[°º]?C")
+# 温度范围模式：匹配 "X 到 Y°C"、"X°C 到 Y°C"、"X~Y°C" 等
+# 即使前一个数字没有 °C 后缀也能匹配
+TEMP_RANGE_PAT = re.compile(
+    r"(-?\d+)\s*[°º]?\s*[Cc]?\s*[到至~\-—]\s*(-?\d+)\s*[°º]?\s*[Cc]",
+    re.IGNORECASE,
+)
 
 try:
     from .llm_client import parse_requirement_with_llm
@@ -169,19 +175,35 @@ def parse_requirement(text: str) -> RequirementConstraints:
         except Exception:
             pass
 
-    # ── 温度范围提取 ──────────────────────────────────────────────
-    temps = TEMP_PAT.findall(text)
-    if temps:
-        nums = [int(t) for t in temps]
-        if len(nums) >= 2:
-            rc.temperature_min_c = rc.temperature_min_c or min(nums)
-            rc.temperature_max_c = rc.temperature_max_c or max(nums)
-        elif len(nums) == 1 and rc.temperature_min_c is None:
-            rc.temperature_min_c = nums[0]
+    # ── 温度范围提取（优先匹配范围模式）──────────────────────────
+    m_temp_range = TEMP_RANGE_PAT.search(text)
+    if m_temp_range:
+        try:
+            t1 = int(m_temp_range.group(1))
+            t2 = int(m_temp_range.group(2))
+            rc.temperature_min_c = rc.temperature_min_c or min(t1, t2)
+            rc.temperature_max_c = rc.temperature_max_c or max(t1, t2)
+        except Exception:
+            pass
+
+    # 兜底：单点温度提取
+    if rc.temperature_min_c is None or rc.temperature_max_c is None:
+        temps = TEMP_PAT.findall(text)
+        if temps:
+            nums = [int(t) for t in temps]
+            if len(nums) >= 2 and (rc.temperature_min_c is None or rc.temperature_max_c is None):
+                rc.temperature_min_c = rc.temperature_min_c or min(nums)
+                rc.temperature_max_c = rc.temperature_max_c or max(nums)
+            elif len(nums) == 1 and rc.temperature_min_c is None:
+                rc.temperature_min_c = nums[0]
 
     # ── 等级 ──────────────────────────────────────────────────────
     if "车规" in lower or "automotive" in lower:
-        rc.grade = rc.grade or "automotive"
+        # 排除否定句式："非车规"、"不是车规"、"不要求车规"
+        if not re.search(r"(非|不是|不要求|无需|不用)\s*车规", text):
+            rc.grade = rc.grade or "automotive"
+        elif rc.grade != "automotive":
+            rc.grade = "industrial"  # 明确非车规 → 默认工业级
 
     # ── 封装偏好 ──────────────────────────────────────────────────
     if not rc.package_preference:

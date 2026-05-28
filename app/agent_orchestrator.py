@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional, Dict, Any
 from .requirement_parser import parse_requirement
 from .ezplm_client import search_parts, find_replacements, fetch_reference_designs
 from .scoring import score_candidates
@@ -7,13 +7,43 @@ from .evidence import build_evidence
 from .report_generator import build_report, _assess_risks
 from .schemas import (
     SelectionReport, ReplacementReport,
-    RequirementConstraints, PartIR, ScoredPart,
+    RequirementConstraints, PartIR, ScoredPart, EvidenceIR,
 )
+
+
+def _build_rag_query(user_input: str, req: RequirementConstraints) -> str:
+    """从用户需求和解析后的约束构建 RAG 查询文本。"""
+    parts = [user_input]
+    if req.topology:
+        parts.append(req.topology)
+    if req.category:
+        parts.append(req.category)
+    if req.output_voltage_v and req.output_current_a:
+        parts.append(f"{req.output_voltage_v}V {req.output_current_a}A")
+    if req.grade == "automotive":
+        parts.append("车规 AEC-Q100")
+    return " ".join(parts)
+
+
+def _query_rag_knowledge(user_input: str, req: RequirementConstraints) -> List[Dict[str, Any]]:
+    """查询 RAG 知识库，获取与当前需求相关的工程知识。"""
+    try:
+        from .rag import get_rag_store
+        store = get_rag_store()
+        if store.count == 0:
+            return []
+        query_text = _build_rag_query(user_input, req)
+        return store.query(query_text, top_k=5)
+    except Exception:
+        return []
 
 
 def analyze(user_input: str) -> SelectionReport:
     req = parse_requirement(user_input)
     candidates = search_parts(req)
+
+    # ── RAG 工程知识检索 ────────────────────────────────────────
+    rag_results = _query_rag_knowledge(user_input, req)
 
     # ── 参考设计获取（仅 EZ-PLM API 器件，LLM key 存在时）────────
     ref_designs_map = {}
@@ -27,6 +57,20 @@ def analyze(user_input: str) -> SelectionReport:
 
     scored = score_candidates(req, candidates, ref_designs_map=ref_designs_map or None)
     evidence = build_evidence(scored, req)
+
+    # ── RAG 证据注入 ────────────────────────────────────────────
+    if rag_results:
+        from .rag import build_context_from_results
+        rag_context = build_context_from_results(rag_results)
+        # 将 RAG 检索结果作为证据链的一条独立证据
+        evidence.append(EvidenceIR(
+            part_number=None,
+            claim=f"已从工程知识库检索到 {len(rag_results)} 条相关参考知识，用于增强选型决策。",
+            evidence_type="rag_knowledge",
+            source="ChromaDB 向量知识库",
+            confidence=min(0.85, max(r["score"] for r in rag_results) + 0.3),
+        ))
+
     report = build_report(req, scored, evidence)
     return report
 

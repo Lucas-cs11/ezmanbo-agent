@@ -1,0 +1,98 @@
+[
+  {
+    "id": "buck_001",
+    "title": "Buck 转换器电感选型公式",
+    "category": "buck_design",
+    "content": "Buck 转换器电感值计算公式：L = (Vin - Vout) × D / (fsw × ΔIL)，其中 D = Vout / Vin 为占空比，fsw 为开关频率，ΔIL 为电感纹波电流（通常取输出电流的 20%-40%）。电感饱和电流 Isat 须大于 Iout(max) + ΔIL/2。选型时还需考虑 DCR（直流电阻），DCR 越低导通损耗越小。对于 12V 转 5V、3A 的应用，若 fsw=500kHz、ΔIL=0.9A，则 L ≈ (12-5)×0.417/(500k×0.9) ≈ 6.5μH，推荐选用 6.8μH 屏蔽式功率电感。",
+    "source": "TI Application Note SLVA057",
+    "tags": ["电感选型", "buck", "公式", "纹波电流"]
+  },
+  {
+    "id": "buck_002",
+    "title": "Buck 输出电容选型",
+    "category": "buck_design",
+    "content": "输出电容（COUT）需同时满足纹波电压和瞬态响应要求。最小电容量：Cout(min) ≥ ΔIL / (8 × fsw × ΔVout)，其中 ΔVout 为允许的输出纹波电压（通常 1% Vout）。对于 5V 输出、50mV 纹波，Cout ≥ 0.9/(8×500k×0.05) ≈ 4.5μF。实际选型需考虑 ESR 引起的附加纹波和 DC 偏压降额：陶瓷电容在 DC 偏压下容值可能降至标称值的 30%-50%，建议选用 X7R 材质、耐压 ≥ 2×Vout 的 MLCC，并采用 2-3 颗并联以降低 ESR。",
+    "source": "TI Application Note SLVA477B",
+    "tags": ["输出电容", "buck", "纹波", "MLCC", "降额"]
+  },
+  {
+    "id": "buck_003",
+    "title": "Buck 输入电容与 EMI 设计",
+    "category": "buck_design",
+    "content": "输入电容（CIN）承受脉冲电流，其有效值 Irms ≈ Iout × √(D×(1-D))。对于 12V→5V/3A，Irms ≈ 3×√(0.417×0.583) ≈ 1.5A。选型需确保电容额定纹波电流大于计算值。推荐使用 X7R MLCC 并联低 ESR 电解电容：MLCC 滤除高频纹波，电解电容提供阻尼防止输入滤波网络振荡。输入电容耐压需 ≥ 1.5×Vin(max)，靠近 IC VIN 引脚放置，与 PGND 构成的回路面积 ≤ 1cm²。",
+    "source": "TI Application Note SNVA538",
+    "tags": ["输入电容", "buck", "EMI", "纹波电流", "Layout"]
+  },
+  {
+    "id": "buck_004",
+    "title": "Buck 转换器环路补偿设计",
+    "category": "buck_design",
+    "content": "电流模式 Buck 通常采用 Type II 补偿网络（Rcomp、Ccomp、Cpole串联后接在 COMP 与 GND 之间）。补偿目标：穿越频率 fcross ≈ fsw/10，相位裕度 ≥ 45°。Rcomp 决定中频增益，Ccomp 设置补偿零点（通常放置在 LC 双极点频率的 1/2 处），Cpole 设置高频极点（通常放置在 fsw/2 处以衰减开关噪声）。实际调试时建议通过频率响应分析仪（FRA）或负载阶跃测试验证环路稳定性。不合理的补偿会导致输出振荡、瞬态响应差甚至失控。",
+    "source": "Ridley Engineering, 'Current-Mode Control Modeling'",
+    "tags": ["环路补偿", "buck", "Type II", "稳定性", "穿越频率"]
+  },
+  {
+    "id": "thermal_001",
+    "title": "DC-DC 转换器热设计基础",
+    "category": "thermal",
+    "content": "DC-DC 转换器结温估算公式：Tj = Ta + Pd × θJA，其中 Pd 为总功耗（W），θJA 为结到环境热阻（°C/W），Ta 为环境温度。总功耗包括导通损耗（Iout² × Rds(on) × D）、开关损耗（0.5 × Vin × Iout × (tr+tf) × fsw）和静态功耗（Vin × Iq）。对于 QFN 封装典型 θJA ≈ 35-50°C/W，SOP 封装 ≈ 60-90°C/W。结温须低于 Tj(max)（通常 125°C 或 150°C），并保留 10-20°C 安全余量。当热余量不足时，措施包括：增大 PCB 铜皮面积、增加热过孔、使用散热器或选用更低 Rds(on) 的器件。",
+    "source": "IPC-2152, 'Standard for Determining Current-Carrying Capacity in Printed Board Design'",
+    "tags": ["热设计", "结温", "功耗", "θJA", "散热"]
+  },
+  {
+    "id": "thermal_002",
+    "title": "车载电子设备温度等级要求",
+    "category": "automotive",
+    "content": "汽车电子委员会（AEC）定义了关键的温度等级：Grade 0（-40°C 至 +150°C，发动机舱）、Grade 1（-40°C 至 +125°C，底盘/变速箱）、Grade 2（-40°C 至 +105°C，乘客舱）、Grade 3（-40°C 至 +85°C，非关键区域）。AEC-Q100 是针对集成电路的应力测试认证标准，涵盖 HAST（高加速温湿度应力）、HTOL（高温工作寿命）、TC（温度循环）等测试。选型时须确认器件数据手册中的 AEC-Q100 认证编号和 Grade 等级。非车规器件在车载环境中可能因温度应力导致参数漂移或早期失效。",
+    "source": "AEC-Q100 Rev-H, 'Failure Mechanism Based Stress Test Qualification For Integrated Circuits'",
+    "tags": ["车规", "AEC-Q100", "温度等级", "可靠性", "Grade"]
+  },
+  {
+    "id": "automotive_002",
+    "title": "车规级电源 IC 关键可靠性要求",
+    "category": "automotive",
+    "content": "车规电源 IC 除 AEC-Q100 认证外，还需满足以下关键要求：（1）宽输入电压范围，须承受 ISO 7637-2 规定的抛负载（Load Dump）瞬态（12V 系统最高 40V，24V 系统最高 60V）；（2）EMI 性能，须通过 CISPR 25 Class 5 辐射/传导发射限值；（3）低静态电流（Iq），满足整车驻车功耗要求（通常 ≤ 10μA）；（4）扩频调制（Spread Spectrum）以降低 EMI 峰值能量；（5）功能安全（ISO 26262），关键电源轨需支持 ASIL 等级要求的诊断与冗余机制。",
+    "source": "ISO 7637-2, CISPR 25, ISO 26262",
+    "tags": ["车规", "可靠性", "EMI", "Load Dump", "ISO 26262"]
+  },
+  {
+    "id": "buck_005",
+    "title": "Buck 转换器效率优化策略",
+    "category": "buck_design",
+    "content": "提高 Buck 转换器效率的关键策略：（1）选择低 Rds(on) MOSFET 降低导通损耗，但需权衡栅极电荷 Qg（影响开关损耗），通常在额定电流下 Rds(on)×Qg 乘积最小为最优；（2）轻载时采用 PFM（脉冲频率调制）或 Burst Mode 降低开关损耗，重载时切换至强制 PWM 模式；（3）同步整流（用 MOSFET 替代续流二极管）可消除二极管正向压降损耗 Vf×I×(1-D)，在低压大电流场景下效率提升尤为显著（5-10%）；（4）电感 DCR 每降低 10mΩ，满载效率提升约 1%；（5）Dead-time 优化：上管与下管之间的死区时间过短导致 Shoot-through，过长增加体二极管导通损耗。",
+    "source": "TI Application Report SLVA390",
+    "tags": ["效率优化", "buck", "同步整流", "PFM", "死区时间"]
+  },
+  {
+    "id": "layout_001",
+    "title": "DC-DC 转换器 PCB Layout 规范",
+    "category": "layout",
+    "content": "DC-DC 转换器 PCB Layout 核心规则：（1）功率回路面积最小化：输入电容 CIN → IC VIN → IC SW → 电感 L → 输出电容 COUT → GND 构成的 di/dt 回路面积须 ≤ 1cm²；（2）SW 节点铜皮面积最小化，避免形成辐射天线；（3）反馈走线（FB）远离 SW 节点和电感，推荐在内层走线，FB 分压电阻靠近 IC GND 使用 Kelvin 连接；（4）功率地（PGND）和模拟地（AGND）在 IC 底部 Thermal Pad 处单点连接；（5）IC Thermal Pad 必须焊接，并通过 ≥ 4 个热过孔（φ0.3mm）连接到内层和底层 GND 平面；（6）输入电容优先使用 0603 或更小封装以降低 ESL，多个输出电容并联时对称布局。",
+    "source": "IPC-2221, 'Generic Standard on Printed Board Design'",
+    "tags": ["Layout", "PCB", "EMI", "接地", "功率回路"]
+  },
+  {
+    "id": "buck_006",
+    "title": "宽输入电压 Buck 选型要点",
+    "category": "buck_design",
+    "content": "宽输入电压（4.5V-36V）Buck 转换器选型要点：（1）最大输入电压须 ≥ 1.2×Vin(max) 以应对输入瞬态过冲，36V 输入建议选用 40V 或更高耐压器件；（2）最小导通时间 ton(min) 决定高输入/低输出占空比场景下的最低稳定频率：若 Vin=36V、Vout=5V、fsw=500kHz，则 D=13.9%，要求 ton(min) ≤ 278ns；（3）宽压场景下内置 LDO 为控制器供电的器件在低压输入时可能 LDO 压差不足，需外置偏置电源或选择支持 100% 占空比操作的型号；（4）高压降额：输入电容耐压需按温度曲线降额，85°C 环境下 X7R 电容耐压降额约 30%。",
+    "source": "TI Application Note SLVAE36",
+    "tags": ["宽输入", "buck", "最小导通时间", "降额", "选型"]
+  },
+  {
+    "id": "supply_001",
+    "title": "电子元器件供应链风险评估框架",
+    "category": "supply_chain",
+    "content": "元器件供应链风险评估应采用多维度框架：（1）供应商集中度：单源器件（Sole Source）风险最高，建议关键器件至少双源供应；（2）生命周期阶段：Active（推荐）→ NRND（不推荐新设计）→ EOL（停产，启动 Last-Time Buy）→ Obsolete（已停产，仅二手/翻新货源）；（3）交期风险：标准交期 8-12 周为正常水平，超过 26 周为高风险；（4）地缘政治风险：受出口管制（如 EAR/ITAR）或关税影响的器件需额外评估；（5）国产化率：关键器件国产化率低于 30% 时建议启动替代方案评估。ROHS/REACH 不合规器件在出口欧盟市场时存在合规风险。",
+    "source": "IPC-1752, 'Materials Declaration Management'",
+    "tags": ["供应链", "风险评估", "交期", "生命周期", "国产化"]
+  },
+  {
+    "id": "ldo_001",
+    "title": "LDO vs Buck 选型决策指南",
+    "category": "topology_selection",
+    "content": "LDO（低压差线性稳压器）与 Buck（降压开关转换器）的选型决策依据：（1）压差（Vin - Vout）是关键决策变量：压差 ≤ 1V 且电流 ≤ 500mA 时 LDO 优势明显（低噪声、无 EMI、外围简单）；（2）效率 = Vout/Vin × 100%，12V→5V 压差 7V，LDO 效率仅 42% → 推荐 Buck（效率 ~85-95%）；（3）噪声敏感场景（如 PLL、ADC 供电）：LDO + Buck 级联方案，Buck 做第一级降压，LDO 做第二级滤噪；（4）PCB 面积：LDO 方案通常仅需 2-3 个电容，Buck 需要电感 + 多个电容 + 补偿网络，总面积 LDO 约为 Buck 的 1/3。",
+    "source": "TI Application Report SLVA079",
+    "tags": ["LDO", "Buck", "选型", "效率", "噪声"]
+  }
+]
