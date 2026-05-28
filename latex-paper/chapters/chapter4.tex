@@ -1,0 +1,116 @@
+% ============================================================
+% 第4章：软件设计与流程
+% ============================================================
+
+\section{核心软件模块设计}
+
+系统的软件实现以Python 3.11+为核心语言，采用模块化设计，共包含12个核心模块，代码总量约3500行。下面详述关键模块的设计。
+
+\subsection{需求解析模块（requirement\_parser.py）}
+
+该模块实现了第3.1节所述的四级解析策略，核心函数\texttt{parse\_requirement(text: str) → RequirementConstraints}接收原始自然语言文本，返回标准化的约束对象。图\ref{fig:parser-flow}展示了完整的解析流程。
+
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}
+  \small\textbf{需求解析流程}\\
+  用户输入 $\rightarrow$ LLM解析(DeepSeek-V3) $\rightarrow$ 输出归一化\\
+  $\rightarrow$ 规则覆盖Category/Topology $\rightarrow$ 电压提取(V/A/mA)\\
+  $\rightarrow$ 电压比较兜底 $\rightarrow$ 温度范围匹配\\
+  $\rightarrow$ 等级/封装/偏好提取 $\rightarrow$ RequirementConstraints
+\vspace{2cm}}}
+\caption{需求解析模块四级解析流程}
+\label{fig:parser-flow}
+\end{figure}
+
+模块关键设计决策包括：
+\begin{itemize}
+  \item \textbf{LLM前置+规则后置}：LLM解析结果可被规则覆盖，确保关键参数（如topology方向判断）不受LLM幻觉影响；
+  \item \textbf{mA优先策略}：电流提取时优先匹配mA模式（÷1000转A），避免“500mA”被误匹配为500A；
+  \item \textbf{否定句式处理}：通过正则\texttt{(非|不是|不要求|无需)\textbackslash s*车规}排除否定语境，将“非车规”正确映射为grade=industrial而非automotive；
+  \item \textbf{国产/低风险偏好提取}：通过must\_have、nice\_to\_have、preferences三个列表精确描述用户偏好。
+\end{itemize}
+
+\subsection{RAG知识检索模块（rag.py）}
+
+该模块封装了基于ChromaDB的工程知识向量存储与语义检索功能。核心类\texttt{RAGStore}的设计如下：
+
+\textbf{初始化}：创建PersistentClient并获取或创建名为“engineering\_knowledge”的Collection，使用cosine距离度量。
+
+\textbf{文档摄入}（\texttt{ingest\_documents}）：接收\texttt{\{content, metadata\}}格式的文档列表，批量生成sentence-transformers嵌入向量并写入ChromaDB。支持32条/批的分批处理。
+
+\textbf{语义检索}（\texttt{query}）：接收查询文本和可选类别过滤器，生成查询嵌入向量，返回Top-K最相关文档及其cosine距离。距离转换为相似度分数$S = \max(0, 1 - \text{distance})$。
+
+\textbf{上下文构建}（\texttt{build\_context\_from\_results}）：将检索结果拼接为LLM可消费的格式化文本，自动截断以不超过max\_chars限制。
+
+嵌入模型选择all-MiniLM-L6-v2的考量：该模型参数量仅22M（约80MB），将文本映射到384维向量空间，在MTEB基准上取得良好的中英文语义检索性能，适合本地部署且无需GPU。
+
+\subsection{Agent模块（agent\_tools.py + react\_agent.py）}
+
+Agent模块基于LangChain 1.3框架实现，核心设计如图\ref{fig:agent-flow}所示。
+
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}
+  \small\textbf{ReAct Agent工作流程}\\
+  用户输入 $\rightarrow$ Agent思考(LLM)\\
+  $\rightarrow$ 选择工具(search\_components / query\_knowledge / find\_alternatives)\\
+  $\rightarrow$ 执行工具 $\rightarrow$ 观察结果\\
+  $\rightarrow$ 继续思考/调用下一工具 $\rightarrow$ 最终回复用户
+\vspace{2cm}}}
+\caption{ReAct Agent Think-Act-Observe循环}
+\label{fig:agent-flow}
+\end{figure}
+
+\textbf{工具定义}：四个LangChain Tool通过\texttt{@tool}装饰器定义，每个工具包含自然语言描述（供Agent理解何时调用）、参数Schema（自动从函数签名生成）和内部实现（调用现有Pipeline模块）。
+
+\textbf{系统提示词设计}：经过多轮迭代优化的提示词明确了工具的调用时机、工作流程和绝对规则：
+\begin{itemize}
+  \item \textbf{调用顺序}：search\_components（一次）→ query\_design\_knowledge（一次）→ 回复；
+  \item \textbf{禁止规则}：严禁重复调用同一工具超过2次、总调用次数不超过5次、禁止编造型号；
+  \item \textbf{多轮支持}：记住之前推荐的器件型号，用户追问时直接引用。
+\end{itemize}
+
+\textbf{会话管理}：使用全局字典\texttt{\_sessions}维护会话历史，每个会话存储完整的消息列表（HumanMessage + AIMessage + ToolMessage）。\texttt{run\_agent()}函数支持通过session\_id恢复历史上下文，实现多轮对话。
+
+\textbf{递归限制}：通过\texttt{config=\{"recursion\_limit": 8\}}限制Agent最大推理步数，防止模型陷入搜索-重试循环。
+
+\subsection{报告生成模块（output\_generator.py）}
+
+该模块是三份标准化报告和结构化TopologyIR的生成入口，包含以下核心函数：
+
+\textbf{BOM生成}（\texttt{generate\_bom}）：生成符合IPC命名规范的选型清单，包含文件信息头、Top 5推荐器件清单（10列）、备选器件清单、关键电气参数对比表（新增输出电压列）、评分方法说明和RAG知识参考。
+
+\textbf{风险评估报告生成}（\texttt{generate\_risk\_report}）：采用双层评估架构——规则引擎验证（确定性）+ AI辅助分析（叙述综合）。报告包含执行摘要、评估方法（引用IEC 60812/ISO 31000）、风险汇总矩阵、FMEA RPN量化、5×5热力矩阵、需人工复核清单和结论建议。
+
+\textbf{拓扑分析生成}（\texttt{generate\_topology}）：七节结构——拓扑类型及工作原理→功能模块框图（Mermaid）→功能模块说明→关键设计参数→工程设计要点（含RAG上下文）→效率与热性能估算→PCB Layout要点。
+
+\textbf{TopologyIR生成}（\texttt{generate\_topology\_ir}）：返回结构化Pydantic对象，自动识别Converter/Controller类型构建差异化的节点图和外围元件BOM，包含完整的热估算和Layout规则。
+
+\section{关键数据结构设计}
+
+系统采用Pydantic v2进行全面的数据建模，核心数据流向如图\ref{fig:data-flow}所示。
+
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2.5cm}
+  \small\textbf{核心数据流}\\
+  用户输入(string) $\rightarrow$ RequirementConstraints(15字段)\\
+  $\rightarrow$ PartIR(23字段) $\times$ N $\rightarrow$ ScoredPart $\times$ N(N=15)\\
+  $\rightarrow$ EvidenceIR $\times$ M $\rightarrow$ RiskIR(13规则)\\
+  $\rightarrow$ SelectionReport $\rightarrow$ TopologyIR(4子模型)\\
+  $\rightarrow$ 输出: BOM.md + RiskReport.md + Topology.md + TopologyIR.json
+\vspace{2.5cm}}}
+\caption{系统核心数据流与IR转换链}
+\label{fig:data-flow}
+\end{figure}
+
+\section{与eZ-PLM平台的集成设计}
+
+eZ-PLM API提供两个只读查询接口，均需HMAC-SHA256签名认证：
+
+\textbf{物料查询}（GET /api/v1/api-key/parts）：通过keyword参数按制造商型号前缀搜索物料库，返回mpn、manufacturer、category、attributes、pdf、id等字段。系统按制造商前缀分组查询（TI→TPS54/TPS62/LM2596，ADI→ADP23/LTC388），每组最多50条，总计不超过200条。
+
+\textbf{参考设计查询}（GET /api/v1/api-key/reference-designs）：通过partlibId参数查询指定物料的关联参考设计，返回name、link、description等字段。系统在LLM增强评分模式下自动为每个eZ-PLM来源的候选器件拉取参考设计（最多10个），用于提升$S_{\text{app}}$和$S_{\text{design}}$的评分质量。
+
+API客户端的签名生成遵循“method + path + sorted\_query + timestamp + nonce”的拼接规范，使用HMAC-SHA256算法计算签名值并以Base64 URL-safe编码。
