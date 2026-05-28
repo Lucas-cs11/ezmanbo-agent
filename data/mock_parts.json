@@ -3869,7 +3869,7 @@
   {
     "part_number": "TPS61030DSG",
     "manufacturer": "Texas Instruments",
-    "category": "boost",
+    "category": "dc_dc_converter",
     "topology": "boost",
     "is_domestic": false,
     "input_voltage_min_v": 0.7,
@@ -3888,7 +3888,7 @@
   {
     "part_number": "MT3608",
     "manufacturer": "Micropower",
-    "category": "boost",
+    "category": "dc_dc_converter",
     "topology": "boost",
     "is_domestic": false,
     "input_voltage_min_v": 2.0,
@@ -3907,7 +3907,7 @@
   {
     "part_number": "XL6009",
     "manufacturer": "Xlsemi",
-    "category": "boost",
+    "category": "dc_dc_converter",
     "topology": "boost",
     "is_domestic": false,
     "input_voltage_min_v": 3.0,
@@ -3926,7 +3926,7 @@
   {
     "part_number": "SX1308",
     "manufacturer": "Semtech",
-    "category": "boost",
+    "category": "dc_dc_converter",
     "topology": "boost",
     "is_domestic": false,
     "input_voltage_min_v": 0.9,
@@ -3945,7 +3945,7 @@
   {
     "part_number": "BOOST-国产-001",
     "manufacturer": "南芯科技",
-    "category": "boost",
+    "category": "dc_dc_converter",
     "topology": "boost",
     "is_domestic": true,
     "input_voltage_min_v": 2.5,
@@ -3964,7 +3964,7 @@
   {
     "part_number": "BOOST-国产-002",
     "manufacturer": "圣邦微电子",
-    "category": "boost",
+    "category": "dc_dc_converter",
     "topology": "boost",
     "is_domestic": true,
     "input_voltage_min_v": 3.0,
