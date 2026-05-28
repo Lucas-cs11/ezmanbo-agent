@@ -51,10 +51,12 @@ def score_candidates(constraints: RequirementConstraints, candidates: List[PartI
 
         # ── 参数匹配 ─────────────────────────────────────────────
         param_score = 0.0
+        param_checks = 0  # 实际执行了多少项检查（约束非空 且 器件有对应数据）
 
         if (constraints.input_voltage_nominal_v is not None
                 and p.input_voltage_min_v is not None
                 and p.input_voltage_max_v is not None):
+            param_checks += 1
             if p.input_voltage_min_v <= constraints.input_voltage_nominal_v <= p.input_voltage_max_v:
                 param_score += 1.0
                 reasons.append(
@@ -68,6 +70,7 @@ def score_candidates(constraints: RequirementConstraints, candidates: List[PartI
                 )
 
         if constraints.output_current_a is not None and p.output_current_max_a is not None:
+            param_checks += 1
             if p.output_current_max_a >= constraints.output_current_a:
                 margin_pct = (p.output_current_max_a / max(constraints.output_current_a, 1e-6) - 1.0) * 100
                 param_score += min(1.0, p.output_current_max_a / max(constraints.output_current_a, 1e-6) / 2.0)
@@ -83,6 +86,7 @@ def score_candidates(constraints: RequirementConstraints, candidates: List[PartI
                 and constraints.temperature_max_c is not None
                 and p.temperature_min_c is not None
                 and p.temperature_max_c is not None):
+            param_checks += 1
             if p.temperature_min_c <= constraints.temperature_min_c and p.temperature_max_c >= constraints.temperature_max_c:
                 param_score += 1.0
                 reasons.append(
@@ -94,7 +98,11 @@ def score_candidates(constraints: RequirementConstraints, candidates: List[PartI
                     f"实际 {p.temperature_min_c}–{p.temperature_max_c}°C）"
                 )
 
-        param_score_norm = (param_score / 3.0) * 100.0
+        # 按实际有效检查数归一化；无可检查项时给中性分 50
+        if param_checks == 0:
+            param_score_norm = 50.0
+        else:
+            param_score_norm = (param_score / param_checks) * 100.0
 
         # ── 供应链风险 ────────────────────────────────────────────
         supply_score = 50.0
