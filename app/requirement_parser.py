@@ -2,9 +2,10 @@ import re
 import os
 from .schemas import RequirementConstraints
 
-VOLTAGE_PAT = re.compile(r"(\d+(?:\.\d+)?)\s*[Vv]")
-CURRENT_PAT = re.compile(r"(\d+(?:\.\d+)?)\s*[Aa]")
-TEMP_PAT    = re.compile(r"(-?\d+)[°º]?C")
+VOLTAGE_PAT    = re.compile(r"(\d+(?:\.\d+)?)\s*[Vv]")
+CURRENT_PAT    = re.compile(r"(\d+(?:\.\d+)?)\s*[Aa]")
+CURRENT_MA_PAT = re.compile(r"(\d+(?:\.\d+)?)\s*m[Aa]")   # 毫安，需转换 ÷1000
+TEMP_PAT       = re.compile(r"(-?\d+)[°º]?C")
 
 try:
     from .llm_client import parse_requirement_with_llm
@@ -145,12 +146,16 @@ def parse_requirement(text: str) -> RequirementConstraints:
             except Exception:
                 pass
 
-    # ── 电流提取 ──────────────────────────────────────────────────
+    # ── 电流提取（优先 mA，再匹配 A）────────────────────────────
     if rc.output_current_a is None:
         try:
-            m2 = re.search(r"(\d+(?:\.\d+)?)\s*[Aa]", text)
-            if m2:
-                rc.output_current_a = float(m2.group(1))
+            m_ma = CURRENT_MA_PAT.search(text)
+            if m_ma:
+                rc.output_current_a = float(m_ma.group(1)) / 1000.0
+            else:
+                m2 = CURRENT_PAT.search(text)
+                if m2:
+                    rc.output_current_a = float(m2.group(1))
         except Exception:
             pass
 
