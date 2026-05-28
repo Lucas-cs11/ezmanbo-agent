@@ -120,6 +120,22 @@ def search_parts(constraints: RequirementConstraints) -> List[PartIR]:
     return results
 
 
+def fetch_reference_designs(part_id: str) -> List[Dict[str, Any]]:
+    """调用 /api/v1/api-key/reference-designs 获取该器件的参考设计列表。"""
+    ez_key = os.getenv("EZPLM_API_KEY", "").strip()
+    ez_base = os.getenv("EZPLM_BASE_URL", "https://www.ezplm.cn").strip()
+    if not ez_key or not part_id:
+        return []
+    status, body = _request_json(
+        ez_base, ez_key,
+        "/api/v1/api-key/reference-designs",
+        {"partlibId": part_id, "pageSize": "5"},
+    )
+    if status == 200:
+        return body.get("data") or []
+    return []
+
+
 def find_replacements(part_number: str) -> List[PartIR]:
     parts = _load_parts()
     replacements = []
