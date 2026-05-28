@@ -62,6 +62,10 @@ if HAS_PYDANTIC:
         evidence_score: float = 0.0
         total_score: float = 0.0
         reasons: List[str] = Field(default_factory=list)
+        scoring_mode: str = "rule_only"
+        llm_application_score: Optional[float] = None
+        llm_design_risk_score: Optional[float] = None
+        llm_reasoning: Optional[str] = None
 
     class ScoredPart(BaseModel):
         part: PartIR
@@ -178,6 +182,10 @@ else:
         evidence_score: float = 0.0
         total_score: float = 0.0
         reasons: List[str] = field(default_factory=list)
+        scoring_mode: str = "rule_only"
+        llm_application_score: Optional[float] = None
+        llm_design_risk_score: Optional[float] = None
+        llm_reasoning: Optional[str] = None
 
         @classmethod
         def parse_obj(cls, obj: dict):

@@ -1,6 +1,7 @@
+import os
 from typing import List
 from .requirement_parser import parse_requirement
-from .ezplm_client import search_parts, find_replacements
+from .ezplm_client import search_parts, find_replacements, fetch_reference_designs
 from .scoring import score_candidates
 from .evidence import build_evidence
 from .report_generator import build_report, _assess_risks
@@ -12,8 +13,19 @@ from .schemas import (
 
 def analyze(user_input: str) -> SelectionReport:
     req = parse_requirement(user_input)
-    parts = search_parts(req)
-    scored = score_candidates(req, parts)
+    candidates = search_parts(req)
+
+    # ── 参考设计获取（仅 EZ-PLM API 器件，LLM key 存在时）────────
+    ref_designs_map = {}
+    if os.getenv("OPENAI_API_KEY", "").strip():
+        api_parts = [c for c in candidates if getattr(c, "source", "mock") == "ezplm"][:10]
+        for p in api_parts:
+            if p.ezplm_part_id:
+                designs = fetch_reference_designs(p.ezplm_part_id)
+                if designs:
+                    ref_designs_map[p.part_number] = designs
+
+    scored = score_candidates(req, candidates, ref_designs_map=ref_designs_map or None)
     evidence = build_evidence(scored, req)
     report = build_report(req, scored, evidence)
     return report
@@ -69,9 +81,7 @@ def _build_comparison_summary(
             f"**首选替代**：`{p.part_number}`{mfr}",
             f"- 综合得分：**{top.score.total_score}**"
             f"（参数 {top.score.parameter_match_score}"
-            f" | 供应 {top.score.supply_risk_score}"
-            f" | 成本 {top.score.cost_score}"
-            f" | 国产 {top.score.domestic_score}）",
+            f" | 供应 {top.score.supply_risk_score}）",
         ]
 
     if scored:
