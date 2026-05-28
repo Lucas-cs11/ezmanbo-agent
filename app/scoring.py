@@ -175,9 +175,14 @@ def score_candidates(constraints: RequirementConstraints, candidates: List[PartI
     scored.sort(key=lambda s: s.score.total_score, reverse=True)
     for idx, s in enumerate(scored, start=1):
         s.rank = idx
-        if s.score.total_score >= 75:
+        # Real EZ-PLM API parts lack stock/price/domestic data → structural score cap ~60.
+        # Use a lower threshold so high-parameter-match API parts can be recommended.
+        is_api = getattr(s.part, "source", "mock") == "ezplm"
+        rec_threshold = 55 if is_api else 75
+        bak_threshold = 40 if is_api else 50
+        if s.score.total_score >= rec_threshold:
             s.recommendation_level = "recommended"
-        elif s.score.total_score >= 50:
+        elif s.score.total_score >= bak_threshold:
             s.recommendation_level = "backup"
         else:
             s.recommendation_level = "not_recommended"

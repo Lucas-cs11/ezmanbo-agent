@@ -76,29 +76,37 @@ def search_parts(constraints: RequirementConstraints) -> List[PartIR]:
     results: List[PartIR] = []
 
     if ez_key:
-        # EZ-PLM API only supports keyword search (by MPN/name), not spec-based filtering.
-        topology = getattr(constraints, "topology", None) or ""
+        # EZ-PLM API only supports MPN-prefix search; category/topology keywords return 0.
+        # Use manufacturer-prefix keywords grouped by category/topology.
         category = getattr(constraints, "category", None) or ""
-        if topology == "buck":
-            keyword = "DC-DC Buck"
-        elif topology == "boost":
-            keyword = "DC-DC Boost"
-        elif category == "dc_dc_converter":
-            keyword = "DC-DC"
-        else:
-            keyword = topology or category or "DC-DC"
-        params: Dict[str, Any] = {"keyword": keyword, "pageSize": 50}
-        status, body = _request_json(ez_base, ez_key, "/api/v1/api-key/parts", params)
-        api_items = []
-        if status == 200:
-            api_items = body.get("data") or []
-        if api_items:
-            for p in api_items:
-                mapped = _map_api_part_to_partir(p)
-                if mapped and _part_matches_constraints(mapped, constraints):
-                    results.append(mapped)
-            return results
-        # API returned empty (whitelist restriction) — fall through to mock data
+        topology = getattr(constraints, "topology", None)
+
+        cat_map = _API_KEYWORDS.get(category) or _API_KEYWORDS.get("dc_dc_converter", {})
+        keywords: list = cat_map.get(topology) or cat_map.get(None) or []
+
+        seen_pns: set = set()
+        api_results: list = []
+
+        for kw in keywords:
+            if len(api_results) >= _API_MAX_TOTAL:
+                break
+            status, body = _request_json(
+                ez_base, ez_key, "/api/v1/api-key/parts",
+                {"keyword": kw, "pageSize": str(_API_MAX_PER_KEYWORD)},
+            )
+            if status != 200:
+                continue
+            for raw in (body.get("data") or []):
+                mapped = _map_api_part_to_partir(raw)
+                if not mapped or mapped.part_number in seen_pns:
+                    continue
+                seen_pns.add(mapped.part_number)
+                if _part_matches_constraints(mapped, constraints):
+                    api_results.append(mapped)
+
+        if api_results:
+            return api_results
+        # No API results for any prefix → fall through to mock data
 
     # local mock filtering (also used as fallback when API is empty)
     parts = _load_parts()
@@ -154,6 +162,21 @@ _DOMESTIC_MANUFACTURERS = {
     "纳芯微", "杰华特", "芯源系统", "美芯晟", "晶丰明源", "上海贝岭",
 }
 
+# EZ-PLM API 仅支持型号前缀搜索，按 category/topology 分组
+# 覆盖已开放的 TI / ADI(含 LTC) / Microchip / ST 四大厂
+_API_KEYWORDS: Dict[str, Dict] = {
+    "dc_dc_converter": {
+        "buck":  ["TPS54", "TPS62", "LM2596", "LM2576", "ADP23", "LTC388", "LTC365", "ST1S", "L5970"],
+        "boost": ["TPS61", "TPS63", "LTC370", "LTC358", "MCP1640"],
+        None:    ["TPS54", "TPS62", "TPS61", "LM2596", "ADP23", "LTC388"],
+    },
+    "ldo": {
+        None:    ["TPS79", "TPS72", "MCP1703", "MCP1700", "ADP312", "LT1763", "MCP1501"],
+    },
+}
+_API_MAX_PER_KEYWORD = 50   # 每个 keyword 最多取 N 条
+_API_MAX_TOTAL = 200        # 总条数上限，避免过多请求
+
 
 def _parse_attrs(attrs: list) -> Dict[str, Any]:
     """从 EZ-PLM attributes 数组中提取电气参数。"""
@@ -178,6 +201,15 @@ def _parse_attrs(attrs: list) -> Dict[str, Any]:
                     result["temperature_max_c"] = float(m.group(2))
             elif "封装" in name or "package" in name.lower():
                 result["package"] = val
+            elif "拓扑" in name:
+                _topo_map = {
+                    "buck": "buck", "boost": "boost", "ldo": "ldo",
+                    "buck/boost": "buck_boost", "降压": "buck", "升压": "boost",
+                }
+                topo_raw = val.lower().strip()
+                result["topology"] = next(
+                    (v for k, v in _topo_map.items() if k in topo_raw), topo_raw
+                )
         except (ValueError, TypeError):
             pass
     return result
@@ -232,7 +264,7 @@ def _map_api_part_to_partir(api_obj: Dict[str, Any]) -> "PartIR | None":
             "part_number": part_number,
             "manufacturer": manufacturer,
             "category": category,
-            "topology": api_obj.get("topology"),
+            "topology": attrs.get("topology") or api_obj.get("topology"),
             "is_domestic": is_domestic,
             "description": api_obj.get("description") or api_obj.get("summary"),
             "input_voltage_min_v": attrs.get("input_voltage_min_v"),
