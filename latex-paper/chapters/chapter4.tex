@@ -10,7 +10,7 @@
 
 RAGStore类封装了ChromaDB向量存储与语义检索。初始化时创建PersistentClient和cosine距离度量的Collection。\texttt{ingest\_documents()}接收\{content, metadata\}格式文档，批量生成嵌入向量写入数据库。\texttt{query()}接收查询文本，返回Top-K最相关文档及cosine相似度分数$S=\max(0,1-\text{distance})$。\texttt{build\_context\_from\_results()}将检索结果拼接为LLM可消费的格式化文本并自动截断。
 
-嵌入模型选用all-MiniLM-L6-v2（参数量22M，384维向量空间），在MTEB基准上取得良好的中英文语义检索性能，适合本地无GPU部署。
+嵌入模型选用all-MiniLM-L6-v2\cite{reimers2019sbert}（参数量22M，384维向量空间），在MTEB基准上取得良好的中英文语义检索性能\cite{johnson2019billion}，适合本地无GPU部署。
 
 \section{Agent模块}
 

@@ -69,8 +69,8 @@ S_{\text{total}} = 0.40 S_{\text{param}} + 0.10 S_{\text{supply}} + 0.25 S_{\tex
 
 为满足eZ-PLM平台的数据互通要求，定义了三种标准化中间表示：
 
-\textbf{PartIR}（23字段）：覆盖制造商信息、电气参数、封装、认证等级、库存价格、生命周期状态等完整器件描述。针对固定输出电压器件设计了MPN推断函数，避免API“最大输出电压”范围值被误用。
+\textbf{PartIR}（23字段）：覆盖制造商信息、电气参数、封装、认证等级、库存价格、生命周期状态等完整器件描述\cite{pecht2008parts}。针对固定输出电压器件设计了MPN推断函数，避免API“最大输出电压”范围值被误用。
 
-\textbf{RiskIR}：包含整体风险等级和风险条目列表。每条RiskItem记录风险类型（供应链/工程技术）、严重程度、描述和缓解建议。系统内置13条检测规则，覆盖无候选器件、库存水平、生命周期、供应商集中度、数据完整性、地缘政治合规、车规认证等维度。扩展FMEA RPN量化分析（严重度$\times$发生概率$\times$检测难度，1-5分制）。
+\textbf{RiskIR}：包含整体风险等级和风险条目列表。每条RiskItem记录风险类型（供应链/工程技术）、严重程度、描述和缓解建议。系统内置13条检测规则，覆盖无候选器件、库存水平、生命周期\cite{pecht2002electronic,sandborn2013forecasting}、供应商集中度、数据完整性、地缘政治合规、车规认证等维度。扩展FMEA RPN量化分析\cite{iec60812}（严重度$\times$发生概率$\times$检测难度，1-5分制）。
 
-\textbf{TopologyIR}（4子模型）：TopoNode（拓扑功能节点，8-10个，含邻接关系）、ExternalComponent（外围元件，7-8个，含推荐值和选型备注）、ThermalEstimate（热估算：效率/功耗/结温/散热判断）、顶层TopologyIR整合上述子模型+Mermaid框图+Layout规则+设计引用。通过\texttt{\_detect\_converter\_type()}自动识别集成式Converter与外置MOSFET Controller，生成差异化节点拓扑。
+\textbf{TopologyIR}\cite{zhao2015design}（4子模型）：TopoNode（拓扑功能节点，8-10个，含邻接关系）、ExternalComponent（外围元件，7-8个，含推荐值和选型备注）、ThermalEstimate（热估算：效率/功耗/结温/散热判断）、顶层TopologyIR整合上述子模型+Mermaid框图+Layout规则+设计引用。通过\texttt{\_detect\_converter\_type()}自动识别集成式Converter与外置MOSFET Controller，生成差异化节点拓扑。

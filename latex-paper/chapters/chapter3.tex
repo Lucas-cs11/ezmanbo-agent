@@ -4,7 +4,7 @@
 
 \section{选型决策的工程原理}
 
-系统核心决策链遵循电子工程设计方法论，以Buck降压转换器选型为例阐述。
+系统核心决策链遵循电子工程设计方法论\cite{erickson2007fundamentals,pressman2009switching}，以Buck降压转换器选型为例阐述。
 
 \subsection{需求解析原理}
 
@@ -30,13 +30,13 @@
 \begin{equation}
 L = \frac{(V_{\text{in}}-V_{\text{out}})D}{f_{\text{sw}}\Delta I_L} = \frac{(12-5)\times 0.417}{500\text{k}\times 0.9} \approx 6.5\mu\text{H}
 \end{equation}
-推荐6.8$\mu$H屏蔽式功率电感，$I_{\text{sat}} > I_{\text{out}}+\Delta I_L/2 = 3.45$A。
+推荐6.8$\mu$H屏蔽式功率电感\cite{slva057}，$I_{\text{sat}} > I_{\text{out}}+\Delta I_L/2 = 3.45$A。
 
 \textbf{输出电容}（$\Delta V_{\text{out}} = 1\% V_{\text{out}} = 50$mV）：
 \begin{equation}
 C_{\text{out}} \geq \frac{\Delta I_L}{8 f_{\text{sw}} \Delta V_{\text{out}}} \approx 4.5\mu\text{F}
 \end{equation}
-选用2$\times$22$\mu$F X7R MLCC并联，考虑DC偏压降额后有效容值约24$\mu$F。
+选用2$\times$22$\mu$F X7R MLCC并联\cite{slva477b}，考虑DC偏压降额后有效容值约24$\mu$F。
 
 \subsection{热性能估算}
 
