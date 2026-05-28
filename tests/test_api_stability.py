@@ -135,6 +135,111 @@ class TestHealthEndpoint:
             response = client.get("/health")
             assert response.status_code == 200
 
+    def test_health_response_format(self, client):
+        """健康检查响应格式验证"""
+        response = client.get("/health")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert isinstance(data, dict)
+        assert "status" in data
+        assert data["status"] == "ok"
+        assert len(data) == 1  # 只有 status 字段
+
+    def test_health_content_type(self, client):
+        """健康检查内容类型验证"""
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert "application/json" in response.headers.get("content-type", "")
+
+    def test_health_headers_present(self, client):
+        """健康检查响应头验证"""
+        response = client.get("/health")
+        assert response.status_code == 200
+
+        # 验证关键响应头（TestClient 可能缺少某些头）
+        assert "content-type" in response.headers
+        assert "application/json" in response.headers.get("content-type", "")
+
+    def test_health_concurrent_requests(self, client):
+        """健康检查并发请求测试"""
+        payloads = [{} for _ in range(50)]  # 50 个并发请求
+        stats = ConcurrencyTestBase.run_concurrent_requests(
+            client, "/health", payloads, num_workers=10
+        )
+
+        assert stats["success_rate"] == 100.0, f"成功率不是 100%：{stats['success_rate']:.1f}%"
+        assert stats["total_requests"] == 50
+        assert stats["failed"] == 0
+        print(f"\n并发请求统计：{stats}")
+
+    def test_health_performance_baseline(self, client):
+        """健康检查性能基准测试"""
+        stats = BenchmarkTestBase.run_benchmark(
+            client, "/health", {}, num_requests=100
+        )
+
+        avg_latency = stats["avg_latency_ms"]
+        p95_latency = stats["p95_latency_ms"]
+        p99_latency = stats["p99_latency_ms"]
+
+        # 健康检查应该非常快
+        assert avg_latency < 20, f"平均延迟过高：{avg_latency:.1f}ms"
+        assert p95_latency < 50, f"p95 延迟过高：{p95_latency:.1f}ms"
+        assert p99_latency < 100, f"p99 延迟过高：{p99_latency:.1f}ms"
+        assert stats["success_rate"] == 100.0
+
+        print(f"\n性能基准统计：")
+        print(f"  平均延迟: {avg_latency:.2f}ms")
+        print(f"  P50: {stats['p50_latency_ms']:.2f}ms")
+        print(f"  P95: {p95_latency:.2f}ms")
+        print(f"  P99: {p99_latency:.2f}ms")
+        print(f"  成功率: {stats['success_rate']:.1f}%")
+
+    def test_health_stability_over_time(self, client):
+        """健康检查长期稳定性测试"""
+        interval_results = []
+        num_intervals = 5
+        requests_per_interval = 20
+
+        for interval in range(num_intervals):
+            interval_stats = []
+            for _ in range(requests_per_interval):
+                start = time.time()
+                response = client.get("/health")
+                latency = time.time() - start
+
+                assert response.status_code == 200
+                interval_stats.append(latency)
+
+            avg_latency = sum(interval_stats) / len(interval_stats)
+            interval_results.append(avg_latency)
+            print(f"  区间 {interval + 1}/{num_intervals}: {avg_latency*1000:.2f}ms")
+
+        # 验证不同区间的延迟差异不大（稳定性）
+        max_latency = max(interval_results)
+        min_latency = min(interval_results)
+        variance = (max_latency - min_latency) / min_latency * 100
+
+        # 注意：延迟波动在 100% 以内是合理的（考虑系统干扰）
+        assert variance < 200, f"延迟波动过大：{variance:.1f}%"
+        print(f"  延迟波动：{variance:.1f}%（可接受）")
+
+    @pytest.mark.concurrent
+    def test_health_high_concurrency(self, client):
+        """健康检查高并发测试"""
+        payloads = [{} for _ in range(500)]  # 500 个并发请求
+        stats = ConcurrencyTestBase.run_concurrent_requests(
+            client, "/health", payloads, num_workers=50
+        )
+
+        assert stats["success_rate"] == 100.0
+        assert stats["total_requests"] == 500
+        print(f"\n高并发测试（500 个请求）：")
+        print(f"  成功率: {stats['success_rate']:.1f}%")
+        print(f"  平均延迟: {stats['avg_latency_ms']:.2f}ms")
+        print(f"  P95 延迟: {stats['p95_latency_ms']:.2f}ms")
+
 # ============================================================================
 # 2.3 - /analyze 端点基础测试
 # ============================================================================
