@@ -146,6 +146,16 @@ def parse_requirement(text: str) -> RequirementConstraints:
             except Exception:
                 pass
 
+    # ── 电压比较兜底（防止 LLM 误判 topology）────────────────────
+    # 若 Vin/Vout 均已知且 category=dc_dc_converter，按电压方向强制覆盖 topology
+    if (rc.category == "dc_dc_converter"
+            and rc.input_voltage_nominal_v is not None
+            and rc.output_voltage_v is not None):
+        if rc.input_voltage_nominal_v > rc.output_voltage_v:
+            rc.topology = "buck"
+        elif rc.input_voltage_nominal_v < rc.output_voltage_v:
+            rc.topology = "boost"
+
     # ── 电流提取（优先 mA，再匹配 A）────────────────────────────
     if rc.output_current_a is None:
         try:
