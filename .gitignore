@@ -6,3 +6,4 @@ __pycache__/
 .idea/
 data/chroma_db/
 docs/reports/
+latex-paper/*.pdf

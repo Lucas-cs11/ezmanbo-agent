@@ -4,115 +4,41 @@
 
 \section{测试方案设计}
 
-系统测试按三个层次递进展开：
+测试按三个层次递进：单元测试——验证需求解析器对15种典型中英文句式的解析准确性；端到端评测——10个DC-DC Buck选型用例，覆盖常规/车规/宽压/高功率/国产替代场景；Agent功能测试——验证单轮选型和多轮追问场景的工具调用效率与输出质量。
 
-\begin{enumerate}[label=(\arabic*)]
-  \item \textbf{单元测试}：验证需求解析器对15种典型中英文句式的解析准确性；
-  \item \textbf{端到端评测}：10个DC-DC Buck选型用例，覆盖常规/车规/宽压/高功率/国产替代场景，验证Pipeline全链路正确性；
-  \item \textbf{Agent功能测试}：验证单轮选型和多轮追问场景的工具调用效率与输出质量。
-\end{enumerate}
+\section{端到端评测结果}
 
-\section{Pipeline端到端评测}
-
-\subsection{评测用例设计}
-
-评测用例覆盖了电子工程师选型的典型场景，如表\ref{tab:test-cases}所示。
-
-\begin{table}[H]
-\centering
-\caption{端到端评测用例（部分）}
-\label{tab:test-cases}
-\begin{tabular}{p{1.2cm}p{1.5cm}p{4cm}p{1.5cm}p{1cm}p{1.2cm}}
-\toprule
-\textbf{用例ID} & \textbf{场景} & \textbf{输入} & \textbf{类别} & \textbf{拓扑} & \textbf{关键约束} \\
-\midrule
-dc\_dc\_001 & 车规国产 & 12V转5V 3A 车规 -40到125°C 优先国产 & DC-DC & Buck & Vout=5V, Auto \\
-dc\_dc\_002 & 常规降压 & 24V转12V 2A -40到85°C & DC-DC & Buck & Vout=12V \\
-dc\_dc\_003 & 大电流 & 12V转5V 4A 非车规 室温 & DC-DC & Buck & Iout=4A \\
-dc\_dc\_005 & 低压转换 & 5V到3.3V 1A & DC-DC & Buck & Vout=3.3V \\
-dc\_dc\_006 & 高压输入 & 48V转12V 1.5A -40到85°C 国产 & DC-DC & Buck & Vin=48V \\
-dc\_dc\_010 & 高功率 & 输入24V输出5V 10A & DC-DC & Buck & Iout=10A \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{评测结果}
-
-评测使用纯规则模式（无LLM）运行，结果如表\ref{tab:eval-results}所示。
+评测用例覆盖电子工程师选型的典型场景，使用纯规则模式运行，结果如表\ref{tab:eval}所示。
 
 \begin{table}[H]
 \centering
 \caption{纯规则模式评测结果（10/10通过）}
-\label{tab:eval-results}
-\begin{tabular}{p{1.8cm}p{0.8cm}p{1.8cm}p{2cm}p{2cm}p{1.5cm}}
+\label{tab:eval}
+\small
+\begin{tabular}{p{1.6cm}p{0.6cm}p{1.2cm}p{2.2cm}p{1.4cm}p{1.4cm}}
 \toprule
-\textbf{用例} & \textbf{通过} & \textbf{推荐数} & \textbf{首选型号} & \textbf{首选得分} & \textbf{风险等级} \\
+\textbf{用例} & \textbf{通过} & \textbf{推荐数} & \textbf{首选型号} & \textbf{得分} & \textbf{风险} \\
 \midrule
-dc\_dc\_001 & ✓ & 0\textsuperscript{*} & 无 & — & HIGH \\
+dc\_dc\_001 & ✓ & 0* & 无 & — & HIGH \\
 dc\_dc\_002 & ✓ & 5 & TPS1100D & 93.33 & MEDIUM \\
 dc\_dc\_003 & ✓ & 1 & MOCK-BUCK-005 & 86.67 & MEDIUM \\
 dc\_dc\_004 & ✓ & 5 & MOCK-BUCK-005 & 93.33 & LOW \\
 dc\_dc\_005 & ✓ & 5 & TPS1100D & 100.00 & MEDIUM \\
 dc\_dc\_006 & ✓ & 5 & TPS16530PWPR & 100.00 & MEDIUM \\
 dc\_dc\_007 & ✓ & 5 & MOCK-BUCK-005 & 100.00 & LOW \\
-dc\_dc\_008 & ✓ & 0\textsuperscript{*} & 无 & — & HIGH \\
+dc\_dc\_008 & ✓ & 0* & 无 & — & HIGH \\
 dc\_dc\_009 & ✓ & 5 & TPS1100D & 100.00 & MEDIUM \\
-dc\_dc\_010 & ✓ & 0\textsuperscript{*} & 无 & — & HIGH \\
+dc\_dc\_010 & ✓ & 0* & 无 & — & HIGH \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\footnotetext[1]{\textsuperscript{*}dc\_dc\_001、dc\_dc\_008、dc\_dc\_010返回0推荐是因为Mock数据库中缺少同时满足车规固定5V输出和大电流（10A）的器件，属数据覆盖问题而非算法缺陷。}
+\footnotetext[1]{*dc\_dc\_001/008/010返回0推荐是因为Mock数据库缺少同时满足车规固定5V和大电流(10A)的器件，属数据覆盖问题。}
 
-\subsection{关键Bug修复验证}
+评测过程中发现并修复了多项影响准确性的关键Bug：固定电压器件误推荐（LM2596S-12出现在Vout=3.3V需求中，修复后正确过滤）、“非车规”解析为automotive的否定句式缺陷、温度“-40到85$^\circ$C”仅匹配后半段的问题。修复后全部10个用例通过验证。
 
-评测过程中发现并修复了多个影响选型准确性的关键Bug：
+\section{RAG知识增强与Agent测试}
 
-\textbf{Bug 1——固定电压器件误推荐}：修复前，dc\_dc\_005（需求Vout=3.3V）的TOP1为LM2596S-12/NOPB（固定12V输出），完全偏离需求。修复后正确推荐TPS1100D（可调输出），Vout匹配度从0\%提升至100\%。
+为量化RAG对输出质量的提升，以同一需求在有RAG和无RAG条件下生成拓扑分析报告进行对比。无RAG时工程规范覆盖率仅25\%，启用RAG后提升至100\%：自动包含电感计算公式（引用TI SLVA057）、热性能估算（效率82\%, $P_{\text{loss}}=3.3$W）、PCB Layout指导（IPC-2221/2152标准引用）。RAG使设计知识的来源具备可追溯性。
 
-\textbf{Bug 2——非车规误判}：修复前，“非车规”被解析为grade=automotive，导致dc\_dc\_003所有候选被车规认证条件过滤。修复后正确解析为grade=industrial，dc\_dc\_003恢复为1推荐。
-
-\textbf{Bug 3——温度解析失败}：修复前，“-40到85°C”仅匹配“85°C”（因-40后无°C后缀），导致Tmin=85, Tmax=None。修复后正确解析为Tmin=-40, Tmax=85。
-
-\section{RAG知识增强实验}
-
-为量化RAG对输出质量的提升，设计对比实验：同一需求分别在启用RAG和禁用RAG的条件下生成拓扑分析报告，由人工评估工程规范符合度。评估维度包括：是否包含电感计算、是否有热估算、是否包含PCB Layout建议、是否引用标准。结果如表\ref{tab:rag-compare}所示。
-
-\begin{table}[H]
-\centering
-\caption{RAG增强效果对比}
-\label{tab:rag-compare}
-\begin{tabular}{p{3.5cm}p{2.5cm}p{2.5cm}p{2.5cm}}
-\toprule
-\textbf{评估维度} & \textbf{无RAG} & \textbf{有RAG} & \textbf{提升} \\
-\midrule
-含电感计算公式 & 部分（LLM生成） & ✓（引用TI SLVA057） & 来源可追溯 \\
-含热性能估算 & ✗ & ✓（效率82\%, Ploss=3.3W） & 100\%→100\% \\
-含PCB Layout指导 & ✗ & ✓（IPC-2221/2152） & 100\%→100\% \\
-引用工程标准 & ✗ & ✓ & 新增 \\
-总工程规范覆盖率 & 25\% & 100\% & +75\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-RAG增强使拓扑分析报告的工程规范覆盖率从25\%提升至100\%。特别是在电感选型计算中，RAG检索到的TI SLVA057应用笔记为$L \approx 6.5\mu$H的计算结果提供了权威溯源。
-
-\section{Agent多轮对话测试}
-
-以“12V转5V 3A 车规级降压方案”为初始需求，测试Agent在单轮和多轮场景下的表现：
-
-\textbf{单轮测试}：
-\begin{itemize}
-  \item 工具调用：2次（search\_components → query\_design\_knowledge）
-  \item 总耗时：约8秒（含DeepSeek API调用和RAG检索）
-  \item 输出质量：返回包含LM2596S-5.0推荐方案的结构化对比表，引用RAG知识库中的Buck选型要点验证输入耐压余量
-\end{itemize}
-
-\textbf{多轮追问测试}（“第一个推荐方案有国产替代吗？对比一下”）：
-\begin{itemize}
-  \item 工具调用：4次（search\_components → query\_design\_knowledge → find\_alternative\_parts → search\_components）
-  \item Agent正确记住了第一轮推荐的LM2596S-5.0/NOPB型号
-  \item 返回了进口vs国产的对比分析表，包含输出电流余量、温度范围、车规认证等维度的差异说明
-\end{itemize}
-
-\textbf{已知限制}：当Mock数据库中没有国产替代型号时，Agent偶尔出现幻觉编造型号（如XL2596S）。后续将通过validate-before-reply中间件缓解此问题。
+Agent多轮对话测试以“12V转5V 3A车规级降压方案”为初始需求。单轮模式下Agent调用2次工具（search\_components→query\_design\_knowledge），返回含推荐方案的结构化对比表。多轮追问（“第一个推荐方案有国产替代吗？”）时，Agent正确记住第一轮推荐的LM2596S-5.0型号，调用4次工具后返回进口vs国产的对比分析。已知限制：Mock数据库无国产替代型号时Agent偶有幻觉编造型号，后续将通过validate-before-reply中间件缓解。
