@@ -8,8 +8,8 @@
     "risk_level": "medium",
     "top1": "MOCK-BUCK-AEC-001",
     "top1_score": 97.96,
-    "elapsed_s": 0.11,
-    "mode": "rule-only"
+    "elapsed_s": 2.74,
+    "mode": "llm-enhanced"
   },
   {
     "case_id": "dc_dc_002",
@@ -20,8 +20,8 @@
     "risk_level": "medium",
     "top1": "MOCK-BUCK-AEC-001",
     "top1_score": 98.81,
-    "elapsed_s": 0.06,
-    "mode": "rule-only"
+    "elapsed_s": 5.08,
+    "mode": "llm-enhanced"
   },
   {
     "case_id": "dc_dc_003",
@@ -32,8 +32,8 @@
     "risk_level": "low",
     "top1": "MOCK-BUCK-AEC-001",
     "top1_score": 93.44,
-    "elapsed_s": 0.06,
-    "mode": "rule-only"
+    "elapsed_s": 5.28,
+    "mode": "llm-enhanced"
   },
   {
     "case_id": "dc_dc_004",
@@ -44,8 +44,8 @@
     "risk_level": "low",
     "top1": "MOCK-BUCK-AEC-003",
     "top1_score": 97.88,
-    "elapsed_s": 0.07,
-    "mode": "rule-only"
+    "elapsed_s": 6.82,
+    "mode": "llm-enhanced"
   },
   {
     "case_id": "dc_dc_005",
@@ -56,8 +56,8 @@
     "risk_level": "low",
     "top1": "MOCK-BUCK-008",
     "top1_score": 96.64,
-    "elapsed_s": 0.06,
-    "mode": "rule-only"
+    "elapsed_s": 5.07,
+    "mode": "llm-enhanced"
   },
   {
     "case_id": "dc_dc_006",
@@ -68,32 +68,32 @@
     "risk_level": "low",
     "top1": "MOCK-BUCK-022",
     "top1_score": 90.0,
-    "elapsed_s": 0.06,
-    "mode": "rule-only"
+    "elapsed_s": 6.49,
+    "mode": "llm-enhanced"
   },
   {
     "case_id": "dc_dc_007",
     "input": "找一个 9V 转 5V、2A 的降压，温度 0°C 到 70°C，非车规。",
     "passed": true,
     "failures": [],
-    "recommended_count": 7,
+    "recommended_count": 137,
     "risk_level": "medium",
     "top1": "MOCK-BUCK-AEC-001",
-    "top1_score": 99.44,
-    "elapsed_s": 0.06,
-    "mode": "rule-only"
+    "top1_score": 98.81,
+    "elapsed_s": 4.98,
+    "mode": "llm-enhanced"
   },
   {
     "case_id": "dc_dc_008",
     "input": "需要 12V 到 5V、3A 的车规级降压（automotive）。",
     "passed": true,
     "failures": [],
-    "recommended_count": 9,
-    "risk_level": "low",
-    "top1": "MOCK-BUCK-AEC-003",
-    "top1_score": 96.83,
-    "elapsed_s": 0.07,
-    "mode": "rule-only"
+    "recommended_count": 10,
+    "risk_level": "medium",
+    "top1": "MOCK-BUCK-AEC-001",
+    "top1_score": 97.5,
+    "elapsed_s": 2.73,
+    "mode": "llm-enhanced"
   },
   {
     "case_id": "dc_dc_009",
@@ -104,8 +104,8 @@
     "risk_level": "low",
     "top1": "MOCK-BUCK-018",
     "top1_score": 99.79,
-    "elapsed_s": 0.08,
-    "mode": "rule-only"
+    "elapsed_s": 6.89,
+    "mode": "llm-enhanced"
   },
   {
     "case_id": "dc_dc_010",
@@ -116,7 +116,7 @@
     "risk_level": "low",
     "top1": "MOCK-BUCK-HP-001",
     "top1_score": 93.0,
-    "elapsed_s": 0.06,
-    "mode": "rule-only"
+    "elapsed_s": 5.82,
+    "mode": "llm-enhanced"
   }
 ]
