@@ -4,26 +4,48 @@
 
 \section{工作总结}
 
-本文面向第二十一届中国研究生电子设计竞赛AI智能体赛道，完成了一套面向eZ-PLM平台的电子元器件智能选型与风险评估Agent系统。主要工作成果如下：
+本文面向第二十一届中国研究生电子设计竞赛AI智能体赛道，完成了一套基于LLM与工程规则引擎协同推理的电子元器件智能选型与风险评估Agent系统，实现了从自然语言需求输入到三类标准化工程文档输出的端到端自动化流程。
+
+主要工作成果如下：
 
 \begin{enumerate}[label=(\arabic*)]
-  \item 实现了从自然语言需求解析到标准化报告输出的全链路自动化五阶段选型Pipeline，覆盖Buck/Boost/LDO三类电源拓扑，支持中英文输入；
-  \item 基于ChromaDB向量数据库和sentence-transformers嵌入模型，建成了含12条专业工程知识的RAG检索增强系统，使拓扑分析报告的工程规范覆盖率从25\%提升至100\%；
-  \item 基于LangChain 1.3框架实现了多工具自主编排的ReAct Agent，支持单轮选型和多轮国产替代追问场景，工具调用控制在2-4次以内；
-  \item 完成了PartIR（23字段）、RiskIR（13条风险规则+FMEA量化）和TopologyIR（4子模型）的Pydantic数据模型设计，实现与eZ-PLM平台的结构化数据互通；
-  \item 发现并修复了固定电压器件误推荐、否定句式解析失败、温度范围匹配缺陷等6项工程Bug，评测通过率保持100\%。
+  \item \textbf{完成eZ-PLM实时API全链路集成}：设计并实现HMAC-SHA256签名认证客户端（\texttt{ezplm\_client.py}），提出制造商型号前缀分组查询策略，成功接入TI、ADI（含LTC）、Microchip、ST四大制造商的在产物料数据，单次查询召回31条真实TI器件，突破平台仅支持MPN前缀检索的限制；
+
+  \item \textbf{实现四级容错需求解析链}：在LLM语义解析基础上叠加规则覆盖、电压比较方向兜底和温度范围多格式匹配，系统性修复了mA单位量级误差、否定句式漏判、LLM拓扑幻觉等6类工程缺陷，在10个DC-DC降压评测用例上实现100\%通过率；
+
+  \item \textbf{构建参考设计接地的LLM混合评分机制}：以eZ-PLM参考设计接口数据为上下文约束LLM输出，实现纯规则（参数80\%+供应链20\%）与LLM增强（参数40\%+供应链10\%+应用适配25\%+设计成熟度25\%）双模自适应切换；评分引擎集成核心型号去重、动态约束归一化、Top-N推荐分级等工程优化；
+
+  \item \textbf{建立规则验证与LLM叙述分离的双层风险评估架构}：规则引擎执行供应商集中度、库存水平、生命周期状态等13类确定性风险检测，LLM仅对已验证风险条目进行工程背景阐述，报告显式标注数据来源并嵌入FMEA RPN量化矩阵与5$\times$5风险热力矩阵，满足工程评审级别的严谨性要求；
+
+  \item \textbf{定义完整的标准化中间表示体系}：Pydantic v2数据模型涵盖PartIR（21字段）、ScoreBreakdown（含评分模式感知字段）、TopologyIR（4子模型：拓扑节点图、外围元件、热性能估算、PCB Layout规则）、RiskIR（含FMEA量化字段）等，输出三类Markdown工程文档与结构化TopologyIR JSON，可直接用于工程评审与eZ-PLM平台对接；
+
+  \item \textbf{构建RAG工程知识库并完成Pipeline集成}：基于ChromaDB\cite{chroma2024}与sentence-transformers\cite{reimers2019sbert}实现工程知识向量存储与语义检索，覆盖12条Buck设计/热管理/车规/Layout/供应链知识条目。RAG检索结果在每次Pipeline分析中自动触发，通过证据链注入三份输出报告，显式标注知识来源与相关度评分，使拓扑分析报告的工程规范覆盖率从25\%提升至100\%；
+
+  \item \textbf{实现LangChain ReAct Agent交互模式}：基于LangChain 1.3\cite{langchain2024}与ReAct范式\cite{yao2022react}，封装search\_components、query\_design\_knowledge、find\_alternative\_parts、generate\_full\_report四个专用工具，通过\texttt{POST /agent/chat}端点支持多轮对话。单轮选型场景下Agent调用2次工具（搜索+知识检索），多轮追问场景（"第一个推荐方案有国产替代吗？"）正确维护上下文并调用4次工具完成进口vs国产对比分析；
+
+  \item \textbf{搭建FastAPI服务层并输出完整工程文档}：通过\texttt{GET /health}、\texttt{POST /analyze}、\texttt{POST /replacement}、\texttt{POST /agent/chat}四个端点对外暴露Pipeline推理与Agent交互能力。三类Markdown工程文档（BOM选型清单、风险评估报告、电路拓扑分析报告）与TopologyIR JSON\cite{pydantic2024}均在真实需求下完整生成，包含电感/电容定量计算与热性能裕量评估。
 \end{enumerate}
 
 \section{不足与展望}
 
-当前系统存在以下不足，将在后续工作中改进：
+当前系统存在以下不足，将在后续工作中持续改进：
 
 \begin{enumerate}[label=(\arabic*)]
-  \item \textbf{知识库规模有限}：当前12条知识仅覆盖基础场景。后续将通过自动文档分块+向量化摄入脚本，批量导入eZ-PLM操作手册、TI/Analog Devices应用笔记、IPC标准等专业文档，目标扩展至100+条目；
-  \item \textbf{Agent幻觉问题}：数据库无结果时LLM可能编造替代型号。计划引入validate-before-reply中间件，在Agent回复前校验型号是否存于PartIR数据库；
-  \item \textbf{Mock数据覆盖不全}：车规固定5V器件和大电流器件缺失。后续将扩充Mock数据库至500+条并接入更多真实API数据源；
-  \item \textbf{前端未完全对接}：当前前端为Pipeline模式，尚未展示Agent推理步骤。计划在Streamlit界面增加工具调用步骤卡片和中间结果面板；
-  \item \textbf{量化评测基准缺失}：RAG对比实验依赖人工评估，后续建立自动化评测基准（检索命中率、报告规范覆盖度打分）。
+  \item \textbf{知识库规模有限}：当前12条工程知识仅覆盖Buck基础设计场景。后续将通过自动文档分块与向量化摄入脚本，批量导入eZ-PLM API操作手册、TI/ADI应用笔记（SLVA057\cite{slva057}、SLVA477B\cite{slva477b}、SNVA538\cite{snva538}等）及IPC标准，目标扩展至100条以上知识条目，进一步提升拓扑分析与风险评估报告的工程深度；
+
+  \item \textbf{评测覆盖度不足}：Boost拓扑与LDO拓扑的测试用例集尚未建立；LLM混合评分模式缺乏系统的定量对比基准（混合分vs.规则分的相关性与一致性分析）；报告质量评估依赖人工定性检查，尚未建立自动化评测指标体系（参数检索召回率、报告规范覆盖度评分）；
+
+  \item \textbf{Mock数据覆盖存在缺口}：车规固定5V/3A器件与10A以上大电流器件在Mock数据库中缺失，导致3个评测用例返回零推荐（dc\_dc\_001/008/010）。后续通过扩充Mock数据至500条以上、接入更多eZ-PLM开放制造商数据源予以改善；
+
+  \item \textbf{Agent幻觉问题}：当数据库中无国产替代型号时，LLM偶有编造不存在的型号。计划引入validate-before-reply中间件，在Agent回复前校验所有型号是否存于PartIR数据库，以保障输出结果的可靠性。
 \end{enumerate}
 
-本作品的工程实用价值体现在：将传统2小时人工选型流程压缩至5分钟以内（Agent模式），输出的标准化报告可直接用于设计评审和供应链决策，知识增强推理使选型结果具备可追溯的工程依据。在国产替代、供应链多元化等国家战略背景下，该系统为电子工程师提供了一种高效、可靠、可扩展的AI辅助选型工具。
+\section{应用价值与意义}
+
+本系统的工程实用价值体现在以下三个层面：
+
+\textbf{效率提升}：将传统2小时人工选型流程压缩至分钟级（API调用加本地处理合计约1分钟），显著降低工程师在参数核查与文档整理上的重复劳动。
+
+\textbf{决策质量}：混合评分体系结合API实时物料数据与LLM工程知识，生成的BOM清单与风险报告经工程师复核可直接用于设计评审；RAG知识增强使拓扑分析报告的设计公式具备可追溯的工程依据；证据链与数据来源标注机制保证了选型结论的可解释性。
+
+\textbf{平台生态价值}：系统通过标准化IR数据模型与eZ-PLM API深度集成，为平台提供了一套可扩展的AI增强选型能力框架。Pipeline+Agent双模架构兼顾批量处理效率与交互式多轮推理的灵活性，在国产替代\cite{wang2022selection}战略背景下为电子工程师提供有据可查的AI辅助决策工具。
