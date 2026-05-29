@@ -1,0 +1,16 @@
+{
+  "TPS61030DSG": {
+    "manufacturer": "Texas Instruments",
+    "type": "Boost Converter",
+    "key_specs": {
+      "input_voltage_range": "0.7V - 5.5V",
+      "output_voltage": "Adjustable",
+      "max_output_current": "1.0A",
+      "frequency": "1.5MHz",
+      "efficiency": "up to 95%"
+    },
+    "url": "https://www.ti.com/product/TPS61030",
+    "source": "Texas Instruments Official",
+    "registered_at": "1779865164.3665607"
+  }
+}
