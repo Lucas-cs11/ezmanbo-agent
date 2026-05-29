@@ -1,162 +1,266 @@
-"""
-eval_runner.py — 端到端评测脚本
-
-用法：
-  # 纯规则模式（不需要 LLM key）
-  PYTHONPATH=. python3 tests/eval_runner.py
-
-  # LLM 增强模式（需要 .env 中配置 OPENAI_API_KEY）
-  PYTHONPATH=. python3 tests/eval_runner.py --llm
-
-  # 对比模式（同时跑纯规则和 LLM，输出差异）
-  PYTHONPATH=. python3 tests/eval_runner.py --compare
-"""
-
-# ── load_dotenv 必须在 app.* 导入之前执行 ────────────────────────
-# llm_client.py 在模块级别读取 OPENAI_API_KEY，若先 import 再 dotenv 则无效
-import sys
-import os
-
-_dotenv_loaded = False
-try:
-    from dotenv import load_dotenv
-    _dotenv_path = os.path.join(os.path.dirname(__file__), "..", ".env")
-    if load_dotenv(_dotenv_path):
-        _dotenv_loaded = True
-except ImportError:
-    pass
-
-# ── 正常导入 ─────────────────────────────────────────────────────
 import json
 import time
 from pathlib import Path
+from datetime import datetime
 from app.agent_orchestrator import analyze
 
-CASES = Path(__file__).parent / "cases" / "dc_dc_cases.jsonl"
-OUT_DIR = Path(__file__).parents[1] / "docs"
+CASES = Path(__file__).parents[0] / "cases" / "dc_dc_cases.jsonl"
+OUT_DIR = Path(__file__).parents[1] / "docs" / "eval_results"
 
 
-def _check_case(case: dict, report) -> dict:
-    """对单个 case 做字段级校验，返回详细结果。"""
-    expected = case.get("expected", {})
+def _color(level: str) -> str:
+    return {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(level, "⚪")
+
+
+def _level_emoji(level: str) -> str:
+    m = {
+        "recommended": "⭐",
+        "backup": "🟡",
+        "not_recommended": "🔴",
+    }
+    return m.get(level, "❓")
+
+
+def _check_pass(report, expected: dict) -> dict:
     cons = report.constraints
     failures = []
-
-    for field in ("category", "topology", "output_voltage_v", "output_current_a"):
-        exp_val = expected.get(field)
-        if exp_val is None:
-            continue
-        got_val = getattr(cons, field, None)
-        if got_val != exp_val:
-            failures.append(f"{field}: 期望={exp_val!r} 实际={got_val!r}")
-
+    checks = {
+        "category": (cons.category, expected.get("category")),
+        "topology": (cons.topology, expected.get("topology")),
+        "output_voltage_v": (cons.output_voltage_v, expected.get("output_voltage_v")),
+        "output_current_a": (cons.output_current_a, expected.get("output_current_a")),
+        "temperature_min_c": (cons.temperature_min_c, expected.get("temperature_min_c")),
+        "temperature_max_c": (cons.temperature_max_c, expected.get("temperature_max_c")),
+        "grade": (cons.grade, expected.get("grade")),
+    }
+    for field, (actual, exp) in checks.items():
+        if exp is not None and actual != exp:
+            failures.append(f"{field}: expected={exp}, got={actual}")
+    # preferences: check that all expected preferences are present
+    exp_prefs = expected.get("preferences", [])
+    if exp_prefs:
+        for p in exp_prefs:
+            if p not in cons.preferences:
+                failures.append(f"preference '{p}' missing (got {cons.preferences})")
     return {
-        "case_id": case.get("case_id"),
-        "input": case.get("input"),
         "passed": len(failures) == 0,
         "failures": failures,
-        "recommended_count": len(report.recommended_parts),
-        "risk_level": report.risks.overall_risk_level if report.risks else "n/a",
-        "top1": (
-            report.recommended_parts[0].part.part_number
-            if report.recommended_parts else None
-        ),
-        "top1_score": (
-            report.recommended_parts[0].score.total_score
-            if report.recommended_parts else None
-        ),
+        "constraints_parsed": cons.dict(),
     }
 
 
-def run_mode(label: str, use_llm: bool) -> list:
-    """运行评测，返回结果列表。use_llm 控制是否激活 LLM key。"""
-    original_key = os.environ.get("OPENAI_API_KEY", "")
+def run():
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    lines = []
 
-    if not use_llm:
-        # 临时屏蔽 key，强制纯规则
-        os.environ["OPENAI_API_KEY"] = ""
-
-    results = []
     with open(CASES, "r", encoding="utf-8") as f:
         for ln in f:
             if not ln.strip():
                 continue
             case = json.loads(ln)
-            t0 = time.time()
-            report = analyze(case.get("input", ""))
-            elapsed = round(time.time() - t0, 2)
-            res = _check_case(case, report)
-            res["elapsed_s"] = elapsed
-            res["mode"] = label
-            results.append(res)
+            cid = case.get("case_id")
+            inp = case.get("input")
+            expected = case.get("expected", {})
 
-    if not use_llm:
-        # 恢复 key
-        os.environ["OPENAI_API_KEY"] = original_key
+            t0 = time.perf_counter()
+            try:
+                report = analyze(inp)
+                elapsed = time.perf_counter() - t0
+                check = _check_pass(report, expected)
+            except Exception as e:
+                elapsed = time.perf_counter() - t0
+                check = {"passed": False, "failures": [str(e)], "constraints_parsed": {}}
+                report = None
 
-    return results
+            lines.append({
+                "case_id": cid,
+                "input": inp,
+                "expected": expected,
+                "check": check,
+                "report": report.dict() if report else {},
+                "elapsed_s": round(elapsed, 3),
+            })
 
+    # ---------- Build Markdown report ----------
+    total = len(lines)
+    passed = sum(1 for l in lines if l["check"]["passed"])
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def print_results(results: list, label: str):
-    total = len(results)
-    passed = sum(1 for r in results if r["passed"])
-    print(f"\n{'=' * 60}")
-    print(f"模式: {label}  通过率: {passed}/{total}")
-    print(f"{'=' * 60}")
-    for r in results:
-        status = "✅" if r["passed"] else "❌"
-        rec = r["recommended_count"]
-        top = f"TOP1={r['top1']}({r['top1_score']})" if r["top1"] else "无推荐"
-        risk = r["risk_level"].upper()
-        print(f"  {status} {r['case_id']:12s} | 推荐={rec:2d} | {top:35s} | 风险={risk}")
-        for fail in r.get("failures", []):
-            print(f"       ↳ FAIL: {fail}")
+    md = []
+    md.append(f"# eZ-PLM Component Risk Agent — 评测报告")
+    md.append(f"")
+    md.append(f"**生成时间**：{now}  ")
+    md.append(f"**用例总数**：{total}  ")
+    md.append(f"**通过**：{passed} ✅  |  **失败**：{total - passed} ❌  ")
+    md.append(f"**通过率**：{passed / total * 100:.1f}%  ")
+    md.append(f"**评测模式**：纯规则模式，无 LLM 依赖  ")
+    md.append(f"")
+    md.append(f"---")
+    md.append(f"")
 
+    # Summary table
+    md.append(f"## 📊 总览")
+    md.append(f"")
+    md.append(f"| 用例 ID | 输入摘要 | 解析通过 | 推荐数 | 风险等级 | 耗时(ms) |")
+    md.append(f"|---------|----------|----------|--------|----------|----------|")
+    for l in lines:
+        cid = l["case_id"]
+        inp_short = l["input"][:40] + ("..." if len(l["input"]) > 40 else "")
+        chk = "✅" if l["check"]["passed"] else "❌"
+        rec = len(l["report"].get("recommended_parts", []) or [])
+        risk = l["report"].get("risks") or {}
+        risk_level = risk.get("overall_risk_level", "N/A") if risk else "N/A"
+        elapsed_ms = int(l["elapsed_s"] * 1000)
+        md.append(f"| {cid} | {inp_short} | {chk} | {rec} | {_color(risk_level)} {risk_level} | {elapsed_ms}ms |")
+    md.append(f"")
 
-def compare_results(rule_results: list, llm_results: list):
-    print(f"\n{'=' * 60}")
-    print("对比：LLM 增强 vs 纯规则")
-    print(f"{'=' * 60}")
-    by_id = {r["case_id"]: r for r in rule_results}
-    for lr in llm_results:
-        cid = lr["case_id"]
-        rr = by_id.get(cid, {})
-        r_pass = "✅" if rr.get("passed") else "❌"
-        l_pass = "✅" if lr["passed"] else "❌"
-        r_rec = rr.get("recommended_count", "-")
-        l_rec = lr["recommended_count"]
-        diff = "  " if r_rec == l_rec else f" ↑{l_rec - r_rec:+d}"
-        print(f"  {cid:12s} | 规则={r_pass}{r_rec:2d} | LLM={l_pass}{l_rec:2d}{diff}")
+    # Detail per case
+    md.append(f"---")
+    md.append(f"")
+    md.append(f"## 📋 逐用例详情")
+    md.append(f"")
 
+    for idx, l in enumerate(lines):
+        cid = l["case_id"]
+        chk = l["check"]
+        rep = l["report"]
+        elapsed_ms = int(l["elapsed_s"] * 1000)
 
-def save_results(results: list, suffix: str = ""):
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = OUT_DIR / f"eval_results{suffix}.md"
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
-    print(f"\n结果已写入: {out_path}")
+        md.append(f"### {idx + 1}. {cid} {'✅' if chk['passed'] else '❌'}")
+        md.append(f"")
+        md.append(f"**输入**：{l['input']}  ")
+        md.append(f"**耗时**：{elapsed_ms}ms  ")
+        md.append(f"")
 
+        if chk["failures"]:
+            md.append(f"**解析失败项**：")
+            for f in chk["failures"]:
+                md.append(f"- ❌ {f}")
+            md.append(f"")
 
-def run():
-    mode_compare = "--compare" in sys.argv
-    mode_llm = "--llm" in sys.argv or mode_compare
+        # Parsed constraints
+        cons = chk.get("constraints_parsed", {})
+        if cons:
+            md.append(f"**解析约束**：")
+            md.append(f"")
+            md.append(f"| 字段 | 值 |")
+            md.append(f"|------|-----|")
+            for field in ["category", "topology", "application", "grade",
+                          "input_voltage_nominal_v", "output_voltage_v", "output_current_a",
+                          "temperature_min_c", "temperature_max_c"]:
+                val = cons.get(field)
+                if val is not None:
+                    md.append(f"| {field} | {val} |")
+            prefs = cons.get("preferences", [])
+            must = cons.get("must_have", [])
+            nice = cons.get("nice_to_have", [])
+            if prefs:
+                md.append(f"| preferences | {', '.join(prefs)} |")
+            if must:
+                md.append(f"| must_have | {', '.join(must)} |")
+            if nice:
+                md.append(f"| nice_to_have | {', '.join(nice)} |")
+            md.append(f"")
 
-    has_key = bool(os.environ.get("OPENAI_API_KEY", "").strip())
-    if mode_llm and not has_key:
-        print("⚠️  未检测到 OPENAI_API_KEY，LLM 路径将 fallback 到纯规则")
+        # Score breakdown
+        candidates = rep.get("candidates", []) or []
+        if candidates:
+            md.append(f"**候选评分明细**（共 {len(candidates)} 个）：")
+            md.append(f"")
+            md.append(f"| # | 型号 | 厂商 | 国产 | 车规 | 总分 | 参数 | 供应 | 成本 | 国产 | 证据 | 推荐等级 |")
+            md.append(f"|---|------|------|------|------|------|------|------|------|------|------|----------|")
+            for sc in candidates:
+                part = sc.get("part", {})
+                score = sc.get("score", {})
+                pn = part.get("part_number", "N/A")
+                mfr = part.get("manufacturer", "?")
+                dom = "🇨🇳" if part.get("is_domestic") else "🌍"
+                auto = "🚗" if part.get("automotive_grade") else "-"
+                total_s = score.get("total_score", 0)
+                pm = score.get("parameter_match_score", 0)
+                sr = score.get("supply_risk_score", 0)
+                cs = score.get("cost_score", 0)
+                ds = score.get("domestic_score", 0)
+                es = score.get("evidence_score", 0)
+                rl = sc.get("recommendation_level", "N/A")
+                md.append(f"| {sc.get('rank','-')} | {pn} | {mfr} | {dom} | {auto} | **{total_s:.0f}** | {pm:.0f} | {sr:.0f} | {cs:.0f} | {ds:.0f} | {es:.0f} | {_level_emoji(rl)} {rl} |")
+            md.append(f"")
 
-    # 纯规则评测（始终执行）
-    rule_results = run_mode("rule-only", use_llm=False)
-    print_results(rule_results, "纯规则模式")
-    save_results(rule_results)
+            # Top-1 reasons
+            top = candidates[0]
+            reasons = top.get("score", {}).get("reasons", [])
+            if reasons:
+                md.append(f"**TOP1 评分原因**：")
+                for r in reasons:
+                    md.append(f"- {r}")
+                md.append(f"")
 
-    # LLM 增强评测（按需）
-    if mode_llm and has_key:
-        llm_results = run_mode("llm-enhanced", use_llm=True)
-        print_results(llm_results, "LLM 增强模式")
-        save_results(llm_results, "_llm")
-        if mode_compare:
-            compare_results(rule_results, llm_results)
+        # Evidence
+        evidence = rep.get("evidence", []) or []
+        if evidence:
+            md.append(f"**证据链**（共 {len(evidence)} 条）：")
+            md.append(f"")
+            md.append(f"| 器件 | 证据类型 | 声明 | 置信度 | 需人工 |")
+            md.append(f"|------|----------|------|--------|--------|")
+            for ev in evidence[:10]:  # limit to 10
+                pn = ev.get("part_number", "-")
+                et = ev.get("evidence_type", "N/A")
+                claim = ev.get("claim", "")[:60]
+                conf = ev.get("confidence", 0)
+                hr = "⚠️" if ev.get("need_human_review") else ""
+                md.append(f"| {pn} | `{et}` | {claim} | {conf:.0%} | {hr} |")
+            if len(evidence) > 10:
+                md.append(f"| ... | ... | _(共 {len(evidence)} 条，仅展示前 10 条)_ | ... | ... |")
+            md.append(f"")
+
+        # Risk
+        risk = rep.get("risks")
+        if risk:
+            md.append(f"**风险评估**：{_color(risk.get('overall_risk_level','N/A'))} {risk.get('overall_risk_level','N/A')}")
+            md.append(f"")
+            items = risk.get("risk_items", []) or []
+            for ri in items:
+                sev = ri.get("severity", "N/A")
+                desc = ri.get("description", "")
+                mit = ri.get("mitigation", "")
+                md.append(f"- {_color(sev)} **{sev}** — {desc}" + (f" _(缓解: {mit})_" if mit else ""))
+            md.append(f"")
+
+        md.append(f"---")
+        md.append(f"")
+
+    # Footer
+    md.append(f"")
+    md.append(f"*报告由 `tests/eval_runner.py` 自动生成，IR version: {rep.get('ir_version', '0.1') if rep else 'N/A'}*")
+    md.append(f"")
+
+    report_path = OUT_DIR / "eval_report.md"
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(md))
+
+    # Also write JSON summary
+    json_path = OUT_DIR / "eval_summary.json"
+    json_out = []
+    for l in lines:
+        json_out.append({
+            "case_id": l["case_id"],
+            "passed": l["check"]["passed"],
+            "failures": l["check"]["failures"],
+            "recommended_count": len(l["report"].get("recommended_parts", []) or []),
+            "candidate_count": len(l["report"].get("candidates", []) or []),
+            "risk_level": (l["report"].get("risks") or {}).get("overall_risk_level", "N/A"),
+            "elapsed_s": l["elapsed_s"],
+        })
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump({"total": total, "passed": passed, "pass_rate": f"{passed / total * 100:.1f}%", "results": json_out}, f, ensure_ascii=False, indent=2)
+
+    import sys
+    # Avoid UnicodeEncodeError on Windows GBK terminals
+    if hasattr(sys.stdout, "reconfigure") and sys.stdout.encoding.lower() in ("gbk", "cp936", "gb2312"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    print(f"Eval complete: {passed}/{total} passed ({passed / total * 100:.1f}%)")
+    print(f"Markdown report: {report_path}")
+    print(f"JSON summary:   {json_path}")
 
 
 if __name__ == "__main__":
