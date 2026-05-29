@@ -5,7 +5,12 @@
     "category": "buck_design",
     "content": "Buck 转换器电感值计算公式：L = (Vin - Vout) × D / (fsw × ΔIL)，其中 D = Vout / Vin 为占空比，fsw 为开关频率，ΔIL 为电感纹波电流（通常取输出电流的 20%-40%）。电感饱和电流 Isat 须大于 Iout(max) + ΔIL/2。选型时还需考虑 DCR（直流电阻），DCR 越低导通损耗越小。对于 12V 转 5V、3A 的应用，若 fsw=500kHz、ΔIL=0.9A，则 L ≈ (12-5)×0.417/(500k×0.9) ≈ 6.5μH，推荐选用 6.8μH 屏蔽式功率电感。",
     "source": "TI Application Note SLVA057",
-    "tags": ["电感选型", "buck", "公式", "纹波电流"]
+    "tags": [
+      "电感选型",
+      "buck",
+      "公式",
+      "纹波电流"
+    ]
   },
   {
     "id": "buck_002",
@@ -13,7 +18,13 @@
     "category": "buck_design",
     "content": "输出电容（COUT）需同时满足纹波电压和瞬态响应要求。最小电容量：Cout(min) ≥ ΔIL / (8 × fsw × ΔVout)，其中 ΔVout 为允许的输出纹波电压（通常 1% Vout）。对于 5V 输出、50mV 纹波，Cout ≥ 0.9/(8×500k×0.05) ≈ 4.5μF。实际选型需考虑 ESR 引起的附加纹波和 DC 偏压降额：陶瓷电容在 DC 偏压下容值可能降至标称值的 30%-50%，建议选用 X7R 材质、耐压 ≥ 2×Vout 的 MLCC，并采用 2-3 颗并联以降低 ESR。",
     "source": "TI Application Note SLVA477B",
-    "tags": ["输出电容", "buck", "纹波", "MLCC", "降额"]
+    "tags": [
+      "输出电容",
+      "buck",
+      "纹波",
+      "MLCC",
+      "降额"
+    ]
   },
   {
     "id": "buck_003",
@@ -21,7 +32,13 @@
     "category": "buck_design",
     "content": "输入电容（CIN）承受脉冲电流，其有效值 Irms ≈ Iout × √(D×(1-D))。对于 12V→5V/3A，Irms ≈ 3×√(0.417×0.583) ≈ 1.5A。选型需确保电容额定纹波电流大于计算值。推荐使用 X7R MLCC 并联低 ESR 电解电容：MLCC 滤除高频纹波，电解电容提供阻尼防止输入滤波网络振荡。输入电容耐压需 ≥ 1.5×Vin(max)，靠近 IC VIN 引脚放置，与 PGND 构成的回路面积 ≤ 1cm²。",
     "source": "TI Application Note SNVA538",
-    "tags": ["输入电容", "buck", "EMI", "纹波电流", "Layout"]
+    "tags": [
+      "输入电容",
+      "buck",
+      "EMI",
+      "纹波电流",
+      "Layout"
+    ]
   },
   {
     "id": "buck_004",
@@ -29,7 +46,13 @@
     "category": "buck_design",
     "content": "电流模式 Buck 通常采用 Type II 补偿网络（Rcomp、Ccomp、Cpole串联后接在 COMP 与 GND 之间）。补偿目标：穿越频率 fcross ≈ fsw/10，相位裕度 ≥ 45°。Rcomp 决定中频增益，Ccomp 设置补偿零点（通常放置在 LC 双极点频率的 1/2 处），Cpole 设置高频极点（通常放置在 fsw/2 处以衰减开关噪声）。实际调试时建议通过频率响应分析仪（FRA）或负载阶跃测试验证环路稳定性。不合理的补偿会导致输出振荡、瞬态响应差甚至失控。",
     "source": "Ridley Engineering, 'Current-Mode Control Modeling'",
-    "tags": ["环路补偿", "buck", "Type II", "稳定性", "穿越频率"]
+    "tags": [
+      "环路补偿",
+      "buck",
+      "Type II",
+      "稳定性",
+      "穿越频率"
+    ]
   },
   {
     "id": "thermal_001",
@@ -37,7 +60,13 @@
     "category": "thermal",
     "content": "DC-DC 转换器结温估算公式：Tj = Ta + Pd × θJA，其中 Pd 为总功耗（W），θJA 为结到环境热阻（°C/W），Ta 为环境温度。总功耗包括导通损耗（Iout² × Rds(on) × D）、开关损耗（0.5 × Vin × Iout × (tr+tf) × fsw）和静态功耗（Vin × Iq）。对于 QFN 封装典型 θJA ≈ 35-50°C/W，SOP 封装 ≈ 60-90°C/W。结温须低于 Tj(max)（通常 125°C 或 150°C），并保留 10-20°C 安全余量。当热余量不足时，措施包括：增大 PCB 铜皮面积、增加热过孔、使用散热器或选用更低 Rds(on) 的器件。",
     "source": "IPC-2152, 'Standard for Determining Current-Carrying Capacity in Printed Board Design'",
-    "tags": ["热设计", "结温", "功耗", "θJA", "散热"]
+    "tags": [
+      "热设计",
+      "结温",
+      "功耗",
+      "θJA",
+      "散热"
+    ]
   },
   {
     "id": "thermal_002",
@@ -45,7 +74,13 @@
     "category": "automotive",
     "content": "汽车电子委员会（AEC）定义了关键的温度等级：Grade 0（-40°C 至 +150°C，发动机舱）、Grade 1（-40°C 至 +125°C，底盘/变速箱）、Grade 2（-40°C 至 +105°C，乘客舱）、Grade 3（-40°C 至 +85°C，非关键区域）。AEC-Q100 是针对集成电路的应力测试认证标准，涵盖 HAST（高加速温湿度应力）、HTOL（高温工作寿命）、TC（温度循环）等测试。选型时须确认器件数据手册中的 AEC-Q100 认证编号和 Grade 等级。非车规器件在车载环境中可能因温度应力导致参数漂移或早期失效。",
     "source": "AEC-Q100 Rev-H, 'Failure Mechanism Based Stress Test Qualification For Integrated Circuits'",
-    "tags": ["车规", "AEC-Q100", "温度等级", "可靠性", "Grade"]
+    "tags": [
+      "车规",
+      "AEC-Q100",
+      "温度等级",
+      "可靠性",
+      "Grade"
+    ]
   },
   {
     "id": "automotive_002",
@@ -53,7 +88,13 @@
     "category": "automotive",
     "content": "车规电源 IC 除 AEC-Q100 认证外，还需满足以下关键要求：（1）宽输入电压范围，须承受 ISO 7637-2 规定的抛负载（Load Dump）瞬态（12V 系统最高 40V，24V 系统最高 60V）；（2）EMI 性能，须通过 CISPR 25 Class 5 辐射/传导发射限值；（3）低静态电流（Iq），满足整车驻车功耗要求（通常 ≤ 10μA）；（4）扩频调制（Spread Spectrum）以降低 EMI 峰值能量；（5）功能安全（ISO 26262），关键电源轨需支持 ASIL 等级要求的诊断与冗余机制。",
     "source": "ISO 7637-2, CISPR 25, ISO 26262",
-    "tags": ["车规", "可靠性", "EMI", "Load Dump", "ISO 26262"]
+    "tags": [
+      "车规",
+      "可靠性",
+      "EMI",
+      "Load Dump",
+      "ISO 26262"
+    ]
   },
   {
     "id": "buck_005",
@@ -61,7 +102,13 @@
     "category": "buck_design",
     "content": "提高 Buck 转换器效率的关键策略：（1）选择低 Rds(on) MOSFET 降低导通损耗，但需权衡栅极电荷 Qg（影响开关损耗），通常在额定电流下 Rds(on)×Qg 乘积最小为最优；（2）轻载时采用 PFM（脉冲频率调制）或 Burst Mode 降低开关损耗，重载时切换至强制 PWM 模式；（3）同步整流（用 MOSFET 替代续流二极管）可消除二极管正向压降损耗 Vf×I×(1-D)，在低压大电流场景下效率提升尤为显著（5-10%）；（4）电感 DCR 每降低 10mΩ，满载效率提升约 1%；（5）Dead-time 优化：上管与下管之间的死区时间过短导致 Shoot-through，过长增加体二极管导通损耗。",
     "source": "TI Application Report SLVA390",
-    "tags": ["效率优化", "buck", "同步整流", "PFM", "死区时间"]
+    "tags": [
+      "效率优化",
+      "buck",
+      "同步整流",
+      "PFM",
+      "死区时间"
+    ]
   },
   {
     "id": "layout_001",
@@ -69,7 +116,13 @@
     "category": "layout",
     "content": "DC-DC 转换器 PCB Layout 核心规则：（1）功率回路面积最小化：输入电容 CIN → IC VIN → IC SW → 电感 L → 输出电容 COUT → GND 构成的 di/dt 回路面积须 ≤ 1cm²；（2）SW 节点铜皮面积最小化，避免形成辐射天线；（3）反馈走线（FB）远离 SW 节点和电感，推荐在内层走线，FB 分压电阻靠近 IC GND 使用 Kelvin 连接；（4）功率地（PGND）和模拟地（AGND）在 IC 底部 Thermal Pad 处单点连接；（5）IC Thermal Pad 必须焊接，并通过 ≥ 4 个热过孔（φ0.3mm）连接到内层和底层 GND 平面；（6）输入电容优先使用 0603 或更小封装以降低 ESL，多个输出电容并联时对称布局。",
     "source": "IPC-2221, 'Generic Standard on Printed Board Design'",
-    "tags": ["Layout", "PCB", "EMI", "接地", "功率回路"]
+    "tags": [
+      "Layout",
+      "PCB",
+      "EMI",
+      "接地",
+      "功率回路"
+    ]
   },
   {
     "id": "buck_006",
@@ -77,7 +130,13 @@
     "category": "buck_design",
     "content": "宽输入电压（4.5V-36V）Buck 转换器选型要点：（1）最大输入电压须 ≥ 1.2×Vin(max) 以应对输入瞬态过冲，36V 输入建议选用 40V 或更高耐压器件；（2）最小导通时间 ton(min) 决定高输入/低输出占空比场景下的最低稳定频率：若 Vin=36V、Vout=5V、fsw=500kHz，则 D=13.9%，要求 ton(min) ≤ 278ns；（3）宽压场景下内置 LDO 为控制器供电的器件在低压输入时可能 LDO 压差不足，需外置偏置电源或选择支持 100% 占空比操作的型号；（4）高压降额：输入电容耐压需按温度曲线降额，85°C 环境下 X7R 电容耐压降额约 30%。",
     "source": "TI Application Note SLVAE36",
-    "tags": ["宽输入", "buck", "最小导通时间", "降额", "选型"]
+    "tags": [
+      "宽输入",
+      "buck",
+      "最小导通时间",
+      "降额",
+      "选型"
+    ]
   },
   {
     "id": "supply_001",
@@ -85,7 +144,13 @@
     "category": "supply_chain",
     "content": "元器件供应链风险评估应采用多维度框架：（1）供应商集中度：单源器件（Sole Source）风险最高，建议关键器件至少双源供应；（2）生命周期阶段：Active（推荐）→ NRND（不推荐新设计）→ EOL（停产，启动 Last-Time Buy）→ Obsolete（已停产，仅二手/翻新货源）；（3）交期风险：标准交期 8-12 周为正常水平，超过 26 周为高风险；（4）地缘政治风险：受出口管制（如 EAR/ITAR）或关税影响的器件需额外评估；（5）国产化率：关键器件国产化率低于 30% 时建议启动替代方案评估。ROHS/REACH 不合规器件在出口欧盟市场时存在合规风险。",
     "source": "IPC-1752, 'Materials Declaration Management'",
-    "tags": ["供应链", "风险评估", "交期", "生命周期", "国产化"]
+    "tags": [
+      "供应链",
+      "风险评估",
+      "交期",
+      "生命周期",
+      "国产化"
+    ]
   },
   {
     "id": "ldo_001",
@@ -93,6 +158,249 @@
     "category": "topology_selection",
     "content": "LDO（低压差线性稳压器）与 Buck（降压开关转换器）的选型决策依据：（1）压差（Vin - Vout）是关键决策变量：压差 ≤ 1V 且电流 ≤ 500mA 时 LDO 优势明显（低噪声、无 EMI、外围简单）；（2）效率 = Vout/Vin × 100%，12V→5V 压差 7V，LDO 效率仅 42% → 推荐 Buck（效率 ~85-95%）；（3）噪声敏感场景（如 PLL、ADC 供电）：LDO + Buck 级联方案，Buck 做第一级降压，LDO 做第二级滤噪；（4）PCB 面积：LDO 方案通常仅需 2-3 个电容，Buck 需要电感 + 多个电容 + 补偿网络，总面积 LDO 约为 Buck 的 1/3。",
     "source": "TI Application Report SLVA079",
-    "tags": ["LDO", "Buck", "选型", "效率", "噪声"]
+    "tags": [
+      "LDO",
+      "Buck",
+      "选型",
+      "效率",
+      "噪声"
+    ]
+  },
+  {
+    "id": "boost_001",
+    "title": "Boost 转换器电感选型公式",
+    "category": "boost_design",
+    "content": "Boost 转换器电感值计算公式：L = Vin × D / (fsw × ΔIL)，其中 D = 1 − Vin/Vout 为占空比。与 Buck 不同，Boost 的电感直接连接输入电源，承受的峰值电流 Ipk = Iout × Vout/Vin + ΔIL/2。对于 5V→12V/2A 的应用，D ≈ 0.583，Ipk ≈ 5.3A。电感饱和电流须大于 Ipk，推荐选用屏蔽式功率电感以降低 EMI。值得注意，Boost 拓扑在占空比接近 1 时环路增益急剧下降，通常限制 Dmax ≤ 0.8。",
+    "source": "TI Application Note SLVA372C",
+    "tags": [
+      "电感选型",
+      "boost",
+      "公式",
+      "峰值电流",
+      "占空比"
+    ]
+  },
+  {
+    "id": "boost_002",
+    "title": "Boost 输出电容与纹波计算",
+    "category": "boost_design",
+    "content": "Boost 转换器输出电容选型需同时满足纹波和瞬态响应：Cout(min) ≥ Iout × D / (fsw × ΔVout)。与 Buck 不同，Boost 的输出电流是脉动的——开关管导通期间由输出电容单独向负载供电。因此 Boost 对输出电容的 ESR 要求更高：ΔVout_ESR = Ipk × ESR。对于 5V→12V/2A 应用，D=0.583，fsw=500kHz，ΔVout=120mV：Cout ≥ 2×0.583/(500k×0.12) ≈ 19.4μF。推荐 2×22μF X7R MLCC 并联 + 1×100μF 电解电容提供低频滤波与阻尼。",
+    "source": "TI Application Note SLVA372C",
+    "tags": [
+      "输出电容",
+      "boost",
+      "纹波",
+      "ESR"
+    ]
+  },
+  {
+    "id": "boost_003",
+    "title": "Boost 整流二极管选型要点",
+    "category": "boost_design",
+    "content": "Boost 拓扑的整流二极管承受反向电压等于 Vout，正向平均电流等于 Iout。选型关键参数：（1）反向耐压 VR ≥ 1.3 × Vout（考虑开关尖峰）；（2）正向平均电流 IF(avg) ≥ 1.5 × Iout；（3）反向恢复时间 trr < 35ns（快恢复）或选用肖特基二极管（近乎零 trr，VF 低至 0.3–0.5V）；（4）对于高频（>500kHz）应用，肖特基二极管的结电容会显著增加开关损耗，需权衡 VF × IF 与结电容。同步整流（用 MOSFET 替代二极管）可消除二极管正向压降损耗，在低压大电流 Boost 中效率提升达 5–8%。",
+    "source": "ON Semiconductor Application Note AND9135",
+    "tags": [
+      "二极管",
+      "boost",
+      "肖特基",
+      "同步整流",
+      "反向恢复"
+    ]
+  },
+  {
+    "id": "ldo_002",
+    "title": "LDO 压差（Dropout）与效率计算",
+    "category": "ldo_design",
+    "content": "LDO 效率 η = Vout/Vin × 100%，功耗 Pd = (Vin − Vout) × Iout + Vin × Iq（Iq 为静态电流，通常 μA 级可忽略）。压差 Vdropout = Vin(min) − Vout 是 LDO 选型的首要参数：主流 LDO 的 Vdropout 在 100–500mV @ 满载。当 Vin−Vout > 1V 且 Iout > 500mA 时，LDO 发热严重（Pd > 0.5W），应改用 Buck。12V→5V/3A 场景下 Pd = (12−5)×3 = 21W，效率仅 42%，几乎不可行。LDO 适用场景：压差 ≤ 1V、电流 ≤ 500mA、对噪声敏感的模拟/RF 电路（PLL、ADC、VCO 供电）。",
+    "source": "TI Application Report SLVA079",
+    "tags": [
+      "LDO",
+      "压差",
+      "效率",
+      "热耗散",
+      "噪声"
+    ]
+  },
+  {
+    "id": "ldo_003",
+    "title": "LDO 稳定性与输出电容选择",
+    "category": "ldo_design",
+    "content": "LDO 环路稳定性高度依赖输出电容的 ESR。传统 LDO 要求 ESR 在特定范围（如 0.1–10Ω）以提供环路零点保证相位裕度。现代 LDO 采用内部补偿（如 TI TPS7A 系列）支持低至 1μF 的陶瓷电容，ESR 可低至 0.001Ω。选型关键：（1）COUT 须 ≥ 数据手册最小值（通常 1–10μF）；（2）电容温度系数：X7R（−55 至 +125°C，ΔC ≤ ±15%）优于 X5R（−55 至 +85°C）和 Y5V（+30°C 至 +85°C，ΔC 可达 −82%）；（3）DC 偏压降额：25V 耐压 MLCC 在 9V 偏压下容值可降至标称值的 30%。推荐耐压 ≥ 2×Vout。",
+    "source": "TI Application Report SLVA115",
+    "tags": [
+      "LDO",
+      "稳定性",
+      "输出电容",
+      "ESR",
+      "MLCC"
+    ]
+  },
+  {
+    "id": "usbpd_001",
+    "title": "USB-C PD 快充协议与电源架构",
+    "category": "usb_pd",
+    "content": "USB Power Delivery (PD) 3.1 规范支持最高 240W（48V/5A）功率传输。常见电压档位：5V、9V、12V、15V、20V（PD 3.0）、28V、36V、48V（PD 3.1 EPR）。100W 快充方案通常采用 AC-DC 前级（将 90–264V AC 转换为高压 DC 母线）+ DC-DC 后级（Buck/Boost 将母线电压转换为 PD 协议协商的输出电压）。核心 IC 选型要点：（1）协议控制器需支持 USB PD 3.0/3.1 及 PPS（可编程电源）；（2）DC-DC 控制器需覆盖 5–20V 宽输出范围；（3）需集成 CC 引脚逻辑、VBUS 开关、过压/过流/过温保护。推荐控制器方案：Infineon CYPD3177、TI TPS65987D、ST STUSB4761。",
+    "source": "USB-IF, 'USB Power Delivery Specification Rev 3.1'",
+    "tags": [
+      "USB-C",
+      "PD 3.1",
+      "快充",
+      "PPS",
+      "协议控制器"
+    ]
+  },
+  {
+    "id": "usbpd_002",
+    "title": "USB-C PD 适配器 EMI 设计要点",
+    "category": "usb_pd",
+    "content": "100W USB-C PD 适配器的 EMI 设计需满足 CISPR 32/EN 55032 Class B 辐射与传导发射限值。关键设计措施：（1）输入共模扼流圈 + X/Y 电容构成 π 型 EMI 滤波器，差模电感 100–500μH，共模扼流圈 10–30mH；（2）变压器初级-次级间 Y 电容（220–470pF，Y1 等级）提供共模电流回流通路；（3）次级同步整流 MOSFET 的漏极-源极间并联 RC Snubber（10Ω+1nF）抑制振铃；（4）PCB Layout 中功率回路面积最小化，初级侧 Vbus-GND 回路与次级侧 Vout-GND 回路尽量短粗；（5）如果采用 GaN FET，其极快的开关速度（dv/dt > 50V/ns）会恶化 EMI，需增加栅极驱动电阻或铁氧体磁珠抑制高频振荡。",
+    "source": "CISPR 32 / EN 55032, 'Electromagnetic Compatibility of Multimedia Equipment'",
+    "tags": [
+      "USB-C",
+      "EMI",
+      "CISPR 32",
+      "滤波",
+      "GaN"
+    ]
+  },
+  {
+    "id": "emi_001",
+    "title": "DC-DC 转换器 EMI 抑制技术",
+    "category": "emi_emc",
+    "content": "开关电源的 EMI 噪声源：（1）高 di/dt 回路（功率 MOSFET 开关回路 — 差模噪声）；（2）高 dv/dt 节点（SW 节点 — 共模噪声）。抑制措施按优先级：（1）Layout：最小化功率回路面积，SW 节点铜皮面积最小，使用内层地平面屏蔽；（2）扩频调制（Spread Spectrum）：将开关频率以 ±5–10% 的幅度、1–5kHz 的调制频率进行抖动，可将峰值 EMI 降低 5–10dB；（3）缓冲电路：在 SW 节点添加 RC Snubber（典型值 2.2Ω+470pF）抑制高频振铃；（4）输入滤波器：π 型 LC 滤波器（L=1–10μH, C=10–100μF）提供 40–60dB/decade 衰减；（5）共模扼流圈 + Y 电容分流共模电流到地。",
+    "source": "TI Application Report SNVA803",
+    "tags": [
+      "EMI",
+      "Layout",
+      "扩频",
+      "Snubber",
+      "共模"
+    ]
+  },
+  {
+    "id": "emi_002",
+    "title": "PCB Layout 中功率回路与信号走线隔离",
+    "category": "emi_emc",
+    "content": "关键 PCB 隔离规则：（1）功率回路（di/dt 回路）与信号回路（FB、COMP、EN）的返回路径完全分离，仅在 IC GND 引脚单点汇合；（2）FB 走线作为高阻抗节点极易耦合 SW 节点的电场噪声——FB 走线须远离 SW 节点 ≥ 3mm，避免平行走线，建议在内层走线并用地铜皮包裹；（3）功率地（PGND）与模拟地（AGND）在 IC 底部通过 Thermal Pad 单点连接，PGND 铜皮面积尽可能大以降低寄生电感；（4）多层板推荐叠层：Top（信号+功率）→ GND（完整地平面）→ Power（内层电源平面）→ Bottom（信号），SW 节点尽量布置在 Top 层，利用第二层 GND 平面作镜像回流。",
+    "source": "IPC-2221 / IPC-2152",
+    "tags": [
+      "Layout",
+      "PCB",
+      "隔离",
+      "FB走线",
+      "地平面"
+    ]
+  },
+  {
+    "id": "reliability_001",
+    "title": "电子元器件降额设计准则",
+    "category": "reliability",
+    "content": "降额设计（Derating）是提高电子产品可靠性的基础手段。关键降额准则：（1）电压降额：陶瓷电容耐压 → 工作电压 × 2（最低 × 1.5）；铝电解电容 → × 1.3；IC 输入电压 → 最大额定值的 80%；（2）电流降额：MOSFET 持续漏极电流 → 额定值的 70%；电感饱和电流 → 峰值电流 × 1.3；（3）功率降额：电阻器 → 额定功率的 50%；IC 结温 → Tj(max) − 20°C；（4）温度降额：钽电容在 85°C 以上需额外电压降额（每升高 10°C 额外降额 10%）。军工/航天应用降额系数更为严格（通常 × 2–3），工业级可放宽至上述推荐值。",
+    "source": "MIL-STD-975 / NASA EEE-INST-002",
+    "tags": [
+      "降额",
+      "可靠性",
+      "Derating",
+      "电压降额",
+      "温度降额"
+    ]
+  },
+  {
+    "id": "reliability_002",
+    "title": "DC-DC 转换器 MTBF 估算",
+    "category": "reliability",
+    "content": "DC-DC 转换器的 MTBF（平均故障间隔时间）可通过 MIL-HDBK-217F 或 Telcordia SR-332 标准估算。关键影响因素：（1）工作结温每降低 10°C，失效率约降低 50%（Arrhenius 方程）；（2）陶瓷电容的失效率远低于电解电容（~0.1 vs ~1.0 FIT），是影响系统 MTBF 的主要差异点；（3）典型工业级 Buck 模块 MTBF：使用全陶瓷电容方案可达 2,000,000 小时（约 228 年），使用电解电容方案降至约 500,000 小时（约 57 年）；（4）集成式电源模块（Power Module）因内部元件匹配已优，MTBF 通常优于分立方案。提升可靠性措施：选择车规/工业级器件、增大降额系数、增加输入过压/输出过流保护、采用冗余拓扑。",
+    "source": "MIL-HDBK-217F / Telcordia SR-332",
+    "tags": [
+      "MTBF",
+      "可靠性",
+      "FIT",
+      "Arrhenius",
+      "失效率"
+    ]
+  },
+  {
+    "id": "buck_007",
+    "title": "Buck 反馈分压网络设计与噪声抑制",
+    "category": "buck_design",
+    "content": "反馈分压电阻 Rfbt（上分压）和 Rfbb（下分压）决定输出电压：Vout = Vref × (1 + Rfbt/Rfbb)，其中 Vref 通常为 0.6V 或 0.8V。选型要点：（1）Rfbb 推荐 10–100kΩ，过小增加功耗，过大使 FB 引脚对噪声敏感；（2）在 Rfbt 两端并联前馈电容 Cff（10–100pF）可引入相位超前零点，改善瞬态响应；（3）FB 走线远离 SW 节点和电感磁芯，推荐内层走线；（4）Rfbb 的 GND 端应使用 Kelvin 连接——单独走线直接连接至 IC AGND 引脚，不与其他大电流信号共用；（5）在 FB 引脚处并联 10–33pF 陶瓷电容到 GND 滤除高频耦合噪声。",
+    "source": "TI Application Note SLVA289",
+    "tags": [
+      "反馈",
+      "分压",
+      "噪声",
+      "Kelvin",
+      "前馈电容"
+    ]
+  },
+  {
+    "id": "buck_008",
+    "title": "Buck 软启动与使能电路设计",
+    "category": "buck_design",
+    "content": "软启动（Soft-Start）通过限制启动期间占空比的上升速率来抑制浪涌电流。SS 引脚外接电容 Css 设定软启动时间：tss = Css × Vref/Iss（Iss 为内部充电电流，通常 1–5μA）。典型值 Css=10–47nF 对应 tss=1–5ms。设计要点：（1）Css 取值过小导致浪涌电流过大，触发输入过流保护；（2）Css 取值过大导致输出建立时间过长；（3）EN/UVLO 通过外部电阻分压设定欠压锁定阈值：Ven(rising) = Vref_en × (Rtop+Rbot)/Rbot，使能迟滞由内部电流源提供。车规应用需考虑 EN 引脚对 ISO 7637-2 脉冲的抗扰度。",
+    "source": "TI Application Note SLVA380",
+    "tags": [
+      "软启动",
+      "使能",
+      "UVLO",
+      "浪涌",
+      "车规"
+    ]
+  },
+  {
+    "id": "supply_002",
+    "title": "车规元器件供应链认证要求",
+    "category": "supply_chain",
+    "content": "车规元器件的供应链认证涉及多个层次：（1）AEC-Q100/Q101/Q200 是器件级别的应力测试认证，并非生产体系认证；（2）IATF 16949 是汽车行业质量管理体系标准，供应商需通过认证方可进入车厂供应链；（3）PPAP（生产件批准程序）是向车厂提交的 18 项文件包，包括 DFMEA、PFMEA、控制计划、测量系统分析等；（4）PCN（产品变更通知）要求：车规器件任何材料、工艺、封装的变更需提前 6–12 个月通知客户；（5）车规器件的追溯要求：每个器件需可通过批次号（Date Code/Lot Code）追溯到晶圆批次、封装批次、测试记录。国产车规器件需额外验证 IATF 16949 认证状态和 PPAP 提交能力。",
+    "source": "IATF 16949:2016 / AIAG PPAP Manual 4th Edition",
+    "tags": [
+      "车规",
+      "IATF 16949",
+      "PPAP",
+      "PCN",
+      "追溯"
+    ]
+  },
+  {
+    "id": "supply_003",
+    "title": "元器件停产管理与 Last-Time Buy 策略",
+    "category": "supply_chain",
+    "content": "元器件停产（EOL/Obsolescence）管理是供应链风险控制的核心环节。标准流程：（1）制造商发布 PDN（产品停产通知）或 PCN（产品变更通知），通常提前 6–12 个月；（2）Last-Time Buy（LTB）：客户在停产前最后一次下单机会，需预估产品全生命周期需求（含售后备件），一次性下单；（3）LTB 数量计算 = 年用量 × 剩余生产年限 + 售后备件预估量（通常 3–7 年售后需求）；（4）生命周期状态监控：通过 IHS/ SiliconExpert 等数据库跟踪器件的生命周期阶段（Active → NRND → EOL → Obsolete）；（5）替代策略：Form-Fit-Function 完全替代 > 功能等效替代 > 重新设计。高风险器件（如 FPGA、专用 ASIC）应提前 3–5 年规划替代方案。",
+    "source": "IEC 62402:2019 'Obsolescence Management'",
+    "tags": [
+      "停产",
+      "EOL",
+      "LTB",
+      "PCN",
+      "替代策略"
+    ]
+  },
+  {
+    "id": "thermal_003",
+    "title": "PCB 散热设计：铜皮面积与热过孔",
+    "category": "thermal",
+    "content": "PCB 散热设计是 DC-DC 转换器热管理的核心。热阻 θJA 与 PCB 铜皮面积的关系近似：θJA ≈ 1/(h × A)，其中 h 为对流换热系数（自然对流 ~10 W/m²K），A 为有效散热面积。实际设计中：（1）IC 底部 Thermal Pad 必须焊接到大面积 GND 铜皮（≥ 2cm² 每瓦功耗）；（2）热过孔（Thermal Via）将热量传导至内层和底层铜皮——推荐 φ0.3mm，间距 1.0mm，≥ 9 个过孔分布在 Thermal Pad 区域；（3）2oz（70μm）铜厚比 1oz（35μm）铜厚的 θJA 可降低 15–25%；（4）四层板优于双层板——内层大面积 GND/Power 平面提供额外的散热和电磁屏蔽。",
+    "source": "IPC-2152 / JEDEC JESD51-2",
+    "tags": [
+      "散热",
+      "θJA",
+      "热过孔",
+      "铜皮面积",
+      "Thermal Pad"
+    ]
+  },
+  {
+    "id": "topology_002",
+    "title": "Buck vs Buck-Boost vs SEPIC 拓扑选择",
+    "category": "topology_selection",
+    "content": "当输入电压可能高于、等于或低于输出电压时，需选择非 Buck 拓扑：（1）Buck-Boost（非隔离）：输出反相于输入，支持 Vin >、= 或 < Vout，但需要两个 MOSFET 和一个二极管（或四个 MOSFET 用于同步整流）。效率通常 80–90%，开关应力高于单拓扑；（2）SEPIC（单端初级电感转换器）：输出同相于输入，需要两个电感（或耦合电感）和一个耦合电容，优点是无隔离需求时 Vin 可任意升降，缺点是功率密度较低，效率 75–88%；（3）4-Switch Buck-Boost：通过 H 桥拓扑实现升降压且输出同相，效率高达 95%，但控制复杂、成本高。选型建议：Vin 始终 > Vout → Buck；Vin 仅在瞬态低于 Vout → Buck + 输入 Hold-up 电容；Vin 大范围 > 和 < Vout → 4-Switch Buck-Boost。",
+    "source": "TI Application Report SLVA059A",
+    "tags": [
+      "Buck-Boost",
+      "SEPIC",
+      "拓扑选择",
+      "4-Switch",
+      "升降压"
+    ]
   }
 ]
