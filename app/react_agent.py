@@ -104,6 +104,79 @@ def get_or_create_session(session_id: str) -> List[Any]:
     return _sessions[session_id]
 
 
+# ── 幻觉检测工具 ─────────────────────────────────────────────────
+import re as _re_hallu
+
+# 常见制造商前缀模式
+_MPN_PATTERN = _re_hallu.compile(
+    r'\b([A-Z]{2,5}\d{2,6}[A-Z]?[-]?\d*[A-Za-z0-9]*(?:/[-A-Za-z0-9]+)?)\b'
+)
+
+# 已知厂商前缀白名单（这些厂商的型号大概率是真实的，不标记为幻觉）
+_KNOWN_MFR_PREFIXES = [
+    "TI", "TPS", "TL", "LM", "LMR", "INA", "OPA", "ADS", "DAC", "REF",  # TI
+    "ADP", "AD", "LTC", "LT", "ADA", "ADM", "ADG",                       # ADI/LTC
+    "STM", "ST", "L", "LD", "TS", "L6",                                   # ST
+    "MCP", "MIC", "PIC", "DSPIC", "KSZ",                                  # Microchip
+    "IR", "IRF", "AU",                                                     # Infineon/IR
+    "MAX", "DS",                                                            # Maxim
+    "NCP", "NCV", "NCS",                                                   # onsemi
+    "ISL", "R", "ICL",                                                     # Renesas/Intersil
+    "MP", "MPQ", "NB",                                                     # MPS
+    "RT", "RTQ",                                                           # Richtek
+    "XL", "XL S",                                                          # XLSemi
+    "SY", "RY",                                                            # Silergy
+    "SGM", "SG",                                                           # SGMICRO
+]
+
+
+def _validate_part_numbers_in_response(response: str) -> str:
+    """扫描 Agent 回复中的型号，校验是否存在于数据库中。
+
+    对不在已知厂商白名单也不在数据库中的疑似编造型号追加警告。
+    """
+    try:
+        from .ezplm_client import _load_parts
+        known_parts = _load_parts()
+        known_mpns = {p.get("part_number", "").upper() for p in known_parts}
+    except Exception:
+        return response
+
+    # 常见非型号缩写
+    _noise = {"API", "JSON", "HTTP", "UUID", "URL", "HTML", "CSS",
+              "BOM", "EMI", "PCB", "LDO", "PMIC", "MOSFET", "ESR",
+              "MTBF", "FMEA", "RPN", "PPAP", "PCN", "EOL", "LTB",
+              "AVL", "PDN", "GAN", "FET", "PWM", "PFM", "PLL", "ADC"}
+
+    found_mpns = set()
+    for m in _MPN_PATTERN.finditer(response):
+        mpn = m.group(1).upper()
+        if mpn in _noise or len(mpn) < 5:
+            continue
+        # 已知厂商前缀 → 信任，不检查
+        is_known_mfr = any(mpn.startswith(p.upper().replace(" ", ""))
+                           for p in _KNOWN_MFR_PREFIXES)
+        if is_known_mfr:
+            continue
+        # Mock 数据库中的型号 → 信任
+        if mpn in known_mpns:
+            continue
+        # 剩余 → 疑似幻觉
+        found_mpns.add(m.group(1))
+
+    if found_mpns:
+        warning = (
+            "\n\n---\n"
+            "> ⚠ **数据验证提示**：以下型号在当前数据库中未检索到匹配记录，"
+            "可能为 LLM 推测生成，请通过实际数据源确认后再采纳：\n"
+        )
+        for mpn in sorted(found_mpns):
+            warning += f"> - `{mpn}`\n"
+        response += warning
+
+    return response
+
+
 def run_agent(
     user_input: str,
     session_id: Optional[str] = None,
@@ -163,6 +236,10 @@ def run_agent(
         ):
             final_response = msg.content
             break
+
+    # ── 幻觉检测：校验回复中的器件型号是否存在于数据库 ─────────
+    if final_response:
+        final_response = _validate_part_numbers_in_response(final_response)
 
     # 工具调用的实际结果
     for msg in result_messages:
