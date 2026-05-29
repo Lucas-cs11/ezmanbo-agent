@@ -219,8 +219,9 @@ def parse_requirement(text: str) -> RequirementConstraints:
     _MUST_TRIGGERS = ["必须", "强制", "一定要", "不可缺少"]
     is_must = any(t in text for t in _MUST_TRIGGERS)
     if is_must:
-        if ("车规" in lower or "automotive" in lower) and "automotive_grade" not in rc.must_have:
-            rc.must_have.append("automotive_grade")
+        # 注意：automotive_grade 不再作为硬约束，系统仅识别需求但不过滤
+        # （removed: if ("车规" in lower or "automotive" in lower) and "automotive_grade" not in rc.must_have:）
+        # （removed: rc.must_have.append("automotive_grade")）
         if ("国产" in lower) and "domestic" not in rc.must_have:
             rc.must_have.append("domestic")
         if rc.package_preference and "package" not in rc.must_have:
