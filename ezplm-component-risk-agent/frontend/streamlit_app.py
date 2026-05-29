@@ -368,7 +368,7 @@ if analyze_btn and user_input.strip():
                         unsafe_allow_html=True,
                     )
 
-                    # Status + duration badge at top-right
+                    # Status + duration badge
                     status_class = f"status-{status}"
                     status_text = {"success": "✅ 成功", "error": "❌ 失败", "running": "⏳ 运行中"}.get(status, status)
                     st.markdown(
@@ -408,14 +408,11 @@ if analyze_btn and user_input.strip():
 
                     st.markdown('</div>', unsafe_allow_html=True)  # close card
 
-            # Flow arrows between rows (visual connector)
+            # Flow arrows between rows
             if row_start + cols_per_row < len(tool_steps):
-                st.markdown(
-                    '<div class="flow-arrow">⬇️</div>',
-                    unsafe_allow_html=True,
-                )
+                st.markdown('<div class="flow-arrow">⬇️</div>', unsafe_allow_html=True)
 
-        # ---------- Pipeline Summary ----------
+        # Pipeline Summary
         success_count = sum(1 for ts in tool_steps if ts.get("status") == "success")
         error_count = sum(1 for ts in tool_steps if ts.get("status") == "error")
         total_duration = sum(ts.get("duration_ms", 0) for ts in tool_steps)
@@ -445,33 +442,13 @@ if analyze_btn and user_input.strip():
                 st.metric("Application", cs.get("application") or "N/A")
                 st.metric("Grade", cs.get("grade") or "N/A")
             with c_col2:
-                st.metric(
-                    "Input Voltage (nom)",
-                    f"{cs.get('input_voltage_nominal_v')}V"
-                    if cs.get("input_voltage_nominal_v")
-                    else "N/A",
-                )
-                st.metric(
-                    "Output Voltage",
-                    f"{cs.get('output_voltage_v')}V"
-                    if cs.get("output_voltage_v")
-                    else "N/A",
-                )
-                st.metric(
-                    "Output Current",
-                    f"{cs.get('output_current_a')}A"
-                    if cs.get("output_current_a")
-                    else "N/A",
-                )
+                st.metric("Input Voltage (nom)", f"{cs.get('input_voltage_nominal_v')}V" if cs.get('input_voltage_nominal_v') else "N/A")
+                st.metric("Output Voltage", f"{cs.get('output_voltage_v')}V" if cs.get('output_voltage_v') else "N/A")
+                st.metric("Output Current", f"{cs.get('output_current_a')}A" if cs.get('output_current_a') else "N/A")
             with c_col3:
                 tmin = cs.get("temperature_min_c")
                 tmax = cs.get("temperature_max_c")
-                st.metric(
-                    "Temp Range",
-                    f"{tmin} ~ {tmax}°C"
-                    if tmin is not None and tmax is not None
-                    else "N/A",
-                )
+                st.metric("Temp Range", f"{tmin} ~ {tmax}°C" if tmin is not None and tmax is not None else "N/A")
                 prefs = cs.get("preferences", [])
                 st.metric("Preferences", ", ".join(prefs) if prefs else "None")
 
@@ -501,34 +478,19 @@ if analyze_btn and user_input.strip():
     if candidates:
         st.markdown("---")
         st.markdown("### 🏆 Ranking & Score Breakdown")
-
         for idx, sp in enumerate(candidates):
             part = sp.get("part", {})
             score = sp.get("score", {})
             rank = sp.get("rank", idx + 1)
             level = sp.get("recommendation_level", "not_recommended")
-            level_label_map = {
-                "recommended": "⭐ Recommended",
-                "backup": "🟡 Backup",
-                "not_recommended": "🔴 Not Recommended",
-            }
-            level_emoji_map = {
-                "recommended": "⭐",
-                "backup": "🟡",
-                "not_recommended": "🔴",
-            }
-
+            level_label_map = {"recommended": "⭐ Recommended", "backup": "🟡 Backup", "not_recommended": "🔴 Not Recommended"}
+            level_emoji_map = {"recommended": "⭐", "backup": "🟡", "not_recommended": "🔴"}
             card_class = f"score-card {level}"
             with st.container():
                 st.markdown(f'<div class="{card_class}">', unsafe_allow_html=True)
-
-                # Row 1: rank + part info + recommendation level
                 r1_col1, r1_col2, r1_col3 = st.columns([0.5, 5, 2])
                 with r1_col1:
-                    st.markdown(
-                        f"<h2 style='margin:0;color:#667eea;'>#{rank}</h2>",
-                        unsafe_allow_html=True,
-                    )
+                    st.markdown(f"<h2 style='margin:0;color:#667eea;'>#{rank}</h2>", unsafe_allow_html=True)
                 with r1_col2:
                     pn = part.get("part_number", "N/A")
                     mfr = part.get("manufacturer", "Unknown")
@@ -536,100 +498,30 @@ if analyze_btn and user_input.strip():
                     auto = part.get("automotive_grade", False)
                     lifecycle = part.get("lifecycle_status", "N/A")
                     badges_html = ""
-                    badges_html += (
-                        '<span class="badge badge-domestic">🇨🇳 国产</span>'
-                        if domestic
-                        else '<span class="badge badge-import">🌍 进口</span>'
-                    )
+                    badges_html += '<span class="badge badge-domestic">🇨🇳 国产</span>' if domestic else '<span class="badge badge-import">🌍 进口</span>'
                     if auto:
                         badges_html += '<span class="badge badge-auto">🚗 车规</span>'
-                    if lifecycle == "active":
-                        lc_class = "badge-active"
-                    elif lifecycle == "obsolete":
-                        lc_class = "badge-obsolete"
-                    else:
-                        lc_class = "badge-discontinued"
+                    lc_class = "badge-active" if lifecycle == "active" else ("badge-obsolete" if lifecycle == "obsolete" else "badge-discontinued")
                     badges_html += f'<span class="badge {lc_class}">{lifecycle}</span>'
-                    st.markdown(
-                        f'<p class="part-name">{pn}&nbsp;&nbsp;<span class="part-meta">by {mfr}</span></p>{badges_html}',
-                        unsafe_allow_html=True,
-                    )
+                    st.markdown(f'<p class="part-name">{pn}&nbsp;&nbsp;<span class="part-meta">by {mfr}</span></p>{badges_html}', unsafe_allow_html=True)
                 with r1_col3:
-                    st.markdown(
-                        f"<p style='text-align:right;font-weight:700;font-size:1rem;'>"
-                        f"{level_emoji_map.get(level, '')} {level_label_map.get(level, level)}"
-                        f"</p>",
-                        unsafe_allow_html=True,
-                    )
-
-                # Row 2: total score bar
+                    st.markdown(f"<p style='text-align:right;font-weight:700;font-size:1rem;'>{level_emoji_map.get(level,'')} {level_label_map.get(level, level)}</p>", unsafe_allow_html=True)
                 total = score.get("total_score", 0)
-                if total >= 75:
-                    bar_color = "#10b981"
-                elif total >= 50:
-                    bar_color = "#f59e0b"
-                else:
-                    bar_color = "#ef4444"
-                st.markdown(
-                    f"""
-                    <div style="display:flex;align-items:center;gap:0.5rem;margin:0.3rem 0;">
-                        <span style="font-weight:700;font-size:1.1rem;color:{bar_color};">{total:.0f}</span>
-                        <span style="font-size:0.78rem;color:#6b7280;">/ 100</span>
-                        <div class="score-bar-bg" style="flex:1;">
-                            <div class="score-bar-fill" style="width:{total}%;background:{bar_color};"></div>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                # Row 3: dimension sub-scores
-                dims = [
-                    ("Parameter Match", score.get("parameter_match_score", 0), "📐"),
-                    ("Supply Risk", score.get("supply_risk_score", 0), "📦"),
-                    ("Cost", score.get("cost_score", 0), "💰"),
-                    ("Domestic", score.get("domestic_score", 0), "🇨🇳"),
-                    ("Evidence", score.get("evidence_score", 0), "📄"),
-                ]
+                bar_color = "#10b981" if total >= 75 else ("#f59e0b" if total >= 50 else "#ef4444")
+                st.markdown(f"""<div style="display:flex;align-items:center;gap:0.5rem;margin:0.3rem 0;"><span style="font-weight:700;font-size:1.1rem;color:{bar_color};">{total:.0f}</span><span style="font-size:0.78rem;color:#6b7280;">/ 100</span><div class="score-bar-bg" style="flex:1;"><div class="score-bar-fill" style="width:{total}%;background:{bar_color};"></div></div></div>""", unsafe_allow_html=True)
+                dims = [("Parameter Match", score.get("parameter_match_score", 0), "📐"), ("Supply Risk", score.get("supply_risk_score", 0), "📦"), ("Cost", score.get("cost_score", 0), "💰"), ("Domestic", score.get("domestic_score", 0), "🇨🇳"), ("Evidence", score.get("evidence_score", 0), "📄")]
                 dim_cols = st.columns(len(dims))
                 for di, (dim_label, dim_val, dim_icon) in enumerate(dims):
-                    if dim_val >= 80:
-                        dc = "#10b981"
-                    elif dim_val >= 50:
-                        dc = "#f59e0b"
-                    else:
-                        dc = "#ef4444"
+                    dc = "#10b981" if dim_val >= 80 else ("#f59e0b" if dim_val >= 50 else "#ef4444")
                     with dim_cols[di]:
-                        st.markdown(
-                            f'<div class="metric-row">'
-                            f'<span class="metric-label">{dim_icon} {dim_label}</span>'
-                            f'<span class="metric-value" style="color:{dc};">{dim_val:.0f}</span>'
-                            f'</div>',
-                            unsafe_allow_html=True,
-                        )
-
-                # Row 4: part quick specs
-                specs_row = (
-                    f"📐 {part.get('input_voltage_min_v','?')}–{part.get('input_voltage_max_v','?')}V in | "
-                    f"⚡ {part.get('output_current_max_a','?')}A out | "
-                    f"🌡️ {part.get('temperature_min_c','?')}–{part.get('temperature_max_c','?')}°C | "
-                    f"📦 Stock: {part.get('stock','?')} | "
-                    f"💰 ¥{part.get('unit_price_cny','?')}"
-                )
+                        st.markdown(f'<div class="metric-row"><span class="metric-label">{dim_icon} {dim_label}</span><span class="metric-value" style="color:{dc};">{dim_val:.0f}</span></div>', unsafe_allow_html=True)
+                specs_row = f"📐 {part.get('input_voltage_min_v','?')}–{part.get('input_voltage_max_v','?')}V in | ⚡ {part.get('output_current_max_a','?')}A out | 🌡️ {part.get('temperature_min_c','?')}–{part.get('temperature_max_c','?')}°C | 📦 Stock: {part.get('stock','?')} | 💰 ¥{part.get('unit_price_cny','?')}"
                 st.caption(specs_row)
-
-                # Row 5: reasons as tags
                 reasons = score.get("reasons", [])
                 if reasons:
-                    tags_html = " ".join(
-                        [f'<span class="reason-tag">{r}</span>' for r in reasons]
-                    )
-                    st.markdown(
-                        f'<div style="margin-top:0.3rem;">{tags_html}</div>',
-                        unsafe_allow_html=True,
-                    )
-
-                st.markdown("</div>", unsafe_allow_html=True)  # close score-card
+                    tags_html = " ".join([f'<span class="reason-tag">{r}</span>' for r in reasons])
+                    st.markdown(f'<div style="margin-top:0.3rem;">{tags_html}</div>', unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
     else:
         st.info("No candidate parts matched your requirements.")
 
@@ -640,11 +532,9 @@ if analyze_btn and user_input.strip():
     if evidence:
         st.markdown("---")
         st.markdown("### 🔗 Evidence Chain")
-        # Group evidence by part
         ev_by_part = defaultdict(list)
         for ev in evidence:
             ev_by_part[ev.get("part_number", "Unknown")].append(ev)
-
         tab_labels = list(ev_by_part.keys())
         if len(tab_labels) > 1:
             tabs = st.tabs(tab_labels)
@@ -652,51 +542,13 @@ if analyze_btn and user_input.strip():
                 with tab:
                     for ev in ev_by_part[pn]:
                         conf = ev.get("confidence", 0)
-                        if conf >= 0.9:
-                            conf_color = "#10b981"
-                        elif conf >= 0.7:
-                            conf_color = "#f59e0b"
-                        else:
-                            conf_color = "#ef4444"
-                        st.markdown(
-                            f"""
-                            <div class="evidence-block">
-                                <span class="evidence-type">{ev.get('evidence_type', 'N/A')}</span>
-                                <strong>{ev.get('claim', 'N/A')}</strong>
-                                <span style="font-size:0.75rem;color:#6b7280;margin-left:0.5rem;">
-                                    source: {ev.get('source', 'N/A')}::{ev.get('source_field', '')}
-                                </span>
-                                <span style="float:right;font-weight:600;color:{conf_color};">
-                                    conf: {conf:.0%}
-                                </span>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                        conf_color = "#10b981" if conf >= 0.9 else ("#f59e0b" if conf >= 0.7 else "#ef4444")
+                        st.markdown(f"""<div class="evidence-block"><span class="evidence-type">{ev.get('evidence_type','N/A')}</span><strong>{ev.get('claim','N/A')}</strong><span style="font-size:0.75rem;color:#6b7280;margin-left:0.5rem;">source: {ev.get('source','N/A')}::{ev.get('source_field','')}</span><span style="float:right;font-weight:600;color:{conf_color};">conf: {conf:.0%}</span></div>""", unsafe_allow_html=True)
         else:
             for ev in evidence:
                 conf = ev.get("confidence", 0)
-                if conf >= 0.9:
-                    conf_color = "#10b981"
-                elif conf >= 0.7:
-                    conf_color = "#f59e0b"
-                else:
-                    conf_color = "#ef4444"
-                st.markdown(
-                    f"""
-                    <div class="evidence-block">
-                        <span class="evidence-type">{ev.get('evidence_type', 'N/A')}</span>
-                        <strong>{ev.get('claim', 'N/A')}</strong>
-                        <span style="font-size:0.75rem;color:#6b7280;margin-left:0.5rem;">
-                            source: {ev.get('source', 'N/A')}::{ev.get('source_field', '')}
-                        </span>
-                        <span style="float:right;font-weight:600;color:{conf_color};">
-                            conf: {conf:.0%}
-                        </span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                conf_color = "#10b981" if conf >= 0.9 else ("#f59e0b" if conf >= 0.7 else "#ef4444")
+                st.markdown(f"""<div class="evidence-block"><span class="evidence-type">{ev.get('evidence_type','N/A')}</span><strong>{ev.get('claim','N/A')}</strong><span style="font-size:0.75rem;color:#6b7280;margin-left:0.5rem;">source: {ev.get('source','N/A')}::{ev.get('source_field','')}</span><span style="float:right;font-weight:600;color:{conf_color};">conf: {conf:.0%}</span></div>""", unsafe_allow_html=True)
     else:
         if candidates:
             st.markdown("---")
@@ -710,37 +562,15 @@ if analyze_btn and user_input.strip():
         st.markdown("---")
         st.markdown("### ⚠️ Risk Assessment")
         overall = risks.get("overall_risk_level", "N/A")
-        if "low" in str(overall).lower():
-            risk_color_class = "risk-low"
-        elif "medium" in str(overall).lower():
-            risk_color_class = "risk-medium"
-        else:
-            risk_color_class = "risk-high"
-        st.markdown(
-            f"**Overall Risk:** <span class='{risk_color_class}'>{str(overall).upper()}</span>",
-            unsafe_allow_html=True,
-        )
+        risk_color_class = "risk-low" if "low" in str(overall).lower() else ("risk-medium" if "medium" in str(overall).lower() else "risk-high")
+        st.markdown(f"**Overall Risk:** <span class='{risk_color_class}'>{str(overall).upper()}</span>", unsafe_allow_html=True)
         risk_items = risks.get("risk_items", [])
         for ri in risk_items:
             sev = ri.get("severity", "N/A")
-            if "low" in str(sev).lower():
-                sev_color = "risk-low"
-            elif "medium" in str(sev).lower():
-                sev_color = "risk-medium"
-            else:
-                sev_color = "risk-high"
-            mitigation_text = (
-                f" (Mitigation: {ri.get('mitigation')})" if ri.get("mitigation") else ""
-            )
-            st.markdown(
-                f"- <span class='{sev_color}'>{str(sev).upper()}</span> — {ri.get('description', '')}{mitigation_text}",
-                unsafe_allow_html=True,
-            )
+            sev_color = "risk-low" if "low" in str(sev).lower() else ("risk-medium" if "medium" in str(sev).lower() else "risk-high")
+            mitigation_text = f" (Mitigation: {ri.get('mitigation')})" if ri.get("mitigation") else ""
+            st.markdown(f"- <span class='{sev_color}'>{str(sev).upper()}</span> — {ri.get('description','')}{mitigation_text}", unsafe_allow_html=True)
 
     # ---------- Footer ----------
     st.markdown("---")
-    st.caption(
-        f"Agent v{data.get('ir_version', '0.2')} | "
-        f"Request ID: {data.get('request_id', 'N/A')} | "
-        f"Tool Steps: {len(tool_steps)}"
-    )
+    st.caption(f"Agent v{data.get('ir_version', '0.2')} | Request ID: {data.get('request_id', 'N/A')} | Tool Steps: {len(tool_steps)}")
