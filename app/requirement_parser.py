@@ -12,6 +12,18 @@ TEMP_RANGE_PAT = re.compile(
     r"(-?\d+)\s*[°º]?\s*[Cc]?\s*[到至~\-—]\s*(-?\d+)\s*[°º]?\s*[Cc]",
     re.IGNORECASE,
 )
+# 功率匹配："100W"、"65W"、"240W" 等
+WATT_PAT = re.compile(r"(\d+(?:\.\d+)?)\s*[Ww](?!\s*[VvAa])")
+
+# USB PD 功率→电压/电流映射（常见 PPS 档位）
+# 100W → 最高 20V/5A；65W → 20V/3.25A；140W → 28V/5A (PD 3.1 EPR)
+_PD_POWER_MAP: dict = {
+    (0, 30):   (5,  3),    # <30W: 5V/3A (手机)
+    (30, 65):  (12, 3),    # 30-65W: 12V/3A (平板/轻薄本)
+    (65, 100): (20, 5),    # 65-100W: 20V/5A (笔记本)
+    (100, 240):(20, 5),    # 100-240W: 20V/5A 或 28V/5A (游戏本)
+    (240, 999):(28, 5),    # >240W: 28V/5A (PD 3.1 EPR)
+}
 
 try:
     from .llm_client import parse_requirement_with_llm
@@ -174,6 +186,33 @@ def parse_requirement(text: str) -> RequirementConstraints:
                     rc.output_current_a = float(m2.group(1))
         except Exception:
             pass
+
+    # ── 功率提取与产品级推断（USB-C PD / 快充等场景）────────────
+    # 当输入中只有"W"瓦特值而无 V/A 时，从功率反推电压电流
+    if rc.output_voltage_v is None and rc.output_current_a is None:
+        m_watt = WATT_PAT.search(text)
+        if m_watt:
+            try:
+                power_w = float(m_watt.group(1))
+                # 按功率区间映射到对应的 V/A 档位
+                for (lo, hi), (v, a) in _PD_POWER_MAP.items():
+                    if lo <= power_w <= hi:
+                        rc.output_voltage_v = rc.output_voltage_v or float(v)
+                        rc.output_current_a = rc.output_current_a or float(a)
+                        break
+            except Exception:
+                pass
+
+    # USB-C PD / 快充 / 充电器 → 类别和拓扑提示
+    if ("pd" in lower or "快充" in lower or "充电器" in lower
+            or "usb-c" in lower or "usb c" in lower):
+        if not rc.category:
+            rc.category = "dc_dc_converter"
+        if not rc.topology and rc.input_voltage_nominal_v is None:
+            # USB-C PD 适配器通常输入 90-264V AC → 经 AC-DC → DC 母线 → DC-DC Buck
+            # 这里假设 AC-DC 后母线约 24V，实际 DC-DC 为 Buck 降压
+            rc.topology = rc.topology or "buck"
+            rc.grade = rc.grade or "industrial"
 
     # ── 温度范围提取（优先匹配范围模式）──────────────────────────
     m_temp_range = TEMP_RANGE_PAT.search(text)
