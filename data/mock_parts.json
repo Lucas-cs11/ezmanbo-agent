@@ -3978,6 +3978,9 @@
     "unit_price_cny": 14.2,
     "lifecycle_status": "active",
     "datasheet_url": "https://www.shengbang.com/boost",
-    "replacement_for": []
+    "replacement_for": [],
+    "has_datasheet": true,
+    "datasheet_local_path": "docs/datasheets/TPS61030DSG.pdf",
+    "datasheet_verification": "Verified - Official datasheet"
   }
 ]
