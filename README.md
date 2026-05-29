@@ -82,21 +82,101 @@ PYTHONPATH=. python3 tests/eval_runner.py
 
 ---
 
-## 项目规划进度
+## 项目规划 vs 实际进度（对照总规划文件）
 
-| 规划项 | 原计划周 | 状态 |
-|--------|:-------:|:----:|
-| IR 数据模型 (PartIR/RiskIR/TopologyIR) | W1 | ✅ |
-| eZ-PLM API HMAC 签名客户端 | W1 | ✅ |
-| ChromaDB 向量知识库 + RAG 集成 | W2 | ✅ |
-| LangChain ReAct Agent + 多轮对话 | W3 | ✅ |
-| 场景 1 USB-C PD 方案 | W3 | 🟡 基础 Pipeline 可演示 |
-| 场景 2 车规降压方案 | W3 | 🟡 mock 缺车规 5V 器件 |
-| 场景 3 国产替代追问 | W3 | ✅ Agent 多轮对话可演示 |
-| FastAPI + Streamlit 联调 | W4 | ✅ 四端点就绪，前端增强版 |
-| 技术论文 | W4-5 | ✅ LaTeX 初稿完成 |
-| 演示视频 / PPT / 展架 | W5 | ⬜ |
+> 基准：总规划五周 5/14–6/20。当前日期：5/28 晚（W2 结束，进入 W3）。
+
+| 阶段 | 规划任务 | 状态 | 差距说明 |
+|------|----------|:----:|------|
+| **W1** 地基 (5/14–20) | IR 数据模型定义 | ✅ | PartIR / RiskIR / TopologyIR / ScoreBreakdown 全部就绪 |
+| | eZ-PLM API 客户端（含 Mock） | ✅ | HMAC-SHA256 签名 + 多前缀分组查询 + 209 条 Mock |
+| | 注册 eZ-PLM，读懂 API 文档 | ✅ | 操作手册已入库 |
+| **W2** 知识库 (5/21–27) | 收集工程文档 | ✅ | 12 条知识条目（Buck/热/车规/Layout/供应链） |
+| | 搭建 ChromaDB 向量知识库 | ✅ | `app/rag.py`，持久化存储，Pipeline 自动集成 |
+| | 验证 RAG 检索准确性 | ✅ | Top-3 结果相关度 0.50–0.57 |
+| **W3** Agent (5/28–6/3) | 实现 LangChain ReAct Agent | ✅ | 4 工具，多轮会话，`/agent/chat` 端点（提前完成） |
+| | 封装三个工具 | ✅ | search / knowledge / alternatives / report |
+| | 场景 1（USB-C PD 方案）端到端 | 🟡 | Pipeline 可跑，需构建 USB-C PD 知识 + 特定 IC 检索 |
+| | 场景 2（车规降压）端到端 | 🟡 | Pipeline 可跑，mock 缺车规固定 5V 器件 |
+| | 场景 3（国产替代追问） | ✅ | Agent 多轮对话跑通 |
+| **W4** 集成 (6/4–10) | FastAPI 后端 + 会话管理 | ✅ | 5 端点就绪，Agent 多轮会话支持 |
+| | Streamlit 前端界面 | ✅ | 增强版 UI（队员 A） |
+| | 接入真实 eZ-PLM API | ✅ | TI/ADI/Microchip/ST 四厂，单次召回 31 条 |
+| | 三个演示场景全跑通 | 🟡 | 场景 3 ✅，场景 1/2 🟡 |
+| **W5** 交付 (6/11–20) | 技术论文 6000–8000 字 | 🟡 | LaTeX 初稿完成，待定稿 |
+| | 演示视频 3–5 分钟 | ⬜ | |
+| | 答辩 PPT 15–20 页 | ⬜ | |
+| | 门型展架设计 | ⬜ | |
+| | 复现文档 | ⬜ | |
+| | eZ-PLM 对接文档 | ⬜ | |
+| | 作品展示照片 5 张 | ⬜ | |
+| | 完整源代码 | ✅ | 43 commits，15 模块 |
+
+### 竞赛提交清单对照
+
+| 材料 | 规格 | 状态 |
+|------|------|:----:|
+| 技术论文 | PDF + DOCX，6000–8000 字 | 🟡 初稿 |
+| 演示视频 | MP4，1080p，3–5 分钟 | ⬜ |
+| 完整源代码 | 含 README、requirements.txt | ✅ |
+| AI 相关文件 | Prompt 模板、知识库数据、Agent 配置 | 🟡 缺整理打包 |
+| 复现文档 | 详细步骤、依赖清单、预期结果 | ⬜ |
+| eZ-PLM 对接文档 | API 调用方式、数据流向、IR 提交 | 🟡 部分（操作手册已入库） |
+| 答辩 PPT | 15–20 页 | ⬜ |
+| 门型展架 | JPG，80×180cm，≤30MB | ⬜ |
+| 作品展示照片 | 5 张，全貌+特写，每张 ≤2MB | ⬜ |
 | 专家评审表 | — | ⬜ |
+
+---
+
+## 后续工作计划与分工（截至 6/20 提交）
+
+### 场景补齐（W3 剩余 + W4，截至 6/10）
+
+| 优先级 | 任务 | 负责人 | 说明 |
+|:----:|------|:----:|------|
+| 🔴 | **场景 1 USB-C PD 100W 方案** | 队长 | 需补充 USB-C PD 协议知识到 RAG + 特定充电 IC 检索 |
+| 🔴 | **场景 2 车规降压完整演示** | 队员 B | 补充 mock 中车规固定 5V/3A 器件（解决 dc_dc_001/008 零推荐） |
+| 🟡 | **场景 3 国产替代追问打磨** | 队长 | 已有基础，需缓解 Agent 幻觉、优化对比展示 |
+| 🟡 | **Streamlit 对接 Agent 推理可视化** | 队员 A | 展示工具调用步骤卡片、中间结果折叠面板 |
+| 🟢 | **LDO 测试用例补充** | 队员 A | `tests/cases/ldo_cases.jsonl`，≥5 条 |
+| 🟢 | **RAG 知识库扩充** | 队长 | 工程知识 12→30+ 条，导入 TI 应用笔记 + IPC 标准 |
+
+### 材料冲刺（W5，6/11–6/20）
+
+| 优先级 | 任务 | 负责人 | 说明 |
+|:----:|------|:----:|------|
+| 🔴 | **论文定稿** | 队长 | 补充场景 1/2 实验结果，润色英文摘要，确认图表引用 |
+| 🔴 | **演示视频录制** | 队员 A | 三个场景完整演示 + 画外音解说，1080p，3–5 分钟 |
+| 🔴 | **答辩 PPT** | 全员 | 15–20 页，分工：队长 技术架构+创新点，队员 B API/测试，队员 A 前端/演示 |
+| 🟡 | **复现文档** | 队员 B | 环境配置步骤、依赖清单、评测复现命令、预期输出 |
+| 🟡 | **eZ-PLM 对接文档** | 队员 B | API 签名流程、IR 数据格式、数据流向图、提交示例 |
+| 🟡 | **门型展架设计** | 队员 A | 80×180cm，JPG，含架构图+场景截图+QR码 |
+| 🟢 | **AI 文件整理** | 队长 | Prompt 模板、知识库数据 JSON、Agent 配置文件收集打包 |
+| 🟢 | **作品展示照片** | 全员 | 系统运行界面 5 张（主页+分析结果+报告+BOM+拓扑图） |
+| 🟢 | **代码最终检查** | 全员 | CI 全绿、README 最终更新、.gitignore 无敏感文件 |
+
+### 每日工作流
+
+```bash
+# 从 main 创建当日分支
+git checkout main && git pull origin main
+git checkout -b feature/<role>/<task>
+
+# 开发 → 测试 → 提交
+# 评测验证
+PYTHONPATH=. python3 tests/eval_runner.py
+
+# 推送到 GitHub
+git push origin feature/<role>/<task>
+# → 发起 PR → main，队长 Review 后 Squash & Merge
+```
+
+| 角色 | 当前负责文件 |
+|------|-------------|
+| 队长 | `app/rag.py` `app/agent_tools.py` `app/react_agent.py` `app/scoring.py` `app/requirement_parser.py` `app/agent_orchestrator.py` `data/knowledge/` `latex-paper/` |
+| 队员 B | `app/ezplm_client.py` `app/main.py` `data/mock_parts.json` `generate_detailed_pdf.py` `app/datasheet_rag.py` |
+| 队员 A | `frontend/streamlit_app.py` `tests/eval_runner.py` `tests/cases/` `docs/` |
 
 ---
 
