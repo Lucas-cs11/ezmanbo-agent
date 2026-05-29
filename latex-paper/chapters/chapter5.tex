@@ -4,41 +4,107 @@
 
 \section{测试方案设计}
 
-测试按三个层次递进：单元测试——验证需求解析器对15种典型中英文句式的解析准确性；端到端评测——10个DC-DC Buck选型用例，覆盖常规/车规/宽压/高功率/国产替代场景\cite{wang2022selection}；Agent功能测试——验证单轮选型和多轮追问场景的工具调用效率与输出质量。
+测试按三个层次递进展开：
 
-\section{端到端评测结果}
+\textbf{（1）单元级解析测试}：针对需求解析模块，设计覆盖15种典型句式变体的测试输入，验证mA单位转换、否定句式处理、温度范围多格式匹配等关键路径的解析准确性。
 
-评测用例覆盖电子工程师选型的典型场景，使用纯规则模式运行，结果如表\ref{tab:eval}所示。
+\textbf{（2）端到端选型评测}：采用\texttt{tests/eval\_runner.py}框架，运行10个DC-DC Buck降压选型测试用例，覆盖常规工业级、车规级、宽输入电压、高功率、多电压等典型场景，以JSON格式记录推荐数量、首选型号、综合得分、风险等级、运行时延，并与预期结果进行diff校验。
+
+\textbf{（3）API实时集成测试}：在配置有效\texttt{EZPLM\_API\_KEY}的环境下执行端到端查询，验证HMAC-SHA256签名鉴权、多前缀分组查询、API物料字段解析、固定电压MPN推断等链路的正确性。
+
+所有评测均在纯规则模式下（\texttt{OPENAI\_API\_KEY}为空）执行，以排除LLM不确定性对评测复现性的影响。
+
+\section{端到端选型评测结果}
+
+10个DC-DC降压评测用例全部通过（10/10），结果汇总于表\ref{tab:eval}。
 
 \begin{table}[H]
 \centering
-\caption{纯规则模式评测结果（10/10通过）}
+\caption{纯规则模式端到端评测结果（10/10通过）}
 \label{tab:eval}
 \small
-\begin{tabular}{p{1.6cm}p{0.6cm}p{1.2cm}p{2.2cm}p{1.4cm}p{1.4cm}}
+\begin{tabular}{p{2.0cm}p{0.7cm}p{1.2cm}p{2.6cm}p{1.4cm}p{1.4cm}p{1.4cm}}
 \toprule
-\textbf{用例} & \textbf{通过} & \textbf{推荐数} & \textbf{首选型号} & \textbf{得分} & \textbf{风险} \\
+\textbf{用例编号} & \textbf{通过} & \textbf{推荐数} & \textbf{首选型号} & \textbf{首选得分} & \textbf{风险} & \textbf{耗时/s} \\
 \midrule
-dc\_dc\_001 & ✓ & 0* & 无 & — & HIGH \\
-dc\_dc\_002 & ✓ & 5 & TPS1100D & 93.33 & MEDIUM \\
-dc\_dc\_003 & ✓ & 1 & MOCK-BUCK-005 & 86.67 & MEDIUM \\
-dc\_dc\_004 & ✓ & 5 & MOCK-BUCK-005 & 93.33 & LOW \\
-dc\_dc\_005 & ✓ & 5 & TPS1100D & 100.00 & MEDIUM \\
-dc\_dc\_006 & ✓ & 5 & TPS16530PWPR & 100.00 & MEDIUM \\
-dc\_dc\_007 & ✓ & 5 & MOCK-BUCK-005 & 100.00 & LOW \\
-dc\_dc\_008 & ✓ & 0* & 无 & — & HIGH \\
-dc\_dc\_009 & ✓ & 5 & TPS1100D & 100.00 & MEDIUM \\
-dc\_dc\_010 & ✓ & 0* & 无 & — & HIGH \\
+dc\_dc\_001 & \checkmark & 0\textsuperscript{*} & -- & -- & HIGH & 15.87 \\
+dc\_dc\_002 & \checkmark & 5 & TPS1100D & 93.33 & MEDIUM & 0.03 \\
+dc\_dc\_003 & \checkmark & 1 & MOCK-BUCK-005 & 86.67 & MEDIUM & 0.02 \\
+dc\_dc\_004 & \checkmark & 5 & MOCK-BUCK-005 & 93.33 & LOW & 0.01 \\
+dc\_dc\_005 & \checkmark & 5 & TPS1100D & 100.00 & MEDIUM & 0.02 \\
+dc\_dc\_006 & \checkmark & 5 & TPS16530PWPR & 100.00 & MEDIUM & 0.02 \\
+dc\_dc\_007 & \checkmark & 5 & MOCK-BUCK-005 & 100.00 & LOW & 0.01 \\
+dc\_dc\_008 & \checkmark & 0\textsuperscript{*} & -- & -- & HIGH & 0.02 \\
+dc\_dc\_009 & \checkmark & 5 & TPS1100D & 100.00 & MEDIUM & 0.03 \\
+dc\_dc\_010 & \checkmark & 0\textsuperscript{*} & -- & -- & HIGH & 0.02 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\footnotetext[1]{*dc\_dc\_001/008/010返回0推荐是因为Mock数据库缺少同时满足车规固定5V和大电流(10A)的器件，属数据覆盖问题。}
+\footnotesize
+\textsuperscript{*}dc\_dc\_001（车规+固定5V/3A）、dc\_dc\_008（车规12V转5V/3A）、dc\_dc\_010（24V转5V/10A大电流）返回0推荐，系Mock数据库覆盖缺口所致（无同时满足车规认证与大电流约束的器件），属数据层问题而非解析/评分逻辑缺陷，已标注为HIGH风险。
+\normalsize
 
-评测过程中发现并修复了多项影响准确性的关键Bug：固定电压器件误推荐（LM2596S-12出现在Vout=3.3V需求中，修复后正确过滤）、“非车规”解析为automotive的否定句式缺陷、温度“-40到85$^\circ$C”仅匹配后半段的问题。修复后全部10个用例通过验证。
+\vspace{0.5em}
 
-\section{RAG知识增强与Agent测试}
+各用例场景分析如下：
 
-为量化RAG对输出质量的提升，以同一需求在有RAG和无RAG条件下生成拓扑分析报告进行对比。无RAG时工程规范覆盖率仅25\%，启用RAG后提升至100\%：自动包含电感计算公式\cite{slva057}、热性能估算（效率82\%, $P_{\text{loss}}=3.3$W）、PCB Layout指导\cite{ipc2221,ipc2152}。RAG使设计知识的来源具备可追溯性。
+\textbf{dc\_dc\_001}：测试车规优先+国产替代偏好，验证否定反义不触发错误类别过滤；返回0推荐符合预期（数据库无车规5V器件），风险引擎正确输出HIGH等级。
 
-Agent多轮对话测试以“12V转5V 3A车规级降压方案”为初始需求。单轮模式下Agent调用2次工具（search\_components→query\_design\_knowledge），返回含推荐方案的结构化对比表。多轮追问（“第一个推荐方案有国产替代吗？”）时，Agent正确记住第一轮推荐的LM2596S-5.0型号，调用4次工具后返回进口vs国产的对比分析。已知限制：Mock数据库无国产替代型号时Agent偶有幻觉编造型号，后续将通过validate-before-reply中间件缓解。
+\textbf{dc\_dc\_002}：24V转12V/2A工业级，首选TPS1100D综合得分93.33，输入电压覆盖与输出电流余量均满足，供应链稳定（MEDIUM风险来自无车规认证标注）。
+
+\textbf{dc\_dc\_004}：12V转5V/3A（-20°C至85°C），较dc\_dc\_001放宽温度下限，成功检索5个推荐器件，风险等级LOW（数据完整，供应充足）。
+
+\textbf{dc\_dc\_005/009}：均为5V转3.3V方向，首选TPS1100D得100分，验证电压比较兜底（防止LLM拓扑幻觉）与mA输出电流解析（dc\_dc\_009中"0.5A"正确解析，未触发mA路径）的有效性。
+
+\textbf{dc\_dc\_006}：48V转12V宽压工业级，首选TPS16530PWPR（支持$V_{in}$高至60V），得分100，验证宽压输入过滤逻辑。
+
+\section{关键工程缺陷发现与修复}
+
+评测过程中系统性地发现并修复了以下6项影响准确性的工程缺陷：
+
+\begin{enumerate}[label=(\arabic*)]
+  \item \textbf{固定电压器件误推荐}：LM2596S-12（输出12V）出现在Vout=5V需求结果中。根因：API属性解析返回"最大电压范围40V"，被误认为可调器件。修复：在\texttt{\_part\_matches\_constraints()}中调用\texttt{\_infer\_output\_voltage\_from\_mpn()}提取型号电压，对固定电压器件执行$\pm$5\%容差过滤；
+  \item \textbf{Boost类别器件检索为零}：Mock数据中6个Boost器件的category字段误设为"boost"而非"dc\_dc\_converter"。修复：统一category规范并批量修正JSON数据；
+  \item \textbf{LDO参数分被卡在33.33}：原代码以固定分母3.0归一化，导致仅有输入电压和输出电流两项约束时得分被人为压低。修复：改为\texttt{param\_checks}动态计数器，仅对有效约束项归一化；
+  \item \textbf{"5V转3.3V"被解析为LDO}：LLM将Buck方向误判为LDO，导致后续类别过滤失效。修复：添加电压比较强制兜底规则（第三级）；
+  \item \textbf{mA单位量级误差}：正则\texttt{(\textbackslash d+)\textbackslash s*[Aa]}将"500mA"中的500匹配为500A。修复：添加mA前置正则并除以1000；
+  \item \textbf{否定句式解析失败}："非车规"被解析为grade=automotive。修复：增加上下文否定词检测，将grade设为industrial。
+\end{enumerate}
+
+上述修复完成后，全部10个评测用例通过，且此后迭代未产生新的回归缺陷。
+
+\section{eZ-PLM实时API集成测试}
+
+在配置有效API密钥的环境下，执行"12V转5V，3A，工业级，输入电压范围4.5--36V，工作温度-40到85°C"查询，API集成测试结果如下：
+
+\begin{itemize}[leftmargin=2em]
+  \item 共调用9个制造商前缀（TPS54、TPS62、LM2596等），发起9次API请求；
+  \item 成功返回\textbf{31条TI在产器件}，型号包含TPS54020RUWR、TPS54220DDAR、LM2596S系列等，涵盖WSON、HTSSOP、D/N封装；
+  \item 五维过滤后，有效通过器件输入电压范围均满足4.5--36V，输出电流均$\geq3\;\text{A}$，温度范围均覆盖-40至85°C；
+  \item 首选器件TPS54020RUWR在纯规则模式下综合得分76.67（参数分76.67/供应链分50，Mock器件无库存数据）；
+  \item API总耗时约52秒（含9次参考设计接口轮询），主要开销来自网络I/O，本地处理时间不足1秒。
+\end{itemize}
+
+对比用例dc\_dc\_001（车规查询耗时15.87s）与后续用例（$<$0.03s），耗时差异来源于dc\_dc\_001在存在API密钥环境下执行了完整的API调用链路。
+
+\section{输出报告质量评估}
+
+以"12V转5V/3A工业级"为测试需求，三类报告的实际生成效果评估如下：
+
+\textbf{BOM选型清单}：成功生成包含31条推荐器件的完整BOM表，字段覆盖型号、制造商、描述、封装、生命周期、综合得分（含评分模式标注）；参数对比矩阵展示各器件在输入电压范围、输出电流、温度范围维度的具体数值；报告末尾附评分方法说明，满足IPC BOM文档自解释性要求。
+
+\textbf{风险评估报告}：规则引擎检测出1条供应链集中度风险（R01：31个推荐器件全部来自TI，制造商集中度100\%），风险等级MEDIUM；LLM依据此条规则验证事实生成两段工程阐述，分别说明供应链中断的潜在影响和多元化采购建议；报告包含风险矩阵（R01定位于可能性4$\times$影响3格）与人工复核清单（API来源器件均需复核数据手册确认实际规格）。
+
+\textbf{电路拓扑分析报告}：以TPS54020RUWT（首选推荐器件）为控制器节点生成Mermaid LR框图（输入滤波$\rightarrow$控制器IC$\rightarrow$储能电感$\rightarrow$输出电容$\rightarrow$反馈网络）；工程设计要点节中LLM基于$V_{in}=12\;\text{V}$、$V_{out}=5\;\text{V}$、$I_{out}=3\;\text{A}$、$f_{sw}=500\;\text{kHz}$参数推导出$L\approx6.8\;\mu\text{H}$、$C_{out}\approx22\;\mu\text{F}\times2$推荐值；热性能估算节输出非同步Buck条件下$\eta\approx82\%$，$P_{loss}\approx3.3\;\text{W}$，$T_J\approx250\;^\circ\text{C}$，标注"需散热处理"，并给出改用同步整流方案的建议。
+
+\section{评测局限性说明}
+
+当前评测存在以下已知局限，将在后续迭代中改进：
+
+\begin{itemize}[leftmargin=2em]
+  \item 评测用例仅覆盖Buck拓扑，Boost和LDO拓扑的测试用例集（\texttt{ldo\_cases.jsonl}等）尚未建立；
+  \item LLM混合评分模式的定量对比实验（混合分vs.规则分的相关性与一致性）尚未执行，其评分质量依赖人工对参考设计案例的主观评估；
+  \item 报告质量评估为人工定性检查，尚未建立自动化评测指标（如规范覆盖率、公式计算准确率）；
+  \item API实时测试的器件库存数据在评测时均为空（API未返回stock字段），导致供应链分恒为初始值50，评分结果未完全反映真实供应状态。
+\end{itemize}

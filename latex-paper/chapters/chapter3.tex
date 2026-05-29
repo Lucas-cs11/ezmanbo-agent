@@ -2,46 +2,161 @@
 % 第3章：原理分析与硬件电路图
 % ============================================================
 
-\section{选型决策的工程原理}
+\section{自然语言需求解析原理}
 
-系统核心决策链遵循电子工程设计方法论\cite{erickson2007fundamentals,pressman2009switching}，以Buck降压转换器选型为例阐述。
+\subsection{四级容错解析链}
 
-\subsection{需求解析原理}
+需求解析模块（\texttt{requirement\_parser.py}）将自然语言文本转换为RequirementConstraints结构化对象。解析过程按图\ref{fig:parser}（待补充流程图）所示四级策略依次执行，后级仅修正前级已知缺陷，不重新推翻全部结果。
 
-需求解析采用四级策略：第一级——LLM语义解析，调用DeepSeek-V3将自然语言转换为结构化JSON，对输出进行归一化映射（“降压”→buck，“DC-DC”→dc\_dc\_converter）；第二级——规则化Category/Topology覆盖，通过关键词匹配和电压转换句式识别修正LLM误判；第三级——电压比较兜底，当$V_{\text{in}} > V_{\text{out}}$强制修正为buck，$V_{\text{in}} < V_{\text{out}}$强制修正为boost，解决LLM将“5V转3.3V”误标为ldo的问题；第四级——温度范围匹配，优先匹配“X到Y$^\circ$C”范围模式，兜底匹配单点温度。
+\textbf{第一级——LLM语义解析}：调用\texttt{parse\_requirement\_with\_llm()}，以系统提示词引导LLM提取category、topology、input\_voltage\_nominal\_v、output\_voltage\_v、output\_current\_a、temperature\_min\_c/max\_c、grade等字段，返回JSON。LLM擅长处理多样化的自然语言表述（"宽压输入4.5--36V降压方案"等），但其输出的拓扑分类和unit格式存在不确定性。
 
-\subsection{器件检索与匹配原理}
+\textbf{第二级——规则化类别/拓扑强制覆盖}：通过关键词匹配规则，对LLM结果进行修正。"降压"、"buck"、"DC-DC"触发\texttt{dc\_dc\_converter}类别；若同时出现"降压"，则topology设为buck；"升压"、"boost"设为boost；"LDO"、"低压差"设为ldo。
 
-器件检索采用“API优先+Mock兜底”双路径策略。eZ-PLM API通过HMAC-SHA256签名认证（签名串=method+path+sorted\_query+timestamp+nonce），按制造商前缀分组查询，每组最多50条。
+\textbf{第三级——电压比较方向兜底}：当类别为\texttt{dc\_dc\_converter}，且输入电压标称值与输出电压均可用时，执行：
+\begin{equation}
+  \text{topology} =
+  \begin{cases}
+    \texttt{buck}  & \text{若} \; V_{\text{in}} > V_{\text{out}} \\
+    \texttt{boost} & \text{若} \; V_{\text{in}} < V_{\text{out}}
+  \end{cases}
+  \label{eq:topo_guard}
+\end{equation}
+该规则专门解决"5V转3.3V"被LLM误标为ldo的问题——即使LLM返回topology=ldo，电压差方向判断会强制修正为buck。
 
-匹配函数实现了五维过滤逻辑：（1）类别/拓扑精确匹配；（2）$V_{\text{in,min}} \leq V_{\text{in,nominal}} \leq V_{\text{in,max}}$；（3）固定输出电压匹配——从MPN推断固定电压（LM2596S-5.0→5.0V），仅允许可调器件或$\pm$5\%容差范围内的固定电压器件通过；（4）$I_{\text{out,max,part}} \geq I_{\text{out,demand}}$；（5）温度与认证等级约束匹配。
+\textbf{第四级——温度范围正则匹配}：支持"-40到85°C"、"-40 to 125°C"、"-40\textasciitilde{}85°C"等多种格式，以正则模式$\texttt{(-?\textbackslash d+)\textbackslash s*(?:to|\textasciitilde|至)\textbackslash s*(-?\textbackslash d+)}$提取范围边界，兜底处理LLM未正确分离温度范围的情形。
+
+\subsection{单位与句式专项处理}
+
+\textbf{mA单位前置匹配}：电流提取时优先匹配mA模式（正则$\texttt{(\textbackslash d+(?:\textbackslash.\textbackslash d+)?)\textbackslash s*m[Aa]}$），将结果除以1000转换为安培单位，防止"输出500mA"被普通安培正则误识别为500A（量级误差1000倍）。
+
+\textbf{否定句式处理}：通过上下文窗口正则检测"非车规"、"不用车规"、"不需要车规"等否定表达，将grade设为\texttt{industrial}，而非触发车规过滤。
+
+\section{eZ-PLM API集成原理}
+
+\subsection{HMAC-SHA256签名认证机制}
+
+eZ-PLM API采用自定义HMAC-SHA256签名认证，每次请求需携带四个头部字段：X-API-Key（API密钥明文）、X-Timestamp（Unix时间戳）、X-Nonce（UUID随机字符串，防重放）、X-Signature（签名值）。
+
+签名串构造规则如下：
+\begin{equation}
+  \text{SignStr} = \text{METHOD} \Vert \texttt{\textbackslash n} \Vert \text{PATH} \Vert \texttt{\textbackslash n} \Vert Q_{\text{canonical}} \Vert \texttt{\textbackslash n} \Vert \text{Timestamp} \Vert \texttt{\textbackslash n} \Vert \text{Nonce}
+  \label{eq:sign}
+\end{equation}
+其中$Q_{\text{canonical}}$为查询参数的规范化字符串，按参数名-值对的字典序排列，键值均经URL编码（空格以\%20表示），以"$\&$"拼接。签名计算：
+\begin{equation}
+  \text{Signature} = \text{Base64URLSafe}\bigl(\text{HMAC-SHA256}(\text{APIKey},\; \text{SignStr})\bigr)
+  \label{eq:hmac}
+\end{equation}
+
+客户端实现（\texttt{\_build\_signature()}）在每次请求时生成新的Timestamp与Nonce，确保签名串唯一性，防止重放攻击。
+
+\subsection{多前缀分组查询策略}
+
+API物料查询接口（GET \texttt{/api/v1/api-key/parts}）通过keyword参数按型号前缀过滤。由于不支持语义关键词，系统建立如下映射表：
+
+\begin{table}[H]
+\centering
+\caption{类别/拓扑至制造商前缀映射（\_API\_KEYWORDS）}
+\label{tab:keywords}
+\small
+\begin{tabular}{p{3cm}p{2cm}p{6.5cm}}
+\toprule
+\textbf{类别} & \textbf{拓扑} & \textbf{查询前缀列表} \\
+\midrule
+\multirow{3}{*}{dc\_dc\_converter} & buck & TPS54, TPS62, LM2596, LM2576, ADP23, LTC388, LTC365, ST1S, L5970 \\
+ & boost & TPS61, TPS63, LTC370, LTC358, MCP1640 \\
+ & (通用) & TPS54, TPS62, TPS61, LM2596, ADP23, LTC388 \\
+ldo & (通用) & TPS79, TPS72, MCP1703, MCP1700, ADP312, LT1763, MCP1501 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+查询循环对每个前缀独立发起请求（每次最多50条），以型号（part\_number）为键构建去重集合，总召回上限200条。召回后通过\texttt{\_part\_matches\_constraints()}执行五维过滤（类别/拓扑匹配、输入电压覆盖、固定输出电压$\pm$5\%容差、输出电流下限、温度范围与认证等级），保留满足全部约束的器件。
+
+\subsection{器件属性解析与MPN电压推断}
+
+API返回的attributes数组包含中文命名的电气参数（"输入电压最大值"、"输出电压"等），系统通过关键词匹配提取数值。由于API的"输出电压"字段常为范围值而非固定输出值，\texttt{\_infer\_output\_voltage\_from\_mpn()}函数优先从型号字符串提取固定电压。提取规则：检测型号中的"-X.X"或"-XX"格式数字段（排除"ADJ"后缀可调器件），校验数值在0.5--60V合理范围内，作为固定输出电压覆盖API属性值。
+
+\section{评分原理定量分析}
+
+\subsection{参数匹配分计算}
+
+各约束维度的单项得分$s_i$计算规则如下：
+
+\textbf{输入电压覆盖}：若$V_{\text{in,min,part}} \leq V_{\text{in,nominal}} \leq V_{\text{in,max,part}}$，则$s=1.0$（满分），否则$s=0$。
+
+\textbf{输出电压匹配}（$V_{\text{out,demand}}>0$时生效）：
+\begin{equation}
+  s_{\text{vout}} =
+  \begin{cases}
+    1.0  & \text{若} \; |V_{\text{out,part}} - V_{\text{out,demand}}| < 0.01 \\
+    0.6  & \text{若} \; \dfrac{|V_{\text{out,part}} - V_{\text{out,demand}}|}{V_{\text{out,demand}}} \leq 5\% \\
+    0.1  & \text{其他}
+  \end{cases}
+\end{equation}
+
+\textbf{输出电流满足}：$s_{\text{iout}} = \min\!\left(1.0,\; \dfrac{I_{\text{out,part}}}{2 \times I_{\text{out,demand}}}\right)$（$I_{\text{out,part}} \geq I_{\text{out,demand}}$时生效）。
+
+\textbf{温度范围覆盖}：若$T_{\text{min,part}} \leq T_{\text{min,demand}}$且$T_{\text{max,part}} \geq T_{\text{max,demand}}$，则$s=1.0$，否则$s=0$。
+
+\subsection{LLM评分提示词设计}
+
+\texttt{score\_part\_with\_llm()}构造两段提示词。系统提示词要求LLM以资深电子工程师角色，严格基于参考设计内容评分，不得凭空推断，并只返回JSON，无多余文字。用户提示词包含三节内容：（1）用户原始选型需求文本；（2）待评估器件的型号、制造商、描述及电气参数（Vin范围/Iout/温度范围）；（3）最多3条参考设计案例（name+description前300字符）。LLM须返回：
+\begin{lstlisting}[language=Python,caption={LLM评分返回格式},label={lst:llm_fmt}]
+{"application_score": 85, "design_risk_score": 78, "reasoning": "一句话说明"}
+\end{lstlisting}
+系统对返回JSON进行鲁棒提取（查找第一个``\{''至最后一个``\}''），并将两项分数clamp至$[0,100]$，任何解析异常均返回空字典以触发rule\_only回退。
 
 \section{典型应用电路拓扑分析}
 
-以12V转5V/3A工业级Buck转换器为例（基于MOCK-BUCK-005控制器），核心功率通路为：输入滤波→控制器IC→续流二极管→储能电感→输出滤波电容→负载，反馈回路通过分压电阻将$V_{\text{out}}$反馈至FB引脚实现闭环稳压。
+\subsection{Buck降压转换器设计原理}
 
-\subsection{关键外围元件设计计算}
+以12V转5V/3A工业级Buck转换器为典型设计场景，阐述系统生成的拓扑分析报告所包含的定量计算方法。
 
-基于RAG检索到的工程公式进行定量计算。
-
-\textbf{占空比}：$D = V_{\text{out}}/V_{\text{in}} = 5/12 \approx 0.417$。
-
-\textbf{电感值}（纹波电流$\Delta I_L = 0.3 I_{\text{out}} = 0.9$A，$f_{\text{sw}}=500$kHz）：
+Buck转换器的占空比由稳态伏秒平衡确定：
 \begin{equation}
-L = \frac{(V_{\text{in}}-V_{\text{out}})D}{f_{\text{sw}}\Delta I_L} = \frac{(12-5)\times 0.417}{500\text{k}\times 0.9} \approx 6.5\mu\text{H}
+  D = \frac{V_{\text{out}}}{V_{\text{in}}} = \frac{5}{12} \approx 0.417
+  \label{eq:duty}
 \end{equation}
-推荐6.8$\mu$H屏蔽式功率电感\cite{slva057}，$I_{\text{sat}} > I_{\text{out}}+\Delta I_L/2 = 3.45$A。
 
-\textbf{输出电容}（$\Delta V_{\text{out}} = 1\% V_{\text{out}} = 50$mV）：
+\subsection{储能电感选型计算}
+
+取纹波电流系数$k_{r}=0.3$（工业通用设计准则），则：
 \begin{equation}
-C_{\text{out}} \geq \frac{\Delta I_L}{8 f_{\text{sw}} \Delta V_{\text{out}}} \approx 4.5\mu\text{F}
+  \Delta I_L = k_r \cdot I_{\text{out}} = 0.3 \times 3 = 0.9\;\text{A}
 \end{equation}
-选用2$\times$22$\mu$F X7R MLCC并联\cite{slva477b}，考虑DC偏压降额后有效容值约24$\mu$F。
+在开关频率$f_{\text{sw}}=500\;\text{kHz}$条件下，最小电感量为\cite{slva057}：
+\begin{equation}
+  L_{\min} = \frac{(V_{\text{in}} - V_{\text{out}}) \cdot D}{f_{\text{sw}} \cdot \Delta I_L}
+           = \frac{(12-5) \times 0.417}{500\,\text{k} \times 0.9}
+           \approx 6.5\;\mu\text{H}
+  \label{eq:inductor}
+\end{equation}
+推荐选用6.8\,$\mu$H屏蔽式功率电感\cite{slva057}，饱和电流须满足$I_{\text{sat}} > I_{\text{out}} + \Delta I_L/2 = 3.45\;\text{A}$。
+
+\subsection{输出电容选型计算}
+
+取允许输出纹波电压$\Delta V_{\text{out}} = 1\% \times V_{\text{out}} = 50\;\text{mV}$，最小输出电容量为\cite{slva477b}：
+\begin{equation}
+  C_{\text{out,min}} = \frac{\Delta I_L}{8 \cdot f_{\text{sw}} \cdot \Delta V_{\text{out}}}
+                     = \frac{0.9}{8 \times 500\,\text{k} \times 0.05}
+                     \approx 4.5\;\mu\text{F}
+  \label{eq:capacitor}
+\end{equation}
+考虑X7R MLCC的DC偏压降额效应（25V器件在5V偏压下有效容值约为标称值65\%），推荐并联2$\times$22\,$\mu$F/25V X7R 0805电容\cite{slva477b}，有效容值约28\,$\mu$F，超出最小需求6倍，兼顾ESR指标要求（$\Delta V_{\text{ESR}} = \text{ESR} \times \Delta I_L < 10\;\text{m}\Omega \times 0.9\;\text{A} = 9\;\text{mV}$）。
 
 \subsection{热性能估算}
 
-非同步Buck在12V→5V/3A工况下：$\eta \approx 82\%$，$P_{\text{out}}=15.0$W，$P_{\text{loss}}=3.3$W。损耗分解：开关损耗~30\%（0.99W）、二极管损耗~30\%（0.99W）、电感损耗~25\%（0.82W）、其他~15\%（0.49W）。结温估算（$\theta_{JA}\approx 50^\circ$C/W，$T_A=85^\circ$C）：
+以典型非同步Buck效率$\eta=82\%$估算：
 \begin{equation}
-T_J = T_A + P_{\text{loss}} \times \theta_{JA} = 85 + 3.3 \times 50 = 250^\circ\text{C}
+  P_{\text{loss}} = P_{\text{out}} \times \frac{1-\eta}{\eta}
+                  = (5\;\text{V} \times 3\;\text{A}) \times \frac{0.18}{0.82}
+                  \approx 3.3\;\text{W}
+  \label{eq:ploss}
 \end{equation}
-此结温远超$T_{J(\text{max})}=125^\circ$C，系统标记为“热余量偏低”。实际工程中需改用同步整流方案（效率$\sim$90\%，$P_{\text{loss}}\approx 1.67$W）或增加散热措施。
+以SOT-23/WSON封装典型热阻$\theta_{JA}=50\;^\circ\text{C/W}$，最高环境温度$T_A=85\;^\circ\text{C}$，结温估算为：
+\begin{equation}
+  T_J = T_A + P_{\text{loss}} \times \theta_{JA} = 85 + 3.3 \times 50 = 250\;^\circ\text{C}
+  \label{eq:junction}
+\end{equation}
+该结温超过典型最大结温$T_{J(\text{max})}=125\;^\circ\text{C}$，系统在TopologyIR的ThermalEstimate子模型中自动标记\texttt{needs\_heatsink=True}，并在拓扑报告中给出改善建议——应采用同步整流方案（效率提升至$\sim90\%$，$P_{\text{loss}}\approx1.67\;\text{W}$，$T_J\approx168\;^\circ\text{C}$，仍需散热考量）或降低$\theta_{JA}$（扩铜散热、较大封装）。
