@@ -374,9 +374,8 @@ def _part_matches_constraints(part: PartIR, constraints: RequirementConstraints)
             return False
         if not (part.temperature_min_c <= constraints.temperature_min_c and part.temperature_max_c >= constraints.temperature_max_c):
             return False
-    # automotive
-    if constraints.grade == "automotive" and not part.automotive_grade:
-        return False
+    # automotive — 不执行硬过滤（mock/API 数据普遍无车规认证字段），
+    # 车规需求仅在风险报告中标注"未确认车规认证"作为提示
     return True
 
 
