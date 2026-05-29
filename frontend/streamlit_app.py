@@ -10,7 +10,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-API_URL = st.secrets.get("api_url", "http://localhost:8001")
+API_URL = st.secrets.get("api_url", "http://localhost:8000")
 
 # ---------- Custom CSS ----------
 st.markdown("""
@@ -138,15 +138,22 @@ with st.sidebar:
     st.markdown("### ⚙️ Settings")
     api_url_input = st.text_input("Backend API URL", value=API_URL, key="api_url_input")
     st.markdown("---")
-    st.markdown("### 📋 Preset Examples")
+    st.markdown("### 🎬 Demo Scenarios (竞赛演示)")
+    demo_presets = {
+        "🔴 场景1: USB-C PD 100W 快充": "设计一个 USB-C PD 100W 快充充电器方案，推荐控制 IC",
+        "🟡 场景2: 12V→5V 3A 车规降压": "12V 转 5V、3A，需满足车规级温度范围 -40°C 到 125°C",
+        "🟢 场景3: 国产替代追问 (Agent模式)": "12V转5V 3A 国产替代 优先国产 低供应链风险",
+    }
+    st.markdown("### 📋 Quick Presets")
     presets = {
-        "车规级 12V→5V 3A 国产": "我需要一个 12V 转 5V、3A 的车规级降压方案，工作温度 -40°C 到 125°C，优先考虑国产替代。",
         "工业 24V→12V 2A": "需要 24V 转 12V、2A 的降压方案，工作温度 -40°C 到 85°C。",
         "大功率 24V→5V 10A": "输入 24V，输出 5V，电流 10A，高功率场景。",
         "低压 5V→3.3V 1A": "请给我一个 5V 到 3.3V 的降压芯片，输出 1A。",
-        "车规 36V→5V 8A 国产": "36V 输入，输出 5V、8A，车规级，工作温度 -40°C 到 125°C，必须国产，低供应风险。",
+        "Boost 5V→12V 2A": "需要 5V 转 12V、2A 的升压方案，工作温度 -20°C 到 85°C。",
         "性价比 12V→5V 1.2A": "12V 转 5V、1.2A 降压，室温使用，要求成本最低。",
+        "USB-C PD 65W": "USB-C 65W PD charger controller recommendation",
     }
+    selected_demo = st.selectbox("Competition Demo", list(demo_presets.keys()))
     selected_preset = st.selectbox("Quick load", list(presets.keys()))
     st.markdown("---")
     st.caption("eZ-PLM Component Risk Agent v0.1")
@@ -157,9 +164,13 @@ st.markdown('<p class="sub-header">Intelligent DC-DC converter selection with mu
 
 col1, col2 = st.columns([3, 1])
 with col1:
+    # 竞赛演示优先使用 demo_presets，否则使用 presets
+    demo_val = demo_presets.get(selected_demo, "")
+    preset_val = presets.get(selected_preset, "")
+    default_val = demo_val if demo_val else preset_val
     user_input = st.text_area(
         "📝 Requirement Description",
-        value=presets[selected_preset],
+        value=default_val,
         height=100,
         placeholder="Describe your DC-DC converter requirement in natural language...",
         label_visibility="visible",
