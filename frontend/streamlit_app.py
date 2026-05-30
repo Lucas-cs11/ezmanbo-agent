@@ -785,64 +785,126 @@ if analyze_btn and user_input.strip():
                 )
 
     # ================================================================
-    #  6. Evidence Chain
+    #  6. Evidence Chain & Parameter Comparison
     # ================================================================
     evidence = data.get("evidence", []) or []
     if evidence:
         st.markdown("---")
-        st.markdown('<p class="section-header">Evidence Chain</p>', unsafe_allow_html=True)
-        ev_by_part = defaultdict(list)
-        for ev in evidence:
-            ev_by_part[str(ev.get("part_number") or "Global")].append(ev)
+        st.markdown('<p class="section-header">Evidence Chain & Parameter Comparison</p>', unsafe_allow_html=True)
 
-        tab_labels = list(ev_by_part.keys())
-        if len(tab_labels) > 1:
-            tabs = st.tabs(tab_labels)
-            for tab, pn in zip(tabs, tab_labels):
-                with tab:
-                    for ev in ev_by_part[pn]:
-                        conf = ev.get("confidence", 0)
-                        if conf >= 0.9:
-                            conf_color = "#16a34a"
-                        elif conf >= 0.7:
-                            conf_color = "#ca8a04"
-                        else:
-                            conf_color = "#dc2626"
-                        st.markdown(
-                            f'<div class="evidence-block">'
-                            f'<span class="evidence-type">{ev.get("evidence_type","N/A")}</span>'
-                            f'<strong>{ev.get("claim","N/A")}</strong>'
-                            f'<span style="font-size:0.72rem;color:#94a3b8;margin-left:0.4rem;">'
-                            f'source: {ev.get("source","N/A")}::{ev.get("source_field","")}'
-                            f'</span>'
-                            f'<span style="float:right;font-weight:600;color:{conf_color};">'
-                            f'{conf:.0%}'
-                            f'</span>'
-                            f'</div>',
-                            unsafe_allow_html=True,
-                        )
+        # --- Evidence Type Summary ---
+        ev_by_type = defaultdict(list)
+        for ev in evidence:
+            ev_by_type[ev.get("evidence_type", "unknown")].append(ev)
+
+        ev_count = len(evidence)
+        parts_with_evidence = len(set(ev.get("part_number") for ev in evidence))
+        high_conf = sum(1 for ev in evidence if ev.get("confidence", 0) >= 0.9)
+        ev_cols = st.columns(4)
+        with ev_cols[0]:
+            st.metric("Evidence Records", ev_count)
+        with ev_cols[1]:
+            st.metric("Parts Covered", parts_with_evidence)
+        with ev_cols[2]:
+            st.metric("Evidence Types", len(ev_by_type))
+        with ev_cols[3]:
+            st.metric("High Confidence (>=90%)", high_conf)
+
+        # --- Filter by part number ---
+        unique_parts = sorted(set(ev.get("part_number", "N/A") for ev in evidence))
+        if len(unique_parts) > 1:
+            filter_options = ["All Parts"] + unique_parts
+            selected_part_filter = st.selectbox(
+                "Filter evidence by part:",
+                filter_options,
+                key="evidence_part_filter",
+                label_visibility="visible",
+            )
         else:
-            for ev in evidence:
-                conf = ev.get("confidence", 0)
-                if conf >= 0.9:
-                    conf_color = "#16a34a"
-                elif conf >= 0.7:
-                    conf_color = "#ca8a04"
-                else:
-                    conf_color = "#dc2626"
-                st.markdown(
-                    f'<div class="evidence-block">'
-                    f'<span class="evidence-type">{ev.get("evidence_type","N/A")}</span>'
-                    f'<strong>{ev.get("claim","N/A")}</strong>'
-                    f'<span style="font-size:0.72rem;color:#94a3b8;margin-left:0.4rem;">'
-                    f'source: {ev.get("source","N/A")}::{ev.get("source_field","")}'
-                    f'</span>'
-                    f'<span style="float:right;font-weight:600;color:{conf_color};">'
-                    f'{conf:.0%}'
-                    f'</span>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
+            selected_part_filter = "All Parts"
+
+        # --- Parameter Comparison Table (key electrical specs) ---
+        if candidates:
+            st.markdown('<p style="font-weight:600;font-size:0.9rem;color:#334155;margin:0.8rem 0 0.3rem;">'
+                         'Key Electrical Parameters</p>', unsafe_allow_html=True)
+            param_rows = []
+            for c in candidates:
+                p = c.get("part", {})
+                level = c.get("recommendation_level", "")
+                level_badge = {"recommended": "◆", "backup": "◇", "not_recommended": "○"}.get(level, "")
+                param_rows.append({
+                    "MPN": p.get("part_number", "N/A"),
+                    "Mfr": p.get("manufacturer", "Unknown")[:12],
+                    "Vin Range (V)": f"{p.get('input_voltage_min_v','?')} ~ {p.get('input_voltage_max_v','?')}",
+                    "Iout Max (A)": p.get("output_current_max_a", "?"),
+                    "Temp Range (°C)": f"{p.get('temperature_min_c','?')} ~ {p.get('temperature_max_c','?')}",
+                    "Auto": "✓" if p.get("automotive_grade") else "—",
+                    "Lifecycle": p.get("lifecycle_status", "?"),
+                    "Stock": p.get("stock", 0),
+                    "Price ¥": p.get("unit_price_cny", "?"),
+                    "Score": f"{c.get('score',{}).get('total_score',0):.0f}",
+                    "Level": level_badge,
+                })
+
+            import pandas as pd
+            param_df = pd.DataFrame(param_rows)
+            st.dataframe(
+                param_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "MPN": st.column_config.TextColumn("MPN", width="medium"),
+                    "Mfr": st.column_config.TextColumn("Mfr", width="small"),
+                    "Vin Range (V)": st.column_config.TextColumn("Vin Range (V)", width="small"),
+                    "Iout Max (A)": st.column_config.NumberColumn("Iout Max (A)", width="small"),
+                    "Temp Range (°C)": st.column_config.TextColumn("Temp Range (°C)", width="small"),
+                    "Auto": st.column_config.TextColumn("Auto", width="small"),
+                    "Lifecycle": st.column_config.TextColumn("Lifecycle", width="small"),
+                    "Stock": st.column_config.NumberColumn("Stock", width="small"),
+                    "Price ¥": st.column_config.NumberColumn("Price ¥", format="¥%.2f", width="small"),
+                    "Score": st.column_config.TextColumn("Score", width="small"),
+                    "Level": st.column_config.TextColumn("Lvl", width="small"),
+                },
+                height=min(35 * max(1, len(param_rows)) + 38, 400),
+            )
+
+        # --- Evidence Records grouped by type ---
+        type_labels = sorted(ev_by_type.keys())
+        ev_tabs = st.tabs([t.upper().replace("_", " ") for t in type_labels])
+
+        for tab, etype in zip(ev_tabs, type_labels):
+            with tab:
+                type_evs = ev_by_type[etype]
+                # Filter by selected part
+                if selected_part_filter != "All Parts":
+                    type_evs = [ev for ev in type_evs if ev.get("part_number") == selected_part_filter]
+
+                if not type_evs:
+                    st.caption("No records for this filter.")
+                    continue
+
+                for ev in type_evs:
+                    conf = ev.get("confidence", 0)
+                    if conf >= 0.9:
+                        conf_color = "#16a34a"
+                    elif conf >= 0.7:
+                        conf_color = "#ca8a04"
+                    else:
+                        conf_color = "#dc2626"
+                    st.markdown(
+                        f'<div class="evidence-block">'
+                        f'<span class="evidence-type">{ev.get("evidence_type","N/A")}</span>'
+                        f'<strong>{ev.get("part_number","N/A")}</strong> — '
+                        f'{ev.get("claim","N/A")}'
+                        f'<span style="font-size:0.72rem;color:#94a3b8;margin-left:0.4rem;">'
+                        f'source: {ev.get("source","N/A")}::{ev.get("source_field","")}'
+                        f'</span>'
+                        f'<span style="float:right;font-weight:600;color:{conf_color};">'
+                        f'{conf:.0%}'
+                        f'</span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
     else:
         if candidates:
             st.markdown("---")
