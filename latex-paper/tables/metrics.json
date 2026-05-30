@@ -1,0 +1,95 @@
+{
+  "total": 28,
+  "passed": 26,
+  "pass_rate": 0.9285714285714286,
+  "field_accuracy": {
+    "category": 1.0,
+    "topology": 1.0,
+    "output_voltage_v": 1.0,
+    "output_current_a": 1.0,
+    "temperature_min_c": 1.0,
+    "temperature_max_c": 1.0,
+    "grade": 1.0
+  },
+  "score_stats": {
+    "total": {
+      "mean": 90.81,
+      "median": 92.22,
+      "std": 8.89,
+      "min": 72.0,
+      "max": 100.0,
+      "count": 8
+    },
+    "param": {
+      "mean": 91.32,
+      "median": 90.28,
+      "std": 5.97,
+      "min": 83.33,
+      "max": 100.0,
+      "count": 8
+    },
+    "supply": {
+      "mean": 88.75,
+      "median": 100.0,
+      "std": 31.82,
+      "min": 10.0,
+      "max": 100.0,
+      "count": 8
+    }
+  },
+  "rec_count_dist": {
+    "1": 7,
+    "0": 21
+  },
+  "cand_count_dist": {
+    "1": 6,
+    "0": 21,
+    "2": 1
+  },
+  "risk_dist": {
+    "high": 24,
+    "medium": 4
+  },
+  "risk_type_counts": {
+    "supply": 28,
+    "engineering": 3
+  },
+  "evidence_stats": {
+    "per_case": {
+      "mean": 3.39,
+      "median": 1.0,
+      "std": 4.5,
+      "min": 1,
+      "max": 18,
+      "count": 28
+    },
+    "confidence": {
+      "mean": 0.87,
+      "median": 0.9,
+      "std": 0.12,
+      "min": 0.3,
+      "max": 0.95,
+      "count": 95
+    },
+    "total": 95,
+    "human_review": 4
+  },
+  "latency": {
+    "mean": 1.12,
+    "median": 0.02,
+    "std": 5.75,
+    "min": 0.01,
+    "max": 30.47,
+    "count": 28
+  },
+  "cat_results": {
+    "dc": {
+      "total": 20,
+      "passed": 18
+    },
+    "ldo": {
+      "total": 8,
+      "passed": 8
+    }
+  }
+}
