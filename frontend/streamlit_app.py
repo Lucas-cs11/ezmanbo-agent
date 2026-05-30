@@ -793,7 +793,7 @@ if analyze_btn and user_input.strip():
         st.markdown('<p class="section-header">Evidence Chain</p>', unsafe_allow_html=True)
         ev_by_part = defaultdict(list)
         for ev in evidence:
-            ev_by_part[ev.get("part_number", "Unknown")].append(ev)
+            ev_by_part[str(ev.get("part_number") or "Global")].append(ev)
 
         tab_labels = list(ev_by_part.keys())
         if len(tab_labels) > 1:
