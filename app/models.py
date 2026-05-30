@@ -59,6 +59,7 @@ class PartInfo(BaseModel):
     unit_price_cny: float = 0.0
     lifecycle_status: str = ""
     datasheet_url: str = ""
+    image_url: str = ""
     replacement_for: List[str] = []
 
 
