@@ -19,10 +19,10 @@ cp .env.example .env
 PYTHONPATH=. python3 scripts/build_knowledge_base.py
 
 # 4. 启动后端（FastAPI）
-PYTHONPATH=. uvicorn app.main:app --reload --port 8000
+PYTHONPATH=. python3 -m uvicorn app.main:app --reload --port 8000
 
 # 5. 启动前端演示（Streamlit）
-PYTHONPATH=. streamlit run frontend/streamlit_app.py
+PYTHONPATH=. python3 -m streamlit run frontend/streamlit_app.py
 
 # 6. 运行评测
 PYTHONPATH=. python3 tests/eval_runner.py
@@ -32,7 +32,7 @@ PYTHONPATH=. python3 tests/eval_runner.py
 
 ---
 
-## 当前进展（2026-05-28 晚）
+## 当前进展（2026-05-30）
 
 ### 已完成模块
 
@@ -47,13 +47,13 @@ PYTHONPATH=. python3 tests/eval_runner.py
 | 风险报告 | `app/report_generator.py` | ✅ | 13 条规则引擎 + LLM 叙述分离 + FMEA RPN + 5×5 热力矩阵 |
 | 报告输出 | `app/output_generator.py` | ✅ | BOM / 风险评估 / 拓扑分析 Markdown + TopologyIR JSON |
 | Pipeline 调度 | `app/agent_orchestrator.py` | ✅ | 五阶段流水线 + RAG 自动检索 + 参考设计拉取 |
-| RAG 知识库 | `app/rag.py` | ✅ | ChromaDB + sentence-transformers，12 条工程知识 |
+| RAG 知识库 | `app/rag.py` | ✅ | ChromaDB + sentence-transformers，29 条工程知识（11 个类别） |
 | ReAct Agent | `app/react_agent.py` | ✅ | LangChain 1.3，4 工具，多轮会话 |
 | Agent 工具 | `app/agent_tools.py` | ✅ | search / knowledge / alternatives / report |
 | 数据手册 RAG | `app/datasheet_rag.py` | ✅ | 数据手册 QA 模块（队员 B） |
 | FastAPI 服务 | `app/main.py` | ✅ | `/health` `/analyze` `/replacement` `/agent/chat` `/agent/sessions` |
-| Mock 数据 | `data/mock_parts.json` | ✅ | 209 条（Buck/Boost/LDO，国产/进口，车规/非车规） |
-| RAG 知识条目 | `data/knowledge/` | ✅ | 12 条（Buck 设计/热管理/车规/Layout/供应链） |
+| Mock 数据 | `data/mock_parts.json` | ✅ | 1237 条（Buck/Boost/LDO，国产/进口，车规/非车规） |
+| RAG 知识条目 | `data/knowledge/` | ✅ | 29 条（Buck/Boost/LDO 设计 + USB-C PD + 热管理/车规/Layout/供应链/EMI/可靠性） |
 | Streamlit 前端 | `frontend/streamlit_app.py` | ✅ | 增强版 UI（队员 A） |
 | 评测框架 | `tests/eval_runner.py` | ✅ | 20 条用例，90% 通过率（队员 A 扩展） |
 | PDF 报告生成 | `generate_detailed_pdf.py` | ✅ | 中文 PDF 工作报告（队员 B） |
@@ -96,14 +96,14 @@ PYTHONPATH=. python3 tests/eval_runner.py
 | | 验证 RAG 检索准确性 | ✅ | Top-3 结果相关度 0.50–0.57 |
 | **W3** Agent (5/28–6/3) | 实现 LangChain ReAct Agent | ✅ | 4 工具，多轮会话，`/agent/chat` 端点（提前完成） |
 | | 封装三个工具 | ✅ | search / knowledge / alternatives / report |
-| | 场景 1（USB-C PD 方案）端到端 | 🟡 | Pipeline 可跑，需构建 USB-C PD 知识 + 特定 IC 检索 |
-| | 场景 2（车规降压）端到端 | 🟡 | Pipeline 可跑，mock 缺车规固定 5V 器件 |
+| | 场景 1（USB-C PD 方案）端到端 | ✅ | Pipeline 跑通，功率推断 100W→20V/5A |
+| | 场景 2（车规降压）端到端 | ✅ | Pipeline 跑通，车规硬过滤已移除 |
 | | 场景 3（国产替代追问） | ✅ | Agent 多轮对话跑通 |
 | **W4** 集成 (6/4–10) | FastAPI 后端 + 会话管理 | ✅ | 5 端点就绪，Agent 多轮会话支持 |
-| | Streamlit 前端界面 | ✅ | 增强版 UI（队员 A） |
+| | Streamlit 前端界面 | ✅ | 增强版 UI，竞赛三场景快捷入口 |
 | | 接入真实 eZ-PLM API | ✅ | TI/ADI/Microchip/ST 四厂，单次召回 31 条 |
-| | 三个演示场景全跑通 | 🟡 | 场景 3 ✅，场景 1/2 🟡 |
-| **W5** 交付 (6/11–20) | 技术论文 6000–8000 字 | 🟡 | LaTeX 初稿完成，待定稿 |
+| | 三个演示场景全跑通 | ✅ | 场景 1/2/3 全部可演示 |
+| **W5** 交付 (6/11–20) | 技术论文 6000–8000 字 | ✅ | LaTeX 6 章定稿，40 篇参考文献，27 处引用 |
 | | 演示视频 3–5 分钟 | ⬜ | |
 | | 答辩 PPT 15–20 页 | ⬜ | |
 | | 门型展架设计 | ⬜ | |
@@ -135,9 +135,9 @@ PYTHONPATH=. python3 tests/eval_runner.py
 
 | 优先级 | 任务 | 负责人 | 说明 |
 |:----:|------|:----:|------|
-| 🔴 | **场景 1 USB-C PD 100W 方案** | 队长 | 需补充 USB-C PD 协议知识到 RAG + 特定充电 IC 检索 |
-| 🔴 | **场景 2 车规降压完整演示** | 队员 B | 补充 mock 中车规固定 5V/3A 器件（解决 dc_dc_001/008 零推荐） |
-| 🟡 | **场景 3 国产替代追问打磨** | 队长 | 已有基础，需缓解 Agent 幻觉、优化对比展示 |
+| ✅ | **场景 1 USB-C PD 100W 方案** | 已完成 | 功率推断 100W→20V/5A，Pipeline + Streamlit 可演示 |
+| ✅ | **场景 2 车规降压完整演示** | 已完成 | 车规硬过滤已移除，Pipeline + Streamlit 可演示 |
+| ✅ | **场景 3 国产替代追问打磨** | 已完成 | Agent 多轮对话 + 幻觉检测，`/agent/chat` 端点可用 |
 | 🟡 | **Streamlit 对接 Agent 推理可视化** | 队员 A | 展示工具调用步骤卡片、中间结果折叠面板 |
 | 🟢 | **LDO 测试用例补充** | 队员 A | `tests/cases/ldo_cases.jsonl`，≥5 条 |
 | 🟢 | **RAG 知识库扩充** | 队长 | 工程知识 12→30+ 条，导入 TI 应用笔记 + IPC 标准 |
@@ -198,7 +198,8 @@ git push origin feature/<role>/<task>
 | `main.py` | FastAPI 服务（5 端点） |
 | `rag.py` | ChromaDB 向量存储 + sentence-transformers 语义检索 |
 | `agent_tools.py` | 4 个 LangChain Tool（搜索/知识/替代/报告） |
-| `react_agent.py` | ReAct Agent + 多轮会话管理 |
+| `react_agent.py` | ReAct Agent + 多轮会话管理 + 幻觉检测 |
+| `output_bom.py` | BOM 选型清单生成（独立模块） |
 | `datasheet_rag.py` | 数据手册 RAG 模块（队员 B） |
 
 ### 前端 / 脚本 / 数据
