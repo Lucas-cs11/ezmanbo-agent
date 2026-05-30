@@ -7,3 +7,5 @@ __pycache__/
 data/chroma_db/
 docs/reports/
 latex-paper/*.pdf
+scripts/archive/
+data/mock_parts.json.backup*
