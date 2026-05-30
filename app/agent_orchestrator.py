@@ -34,7 +34,8 @@ def _query_rag_knowledge(user_input: str, req: RequirementConstraints) -> List[D
             return []
         query_text = _build_rag_query(user_input, req)
         return store.query(query_text, top_k=5)
-    except Exception:
+    except Exception as e:
+        from .log_util import warn_swallow; warn_swallow("agent_orchestrator", e, "RAG query")
         return []
 
 

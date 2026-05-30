@@ -18,7 +18,8 @@ def _load_parts() -> List[dict]:
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except Exception as e:
+        from .log_util import warn_swallow; warn_swallow("ezplm_client", e, "load_parts")
         return []
 
 

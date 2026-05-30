@@ -106,8 +106,8 @@ def score_part_with_llm(
                 if key in result:
                     result[key] = max(0.0, min(100.0, float(result[key])))
             return result
-    except Exception:
-        pass
+    except Exception as e:
+        from .log_util import warn_swallow; warn_swallow("llm_client", e, "score_part")
     return {}
 
 
