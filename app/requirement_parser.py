@@ -27,7 +27,8 @@ _PD_POWER_MAP: dict = {
 
 try:
     from .llm_client import parse_requirement_with_llm
-except Exception:
+except Exception as e:
+    from .log_util import warn_swallow; warn_swallow("requirement_parser", e, "LLM import")
     parse_requirement_with_llm = None
 
 # ── LLM 输出归一化映射 ────────────────────────────────────────────
