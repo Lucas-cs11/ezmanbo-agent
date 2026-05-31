@@ -4,19 +4,19 @@
 
 \section{总体架构设计}
 
-系统采用"服务层—流水线（Pipeline）推理层—工具层—数据层"四层架构，。
+系统采用了"服务层—流水线推理层—工具层—数据层"四层架构，把自然语言需求输入到三类工程文档输出的全流程组织为一条可自动执行的加工链路，各层之间的职责被清晰划分，数据的流转方向也被严格限定为自上而下、逐层加工。
 
-\textbf{服务层}：基于FastAPI框架构建表述性状态传递（REST）风格API服务，暴露三个核心端点：\texttt{GET /health}（健康检查）、\texttt{POST /analyze}（输入自然语言需求，返回SelectionReport JSON）、\texttt{POST /replacement}（输入原厂型号，返回ReplacementReport JSON），负责请求路由、参数校验与错误处理。
+\textbf{服务层}基于 FastAPI 框架构建了 REST 风格的 API 服务，向外暴露了五个核心端点——\texttt{GET /health} 负责健康检查、\texttt{POST /analyze} 接收自然语言需求并返回完整的 SelectionReport JSON、\texttt{POST /replacement} 接收原始器件型号并返回 ReplacementReport JSON、\texttt{POST /agent/chat} 支持携带 session\_id 的多轮对话式选型交互、\texttt{GET /agent/sessions} 用于查看当前活跃的 Agent 会话列表——该层还统一处理了请求路由、参数校验、UTF-8 中文编码兼容和异常捕获，确保前端与推理层之间的通信稳定可靠。
 
-\textbf{流水线推理层}：实现五阶段线性处理流程——\textbf{需求解析}（\texttt{parse\_requirement}）阶段接收自然语言文本，通过四级容错链输出RequirementConstraints结构化约束；\textbf{器件检索}（\texttt{search\_parts}）阶段以结构化约束为输入，优先调用eZ-PLM实时API多前缀分组查询，失败时回退至离线器件数据库，通过五维过滤函数输出PartIR列表；\textbf{混合评分}（\texttt{score\_candidates}）阶段对候选器件执行双模自适应评分，若LLM密钥与参考设计数据均可用则启用增强模式，否则回退至纯规则模式；\textbf{证据构建}（\texttt{build\_evidence}）阶段对评分结果逐条生成EvidenceIR证据链，标注数据来源与置信度，标记需人工复核的异常项；\textbf{报告生成}（\texttt{build\_report}）阶段由评分结果与证据链构建SelectionReport，输出物料清单（BOM）选型清单、风险评估报告和电路拓扑分析报告三份工程文档。
+\textbf{流水线推理层}实现了五阶段线性处理流程，每个阶段的输出被直接送入下一阶段作为输入，从而把从用户意图到工程文档的转换过程串联为端到端的自动化链路。在\textbf{需求解析}阶段（\texttt{parse\_requirement}），自然语言文本经过四级容错解析链被转换为 RequirementConstraints 结构化约束对象，其中 LLM 先完成语义层面的初步映射，随后由规则引擎通过关键词覆盖、电压方向校验和温度正则匹配三个环节逐级修正可能的错误；在\textbf{器件检索}阶段（\texttt{search\_parts}），系统以结构化约束为输入，优先通过 HMAC-SHA256 签名认证调用 eZ-PLM 实时 API 执行多前缀分组查询，在召回真实物料数据的同时以五维过滤函数筛选满足全部约束的候选器件，当 API 不可用或返回空结果时则自动回退到离线器件数据库；在\textbf{混合评分}阶段（\texttt{score\_candidates}），系统对候选器件执行双模自适应评分——若检测到 LLM 密钥可用且当前器件存在 eZ-PLM 关联参考设计，则启用四维增强模式，否则自动降级为纯规则双维模式——两种模式共享参数评分和供应链评分两个基础维度，仅总分合并权重不同，从而保证了评分结果的可比性与可降级性；在\textbf{证据构建}阶段（\texttt{build\_evidence}），系统为每个候选器件逐条生成 EvidenceIR 证据链条目，标注数据来源（ezplm\_api 或 mock\_data）、计算置信度，并自动标记需要人工复核的异常项（如库存为零、生命周期状态为停产、数据手册缺失等）；在\textbf{报告生成}阶段（\texttt{build\_report}），评分结果与证据链被整合为 SelectionReport，随后由报告生成模块输出物料清单（BOM）选型清单、供应链风险评估报告和电路拓扑分析报告三份 Markdown 工程文档，同时生成一份结构化的 TopologyIR JSON 文件用于 eZ-PLM 平台的数据互通。
 
-\textbf{工具层}：封装系统核心能力——eZ-PLM API客户端（HMAC-SHA256签名认证）、离线器件数据管理器、混合评分引擎（规则+LLM）、证据构建器、三类报告生成器、替代器件查找器。
+\textbf{工具层}封装了六个可被上层调用的核心能力模块——eZ-PLM API 客户端（负责 HMAC-SHA256 签名生成、请求发送和响应解析）、离线器件数据管理器（负责 JSON 格式器件库的加载与过滤）、混合评分引擎（集成规则评分与 LLM 软评分的双模切换逻辑）、证据构建器（负责八类字段级证据的自动生成）、三类报告生成器（分别对应 BOM、风险评估和拓扑分析三份文档）以及替代器件查找器（基于 replacement\_for 字段和同类拓扑的交叉匹配实现国产替代和功能等效替代搜索）——每个模块均可独立测试和替换，降低了系统耦合度。
 
-\textbf{数据层}：eZ-PLM实时API（物料查询接口与参考设计查询接口，覆盖TI/ADI/Microchip/ST四大制造商）、本地离线器件数据库（209条器件，覆盖Buck降压、Boost升压与低压差线性稳压器（LDO）拓扑，工业级/车规级，含国产/进口制造商）；检索增强生成（RAG）工程知识库（ChromaDB向量存储，基于sentence-transformers嵌入）已预留接口，待后续迭代接入。
+\textbf{数据层}汇聚了三类异构数据源。第一类是 eZ-PLM 实时 API，提供物料查询接口（GET /api/v1/api-key/parts）和参考设计查询接口（GET /api/v1/api-key/reference-designs），当前已覆盖 TI、ADI（含 LTC）、Microchip 和 ST 四大制造商的白名单物料数据；第二类是本地离线器件数据库，以 JSON 格式存储了 1237 条覆盖 Buck、Boost 和 LDO 三类拓扑的器件记录，含国产与进口制造商、工业级与车规级等多维度标签，在 API 不可用时作为兜底数据源保障系统的独立运行能力；第三类是基于 ChromaDB 向量存储的 RAG 工程知识库，已收录 29 条工程知识条目并覆盖了 11 个专业类别（Buck/Boost/LDO 设计公式、热管理、车规认证、PCB Layout 规范、供应链评估框架、EMI/EMC 设计、可靠性降额准则、USB-C PD 协议等），知识条目通过 sentence-transformers all-MiniLM-L6-v2 嵌入模型被转换为 384 维向量，在每次 Pipeline 分析中被自动检索并将结果注入三份输出报告。
 
 \section{关键技术选型论证}
 
-表\ref{tab:tech}给出核心技术栈的选型论证。
+表\ref{tab:tech}给出了系统核心技术栈的选型方案与论证依据。
 
 \begin{table}[H]
 \centering
@@ -27,13 +27,14 @@
 \toprule
 \textbf{类别} & \textbf{选用方案} & \textbf{备选方案} & \textbf{选择理由} \\
 \midrule
-大语言模型 & DeepSeek-V4-Pro & GPT-5、Claude  & 中文理解准确，API成本低，接口与OpenAI完全兼容 \\
-后端框架 & FastAPI + Uvicorn & Flask、Django & 异步高性能，自动生成OpenAPI文档，类型安全 \\
-数据建模 & Pydantic v2 & dataclass、TypedDict & 类型安全，自动验证与JSON序列化，dataclass兜底保证无Pydantic环境可用 \\
-外部集成 & eZ-PLM HMAC-SHA256 API & 自建数据库 & 赛题规定，110万+真实物料，参考设计接口 \\
-离线器件数据库 & JSON文件（209条） & SQLite & 零依赖，便于版本控制与扩充 \\
-向量数据库 & ChromaDB（预留接口） & FAISS、Milvus & 本地零配置，持久化支持，待RAG模块接入 \\
-嵌入模型 & all-MiniLM-L6-v2（预留接口） & BGE-large-zh & 轻量（80\,MB），中英文通用，待RAG模块接入 \\
+大语言模型 & DeepSeek-V3（OpenAI 兼容接口） & GPT-4o、Claude 3.5 & 中文语义理解准确，API 调用成本可控，接口与 OpenAI 完全兼容 \\
+后端框架 & FastAPI + Uvicorn & Flask、Django & 异步高性能，自动生成 OpenAPI 交互文档，Pydantic 类型安全校验 \\
+数据建模 & Pydantic v2 & dataclass、TypedDict & 类型安全，自动校验与 JSON 序列化，dataclass 兜底版本可在无 Pydantic 环境中运行 \\
+外部集成 & eZ-PLM HMAC-SHA256 API & 自建数据库 & 赛题规定数据源，110 万条以上真实物料，提供参考设计查询能力 \\
+离线器件库 & JSON 文件（1237 条） & SQLite、CSV & 零外部依赖，可直接纳入版本控制，增删改条目无需迁移 Schema \\
+向量数据库 & ChromaDB 0.4 & FAISS、Milvus & 本地零配置，支持持久化增量写入，余弦相似度检索精度满足工程知识匹配需求 \\
+嵌入模型 & all-MiniLM-L6-v2 & BGE-large-zh、text2vec & 模型体积仅 80 MB，384 维向量兼顾检索速度与精度，中英文语义均适用 \\
+Agent 框架 & LangChain 1.3 & 自研 ReAct 循环、CrewAI & 行业主流框架，工具调用、会话记忆与多轮编排均已内置 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -42,50 +43,51 @@
 
 \subsection{双模自适应评分框架}
 
-系统评分引擎依据运行时环境自动选择评分模式，判断逻辑为：若环境变量\texttt{OPENAI\_API\_KEY}非空，且当前器件存在来自eZ-PLM参考设计接口的设计案例数据（\texttt{ref\_designs} $\neq \emptyset$），则启用LLM增强模式；否则回退至纯规则模式。两种模式共享参数评分与供应链评分两个基础维度，仅总分合并权重不同，保证评分结果的可比性与可降级性。
+评分引擎在运行时依据两个条件自动选择评分模式：一是环境变量 \texttt{OPENAI\_API\_KEY} 是否已被设置为非空值，二是当前候选器件在 eZ-PLM 平台中是否存在关联的参考设计案例数据。只有当两个条件同时满足时，系统才会进入 LLM 增强模式；任一条件不满足则自动回退为纯规则模式。这种设计使得评分结果在 LLM 可用时能够获得更丰富的维度信息，在 LLM 缺失时也不会丧失基本的可用性。
 
 \subsection{纯规则模式}
 
-当LLM不可用或无参考设计数据时，采用双维加权评分：
+当 LLM 不可用或参考设计数据缺失时，系统采用双维加权评分，仅依赖参数匹配和供应链稳定性两个确定性维度：
+
 \begin{equation}
   S_{\text{total}} = 0.80 \times S_{\text{param}} + 0.20 \times S_{\text{supply}}
   \label{eq:rule}
 \end{equation}
 
-参数匹配分$S_{\text{param}}$基于实际存在的约束项动态归一化：
+参数匹配分 $S_{\text{param}}$ 的计算采用了动态约束归一化方法——以当前查询中实际存在的参数约束项数 $N$ 为分母，而非固定分母，从而避免了因约束项数量不同而导致的评分偏差：
+
 \begin{equation}
   S_{\text{param}} = \frac{\displaystyle\sum_{i=1}^{N} s_i}{N} \times 100
   \label{eq:param}
 \end{equation}
-其中$N$为当前查询中实际存在的参数约束项数（输入电压、输出电压、输出电流、温度范围），$s_i \in [0,1]$为单项归一化得分。当$N=0$（用户未指定任何具体参数）时，$S_{\text{param}}$取中性值50.0，避免无约束场景下对全部器件产生系统性惩罚。
 
-供应链稳定性分$S_{\text{supply}}$基于库存水平与生命周期状态分段计算：库存超过1000件得100分，100至1000件得70分，1至100件得40分，零库存得10分；生命周期状态为"obsolete"或"discontinued"时上限截断至10分。
+其中 $N$ 为当前查询中实际存在的参数约束项数（输入电压、输出电压、输出电流、温度范围），$s_i \in [0,1]$ 为每个单项的归一化得分。当用户未指定任何具体参数（即 $N=0$）时，$S_{\text{param}}$ 被设为中性值 50.0，避免了对全部器件产生系统性的低分惩罚。参数评分的四个子维度分别为——输入电压覆盖（器件的输入电压范围是否包含用户指定的标称电压）、输出电压匹配（对于固定输出电压器件，判断其电压值与需求的偏差是否在 $\pm 5\%$ 容差范围内）、输出电流满足（器件的最大输出电流是否不低于需求值）和温度范围适配（器件的工作温度范围是否完全覆盖需求区间）。供应链稳定性分 $S_{\text{supply}}$ 则根据库存水平和生命周期状态进行分段计算：库存超过 1000 件得 100 分，100 至 1000 件得 70 分，1 至 100 件得 40 分，零库存则直接降至 10 分；同时，一旦生命周期状态被标记为 \texttt{obsolete} 或 \texttt{discontinued}，供应分上限即被强制截断至 10 分，从而将停产风险充分反映在评分结果之中。
 
-\subsection{LLM增强模式}
+\subsection{LLM 增强模式}
 
-当LLM可用且器件具备参考设计数据时，启用四维混合评分：
+当 LLM 可用且候选器件具备 eZ-PLM 参考设计数据时，评分引擎从双维扩展为四维，新增了由 LLM 评估的两个软性维度：
+
 \begin{equation}
   S_{\text{total}} = 0.40 S_{\text{param}} + 0.10 S_{\text{supply}} + 0.25 S_{\text{app}} + 0.25 S_{\text{design}}
   \label{eq:hybrid}
 \end{equation}
-其中$S_{\text{app}}$（应用场景适配度）和$S_{\text{design}}$（设计成熟度）由LLM结合最多3条参考设计案例综合评估，取值范围$[0,100]$，系统对返回值执行clamp校验与JSON格式验证，任何异常均回退至rule\_only模式。
+
+其中 $S_{\text{app}}$（应用场景适配度）和 $S_{\text{design}}$（设计成熟度）由 LLM 基于最多三条来自 eZ-PLM 参考设计接口的真实设计案例进行综合评估，取值范围被严格约束在 $[0,100]$ 之内。为了确保评分结果的可靠性，系统对 LLM 的返回 JSON 执行了 clamp 校验（将超出区间的分值强制裁剪至边界）和格式验证（检查 JSON 结构完整性与字段存在性），任何解析异常或校验失败都会自动触发向纯规则模式的回退。增强模式下的参数评分权重从 80\% 降为 40\%，供应链稳定性权重从 20\% 降为 10\%，同时引入了 LLM 的软评分信息，使得总分能够更全面地反映器件的综合适配程度。
 
 \subsection{去重、排名与推荐分级}
 
-API返回的同一型号族常存在多封装变体（如LM2596S-5.0/NOPB与LM2596SX-5.0/NOPB）。系统通过\texttt{\_extract\_core\_mpn()}函数提取核心型号——去除"/NOPB"、"-TR"、封装后缀及卷带标识——以核心型号为键对评分结果去重合并，保留最高分变体，并将低分变体信息追加至其reasons字段。
-
-推荐分级采用Top-N限制策略：综合分$\geq$75且排名前5者标注为"推荐"（recommended）；50至74分标注为"备选"（backup）；低于50分标注为"不推荐"（not\_recommended）。输出最多返回前15条结果（\texttt{\_MAX\_LISTED}=15）。
+eZ-PLM API 返回的同一型号族常存在多个封装变体或卷带标识——例如 LM2596S-5.0/NOPB 与 LM2596SX-5.0/NOPB 在电气特性上完全一致、仅在封装后缀上存在差异——若不加处理地全部列入推荐列表，不仅会造成信息冗余，还会挤占其他型号的展示空间。系统通过 \texttt{\_extract\_core\_mpn()} 函数提取核心型号（去除 /NOPB、-TR、封装后缀和卷带标识等非功能性后缀），以核心型号为键对评分结果进行去重合并，仅保留同系列中综合得分最高的变体，并将被合并变体的型号信息追加至保留记录的 reasons 字段中以备查阅。完成去重后，系统按总分降序排列并执行 Top-N 分级策略：综合分不低于 75 分且排名前五的器件被标注为"推荐"（recommended），第六至第十五名且综合分不低于 50 分的器件被标注为"备选"（backup），其余器件被标注为"不推荐"（not\_recommended），最终输出列表被截断至最多 15 条，兼顾了推荐列表的信息完整性与可读性。
 
 \section{数据模型设计}
 
-为满足eZ-PLM平台数据互通与工程文档输出的双重需求，系统定义了一套完整的Pydantic v2数据模型，同时提供等价的dataclass实现作为无Pydantic环境下的轻量兜底。
+为了同时满足 eZ-PLM 平台的数据互通需求与三类工程文档的结构化输出需求，系统以 Pydantic v2 为基础定义了一套标准化的中间表示（IR）数据模型体系，并为无 Pydantic 的轻量化部署环境提供了等价的 Python dataclass 兜底实现。该体系包含了五个核心数据模型。
 
-\textbf{PartIR}（21字段）：覆盖器件全要素描述，包括型号（part\_number）、制造商、类别、拓扑、国产标识（is\_domestic）、描述文本、输入电压范围、输出电压（固定值）、最大输出电流、温度范围、封装、车规认证标识（automotive\_grade）、生命周期状态、库存、单价、数据手册URL、eZ-PLM内部ID（ezplm\_part\_id）、替代关系（replacement\_for）及数据来源（source：ezplm/mock）。
+\textbf{PartIR} 由 21 个字段组成，完整描述了一个电子元器件的全部可检索属性——制造商信息（part\_number、manufacturer）、电气参数（input\_voltage\_min\_v/max\_v、output\_voltage\_v、output\_current\_max\_a）、物理属性（package、temperature\_min\_c/max\_c）、认证与合规（automotive\_grade、lifecycle\_status）、供应链状态（stock、unit\_price\_cny）以及数据溯源标识（datasheet\_url、ezplm\_part\_id、source），其中 source 字段区分了数据的真实来源（ezplm 或 mock），output\_voltage\_v 字段通过 MPN 型号推断函数与 API 属性解析结果的双源校验机制来避免固定输出电压被误识别。
 
-\textbf{ScoreBreakdown}：记录各维度分数（parameter\_match\_score、supply\_risk\_score、total\_score）、评分原因列表（reasons）、评分模式（scoring\_mode：rule\_only/llm\_enhanced）及LLM子分（llm\_application\_score、llm\_design\_risk\_score、llm\_reasoning）。
+\textbf{ScoreBreakdown} 记录了一个候选器件在评分过程中产生的全部维度信息——各子维度分数（parameter\_match\_score、supply\_risk\_score、total\_score）、评分原因列表（reasons，包含参数覆盖情况、库存水平、LLM 评估结论等可读文本）、评分模式标识（scoring\_mode，取值为 rule\_only 或 llm\_enhanced）以及 LLM 子评分项的详细记录（llm\_application\_score、llm\_design\_risk\_score、llm\_reasoning），使得任何一条评分结论都能被追溯到其具体的计算依据。
 
-\textbf{TopologyIR}（4子模型）：\textit{TopoNode}（功能节点：节点类型、中文标签、邻接关系、信号类型）、\textit{ExternalComponent}（外围元件：参考位号、元件类型、推荐值、耐压、温度系数、封装、选型备注）、\textit{ThermalEstimate}（热性能：效率、功耗、结温、散热需求判断）、\textit{TopologyIR}顶层模型整合拓扑节点图、外围元件列表、热估算、Mermaid框图源码、PCB Layout规则及设计引用。
+\textbf{TopologyIR} 采用了四子模型嵌套结构。TopoNode 描述了电路拓扑中每个功能节点的类型（controller\_ic、passive\_inductor、passive\_capacitor、diode、ground 等）、中文标签、信号流向类型（power/control/feedback/ground）及其邻接关系；ExternalComponent 描述了围绕核心 IC 的外围被动元件（含参考位号、元件类型、推荐参数值、耐压等级、温度系数、封装和选型备注）；ThermalEstimate 记录了基于器件参数与工况条件的热性能估算结果（效率百分比、输出功率、总功耗、结温估算值、热余量和散热需求判断）；顶层 TopologyIR 则将上述三子模型与 Mermaid 框图源码、PCB Layout 规则列表和设计引用文件路径整合为一个可直接序列化为 JSON 的完整拓扑描述。
 
-\textbf{RiskIR}：包含整体风险等级（overall\_risk\_level：low/medium/high）和RiskItem列表。每条RiskItem记录风险类型（supply\_chain/engineering）、严重程度、描述文本、相关型号及缓解建议，并保留证据引用字段（evidence\_refs）供FMEA量化扩展。
+\textbf{RiskIR} 包含整体风险等级（overall\_risk\_level，取值为 low、medium 或 high）和一个 RiskItem 列表。每条 RiskItem 记录了风险类型（supply 或 engineering）、严重程度、描述文本、相关器件型号、缓解建议以及证据引用字段（evidence\_refs）——后者为 FMEA 的 RPN（Risk Priority Number）量化扩展提供了数据接口。系统的规则引擎覆盖了 13 类确定性风险检测场景，所有检测结果均以 RiskItem 的形式被组织为结构化列表，LLM 仅能在此基础上进行工程背景的补充叙述而不能独立生成新的风险条目。
 
-\textbf{SelectionReport}与\textbf{ReplacementReport}：分别封装完整选型结果（用户输入、解析约束、候选器件列表、推荐器件子集、风险汇总、证据链、Markdown摘要）与替代分析结果（原型号、替代候选列表、兼容等级、对比摘要）。
+\textbf{SelectionReport} 与 \textbf{ReplacementReport} 分别作为 Pipeline 选型分析和替代器件搜索的顶层输出结构。SelectionReport 封装了原始用户输入、解析后的结构约束、候选器件完整列表、推荐器件子集、风险汇总、证据链全集和 Markdown 格式的摘要文本；ReplacementReport 则封装了原始型号信息、替代候选列表、兼容等级评估结论和结构化的对比摘要，为国产替代和功能等效替代两类场景提供了统一的数据返回格式。
