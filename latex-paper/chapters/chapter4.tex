@@ -1,38 +1,88 @@
 % ============================================================
-% 第4章：系统实现与集成
+% 第4章：软件设计与流程
 % ============================================================
 
-\section{流水线（Pipeline）调度实现}
+\section{总体软件流程}
 
-Pipeline主入口\texttt{analyze()}按"解析—检索—评分—证据—报告"五个阶段依次调度各模块。在检索阶段完成后，若LLM密钥可用，调度层会为排名前10的API来源候选器件逐一调用eZ-PLM参考设计接口，获取每个器件最多3条参考设计案例，构建\texttt{ref\_designs\_map}字典供评分引擎使用；同时，RAG知识库的\texttt{\_query\_rag\_knowledge()}在每次分析时自动触发，根据用户需求与解析约束构建查询文本，检索Top-5相关知识条目，并将其作为一条独立的\texttt{rag\_knowledge}类型证据注入报告证据链。整个调度过程在本地处理环节的耗时控制在20毫秒以内，主要的时间开销集中于eZ-PLM API网络请求。
+系统的软件实现以 Python 3.11 为核心语言，采用模块化架构将 16 个核心模块分布在 \texttt{app/} 目录下，各模块通过 Pydantic v2 定义的标准中间表示（IR）数据模型进行数据交换，从而实现了模块间的松耦合与独立测试能力。系统的模块组织结构如表\ref{tab:modules}所示。
 
-\section{三类工程报告生成}
+\begin{table}[H]
+\centering
+\caption{核心模块清单与职责}
+\label{tab:modules}
+\small
+\begin{tabular}{p{3.8cm}p{4.5cm}p{3.5cm}}
+\toprule
+\textbf{文件名} & \textbf{职责} & \textbf{在 Pipeline 中的阶段} \\
+\midrule
+\texttt{schemas.py} & 定义 PartIR/RiskIR/TopologyIR/ScoreBreakdown 等全部 IR 数据模型 & 贯穿全局 \\
+\texttt{requirement\_parser.py} & 四级容错需求解析链 & 第1阶段：需求解析 \\
+\texttt{ezplm\_client.py} & eZ-PLM API HMAC 签名客户端、MPN 电压推断、离线数据库兜底 & 第2阶段：器件检索 \\
+\texttt{llm\_client.py} & DeepSeek/OpenAI 兼容 LLM 调用封装（解析 Prompt + 评分 Prompt） & 第1、3阶段 \\
+\texttt{rag.py} & ChromaDB 向量存储与语义检索 & 第2阶段（知识增强） \\
+\texttt{scoring.py} & 双模自适应评分引擎（规则+LLM）、去重合并与推荐分级 & 第3阶段：混合评分 \\
+\texttt{evidence.py} & 八类字段级证据链自动生成 & 第4阶段：证据构建 \\
+\texttt{report\_generator.py} & 双层风险评估架构（13 类规则检测 + LLM 叙述分离） & 第5阶段：报告生成 \\
+\texttt{output\_generator.py} & 风险评估文档与拓扑分析文档的 Markdown 渲染、TopologyIR JSON 生成 & 第5阶段 \\
+\texttt{output\_bom.py} & BOM 选型清单的 Markdown 渲染 & 第5阶段 \\
+\texttt{agent\_orchestrator.py} & Pipeline 主调度、RAG 检索触发、LLM 参考设计拉取 & 调度层（贯穿全局） \\
+\texttt{agent\_tools.py} & 4 个 LangChain Tool（搜索/知识/替代/报告） & Agent 工具层 \\
+\texttt{react\_agent.py} & ReAct Agent 创建、会话管理与幻觉检测 & Agent 推理层 \\
+\texttt{main.py} & FastAPI 服务入口（5 个端点、异常处理、CORS） & 服务层 \\
+\texttt{log\_util.py} & 调试日志工具 & 辅助模块 \\
+\texttt{datasheet\_rag.py} & 数据手册 RAG 模块 & 辅助模块 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-系统在每次分析结束后自动生成三份Markdown格式的工程文档，各自面向不同的评审需求。
+以下各节按照 Pipeline 的数据流向，逐一说明关键模块的内部实现逻辑与模块间的协作关系。
 
-\textbf{BOM选型清单}按IPC命名规范\cite{ipc2221}组织，分为推荐器件表、备选器件表和关键参数对比矩阵三节，每条记录包含型号、制造商、描述、封装、生命周期、综合得分及评分模式标注，文档末尾附评分方法说明以保证报告的自解释性。
+\section{Pipeline 调度实现}
 
-\textbf{风险评估报告}遵循ISO 31000\cite{iso31000}结构，包含执行摘要、评估方法说明、5$\times$5风险矩阵、供应链风险详述、工程技术风险详述、人工复核清单及结论建议。规则引擎生成的RiskItem列表在此被展开为带有工程背景阐述的完整文档，每条风险均标注了数据来源、严重程度及缓解措施。
+Pipeline 的主入口 \texttt{analyze()} 函数定义于 \texttt{agent\_orchestrator.py} 中，负责将解析、检索、评分、证据构建和报告生成五个阶段串联为端到端执行链路。该函数首先调用 \texttt{parse\_requirement()} 将用户输入转换为 \texttt{RequirementConstraints} 对象，随后以该对象为输入调用 \texttt{search\_parts()} 获取候选器件列表。在检索阶段完成后，调度层会执行两项增强操作：其一，若环境变量中配置了 LLM 密钥，则对排名前 10 且数据来源为 \texttt{ezplm} 的候选器件逐一调用 \texttt{fetch\_reference\_designs()} 函数，通过 eZ-PLM 的参考设计接口获取每个器件最多 3 条设计案例，构建 \texttt{ref\_designs\_map} 字典并将其传递给评分引擎；其二，通过 \texttt{\_query\_rag\_knowledge()} 自动触发 RAG 知识库检索——该函数根据用户原始需求与解析后的约束字段（拓扑、输出功率、等级偏好等）拼接查询文本，调用 ChromaDB 的语义检索接口获取 Top-5 相关知识条目，并将其作为一条独立的 \texttt{rag\_knowledge} 类型 \texttt{EvidenceIR} 注入证据链。上述调度过程的本地处理耗时被控制在 20 毫秒以内，主要时间开销集中于 eZ-PLM API 的网络请求与 LLM 的远程调用。
 
-\textbf{电路拓扑分析报告}以首选推荐器件为核心，生成七节结构的技术文档：拓扑类型识别（自动区分集成式Converter与外置MOSFET控制器）、Mermaid格式功能模块框图、模块功能说明表、关键设计参数汇总、工程设计要点（含电感/电容定量计算与选型建议\cite{slva057,slva477b}）、热性能估算（效率$\eta$、功耗$P_{\text{loss}}$、结温$T_J$及散热判断\cite{slva390}）以及PCB Layout规则。以12V转5V/3A为例，报告中的Buck电感最小值按式\eqref{eq:inductor}计算得$L_{\min}\approx6.5\;\mu$H，推荐选用$6.8\;\mu$H屏蔽式功率电感；输出电容按式\eqref{eq:capacitor}计算得$C_{\text{out,min}}\approx4.5\;\mu$F，推荐并联$2\times22\;\mu$F/25V X7R MLCC：
-\begin{equation}
-  L_{\min} = \frac{(V_{\text{in}} - V_{\text{out}}) \cdot D}{f_{\text{sw}} \cdot \Delta I_L}
-  \label{eq:inductor}
-\end{equation}
-\begin{equation}
-  C_{\text{out,min}} = \frac{\Delta I_L}{8 \cdot f_{\text{sw}} \cdot \Delta V_{\text{out}}}
-  \label{eq:capacitor}
-\end{equation}
-此外，\texttt{generate\_topology\_ir()}函数同步输出结构化的TopologyIR JSON，可被eZ-PLM平台直接消费。
+\section{需求解析模块}
 
-\section{推理行动（ReAct）Agent交互模式}
+需求解析模块（\texttt{requirement\_parser.py}）对外暴露的唯一公开接口为 \texttt{parse\_requirement(text: str) -> RequirementConstraints}。其内部执行流程已在第三章第 3.1 节中从算法原理角度进行了详细阐述，此处从软件实现的角度补充两个关键的工程处理细节。
 
-Agent模块基于LangChain框架\cite{langchain2024}的推理行动（ReAct）范式\cite{yao2022react}实现，封装了四个专用工具：\texttt{search\_components}（元器件搜索与评分）、\texttt{query\_design\_knowledge}（RAG知识检索）、\texttt{find\_alternative\_parts}（替代器件查找）和\texttt{generate\_full\_report}（完整报告生成）。Agent系统提示词明确了工具调用的严格规则——搜索操作仅允许执行一次，知识检索最多一次，总调用次数不超过五次，且禁止编造不存在的型号——从而防止LLM陷入搜索-重试的无效循环。
+第一个细节是 LLM 解析结果的归一化处理。当 LLM 返回的 JSON 中包含 \texttt{category} 或 \texttt{topology} 字段时，解析模块会通过 \texttt{\_norm\_cat()} 和 \texttt{\_norm\_topo()} 两个映射函数将 LLM 可能输出的多种表述统一为标准值——例如将 "DC-DC""buck""降压""电源管理" 均归一化为 \texttt{dc\_dc\_converter}，将 "降压""buck""buck converter" 均归一化为 \texttt{buck}——从而避免因 LLM 输出格式不稳定导致的后续匹配失效。
 
-多轮对话通过\texttt{session\_id}机制实现上下文管理：全局会话字典维护了每个会话的HumanMessage、AIMessage与ToolMessage历史记录，后续请求通过传入相同的\texttt{session\_id}即可恢复完整的对话上下文。递归深度限制设为8步，以保证响应时延可控。在实际测试中，单轮选型场景下Agent调用2次工具（搜索加知识检索），总耗时约8秒；多轮追问场景（如"第一个推荐方案有国产替代吗"）则正确维护了上下文中的推荐器件型号，调用4次工具完成进口与国产的对比分析。
+第二个细节是规则引擎对 LLM 结果的覆盖策略。规则引擎仅在已验证的缺陷场景中对 LLM 结果进行定向修正，而非全盘推翻。例如，关键词匹配规则只在文本中出现 "降压""buck""升压""boost""ldo""线性稳压" 等明确信号时才触发类别和拓扑的强制覆盖；电压比较兜底规则只在类别确认为 DC-DC 转换器且输入输出电压均已提取时才会根据物理方向修正拓扑；mA 单位前置匹配和否定句式处理也各自仅在匹配到特定正则模式时才介入。这种"局部修正、整体保留"的设计使得 LLM 在多样化的自然语言表述上的理解优势得以保留，同时确保了关键参数的工程可靠性。
 
-\section{前端展示}
+\section{器件检索模块}
 
-系统前端基于Streamlit框架搭建，提供了可视化的选型分析交互界面。用户在输入框中键入自然语言需求后，系统以工具调用步骤卡片的形式实时展示Pipeline各阶段的执行进度和中间结果，候选器件的评分结果被呈现为可折叠的仪表盘面板——包括综合得分、参数匹配分、供应链风险分的视觉化展示。证据链与参数对比模块被整合为一个增强面板，顶部显示证据总条数、覆盖器件数、证据类型数和高置信度条目数四项统计指标，支持按器件型号筛选；下方以表格形式展示所有候选器件的关键电气参数（输入电压范围、最大输出电流、温度范围、车规标识、生命周期、库存、价格及综合得分），方便工程师快速进行横向对比。
+器件检索模块（\texttt{ezplm\_client.py}）实现了"API 优先、离线数据库兜底"的双路径检索策略，其核心公开接口为 \texttt{search\_parts(constraints: RequirementConstraints) -> List[PartIR]}。当环境变量中存在有效的 eZ-PLM API 密钥时，模块首先遍历 \texttt{\_API\_KEYWORDS} 映射表——该表将类别/拓扑组合映射至制造商型号前缀列表（如 Buck 拓扑对应 \texttt{TPS54}、\texttt{TPS62}、\texttt{LM2596}、\texttt{ADP23} 等 9 个前缀）——针对每个前缀独立调用 \texttt{\_request\_json()} 发起带 HMAC-SHA256 签名的 GET 请求，每前缀最多取 50 条结果，总计上限 200 条。每条 API 返回的原始 JSON 经 \texttt{\_map\_api\_part\_to\_partir()} 转换为 \texttt{PartIR} 对象，再经 \texttt{\_part\_matches\_constraints()} 执行五维过滤（类别匹配、输入电压覆盖、输出电压 $\pm 5\%$ 容差、输出电流下限、温度范围与等级匹配），最终得到满足全部约束的候选器件列表。当 API 路径的累计非空结果大于零时，模块直接返回这些结果；否则回退至 \texttt{\_load\_parts()} 加载的离线 JSON 数据库，同样执行五维过滤后返回。
 
-% [插图提醒：图4-1 Streamlit前端界面截图——展示一次"12V转5V 3A工业级"分析的完整结果页面，包含顶部的工具调用步骤卡片、中部的评分仪表盘(带推荐/备选/不推荐分级)、底部的证据链统计指标和参数对比表格]
+该模块内还包含一个关键的辅助函数——\texttt{\_infer\_output\_voltage\_from\_mpn(part\_number: str) -> float | None}，它通过正则表达式从 MPN 字符串中提取固定输出电压值（如 LM2596S-5.0 中的 "5.0"），并优先于 API 属性中的 "输出电压" 字段使用，以避免 API 返回的 "最大输出电压范围" 被误用作固定输出值。该函数的推断结果在 \texttt{\_map\_api\_part\_to\_partir()} 和 \texttt{\_part\_matches\_constraints()} 两个函数中均被回填至 \texttt{PartIR.output\_voltage\_v} 字段，从而保证了下游评分和报告模块使用的输出电压数据的一致性。
+
+\section{混合评分与 LLM 调用模块}
+
+混合评分引擎（\texttt{scoring.py}）的核心公开接口为 \texttt{score\_candidates(constraints, candidates, ref\_designs\_map=None) -> List[ScoredPart]}。该函数对每个候选器件依次调用 \texttt{\_compute\_param\_score()} 和 \texttt{\_compute\_supply\_score()} 获取规则维度的基础得分及评分原因列表，随后根据 \texttt{ref\_designs\_map} 的可用性与 LLM 密钥的存在性决定采用纯规则模式或 LLM 增强模式——两种模式下各维度的加权公式已在第二章式（\ref{eq:rule}）和式（\ref{eq:hybrid}）中给出，各子维度的具体打分函数已在第三章第 3.3 节中详述。完成评分后，\texttt{\_extract\_core\_mpn()} 函数对同系列变体执行去重合并，最终按 Top-N 策略完成排名标注与列表截断。
+
+LLM 调用模块（\texttt{llm\_client.py}）对上层屏蔽了底层模型的差异性——其 \texttt{call\_openai\_chat(messages, model=None, temperature=0.0) -> str} 函数通过读取环境变量 \texttt{OPENAI\_BASE\_URL} 和 \texttt{OPENAI\_API\_KEY} 来动态适配不同的 OpenAI 兼容端点，使得系统可以在 DeepSeek、GPT-4o、Claude 等模型之间灵活切换而无需修改上层代码。该模块同时封装了两个专用函数：\texttt{parse\_requirement\_with\_llm()} 用于需求解析场景，\texttt{score\_part\_with\_llm()} 用于 LLM 增强评分场景，两者的提示词模板均内嵌于函数体内，通过系统提示词设定角色边界、通过用户提示词传入结构化上下文数据。
+
+\section{证据构建模块}
+
+证据构建模块（\texttt{evidence.py}）的公开接口为 \texttt{build\_evidence(scored\_parts, constraints) -> List[EvidenceIR]}。该函数遍历全部评分结果，为每个候选器件逐条生成以下八类证据条目：电压范围覆盖证据（标注输入电压是否落入器件额定范围内）、输出电流满足证据、温度范围覆盖证据、库存水平证据（库存为零时自动触发 \texttt{need\_human\_review=True}）、生命周期状态证据（停产或停止供货时标记人工复核）、车规认证证据（需求要求车规但器件为非车规时置信度设为 0.30 并标记人工复核）、国产化证据（标注器件制造商是否属于国产厂商）、数据手册可用性证据（无数据手册链接时置信度设为 0.50 并标记人工复核）。每条证据均记录数据来源标识（\texttt{ezplm\_api} 或 \texttt{mock\_data}），来源为 API 的条目置信度相对较高，来源为离线数据的条目则根据字段完整性进行差异化标定。
+
+\section{报告生成模块}
+
+报告生成模块由两个文件协作完成。\texttt{output\_bom.py} 中的 \texttt{generate\_bom()} 函数负责生成符合 IPC 命名规范的 BOM 选型清单，其输出结构分为推荐器件表（Top 5，含型号、制造商、封装、输入电压范围、输出电压、输出电流、生命周期、综合得分、参数得分、供应得分和推荐等级）、备选器件表（Top 10）和关键参数对比矩阵三节，文档末尾附评分方法说明以保证报告的自解释性。
+
+\texttt{output\_generator.py} 中的 \texttt{generate\_risk\_report()} 和 \texttt{generate\_topology()} 分别负责风险评估报告和拓扑分析报告的 Markdown 渲染。\texttt{generate\_risk\_report()} 将规则引擎（位于 \texttt{report\_generator.py} 中的 \texttt{\_assess\_risks()} 函数）生成的 \texttt{RiskItem} 列表展开为符合 ISO 31000 结构的完整文档——执行摘要、评估方法说明、$5\times 5$ 风险矩阵、供应链风险详述、工程技术风险详述、人工复核清单以及结论建议——每条风险均标注了数据来源声明以隔离规则事实与 LLM 叙述。\texttt{generate\_topology()} 以首选推荐器件为核心，通过 \texttt{\_detect\_converter\_type()} 自动识别器件属于集成式 Converter 还是外置 MOSFET Controller，并据此选择差异化的 Mermaid 框图模板和功能模块说明；热性能估算节通过 \texttt{\_build\_thermal\_section()} 输出效率、功耗、结温及散热判断；PCB Layout 规则节通过 \texttt{\_build\_layout\_guidance()} 输出针对不同拓扑类型的布局规范。
+
+\texttt{generate\_topology\_ir()} 函数进一步将上述拓扑分析信息组织为结构化的 TopologyIR 对象——包含 TopoNode 节点图、ExternalComponent 外围元件表、ThermalEstimate 热估算结果——并序列化为 JSON 文件，使得拓扑数据可被 eZ-PLM 平台直接消费。\texttt{generate\_all\_reports()} 作为统一入口，依次调用上述四个生成函数并返回生成文件的路径字典，一次 Pipeline 分析即可同步输出全部四份文档。
+
+\section{ReAct Agent 交互模块}
+
+Agent 交互模块由 \texttt{agent\_tools.py} 和 \texttt{react\_agent.py} 两个文件协作实现。\texttt{agent\_tools.py} 中通过 LangChain 的 \texttt{@tool} 装饰器定义了四个专用工具——\texttt{search\_components}（封装完整的选型分析 Pipeline，返回候选器件列表与评分摘要）、\texttt{query\_design\_knowledge}（封装 RAG 知识库检索，返回相关工程知识条目）、\texttt{find\_alternative\_parts}（封装替代器件查找，返回兼容替代列表与对比摘要）和 \texttt{generate\_full\_report}（触发完整报告生成，返回四份文档的文件路径）——每个工具均包含自然语言描述和参数 Schema，供 Agent 在推理过程中自主选择调用。
+
+\texttt{react\_agent.py} 中的 \texttt{create\_component\_agent()} 函数通过 LangChain 的 \texttt{create\_agent()} API 将上述四个工具注册到一个 ReAct Agent 实例中，并配置了严格的系统提示词：搜索操作仅允许执行一次、知识检索最多一次、总调用次数不超过五次、禁止编造不存在的器件型号——从而防止 LLM 陷入搜索-重试的无效循环。\texttt{run\_agent(user\_input, session\_id)} 函数实现了多轮对话的上下文管理：全局会话字典维护了每个会话的 HumanMessage、AIMessage 与 ToolMessage 历史记录，后续请求通过传入相同的 \texttt{session\_id} 即可恢复完整的对话上下文；递归深度通过 \texttt{recursion\_limit=8} 限制，以保证响应时延可控。此外，\texttt{\_validate\_part\_numbers\_in\_response()} 函数在 Agent 生成最终回复前对文本中出现的器件型号进行数据库交叉校验——对于不在已知制造商前缀白名单中也不在离线数据库中的疑似编造型号，自动在回复末尾追加警告提示——从而在一定程度上缓解了 LLM 的幻觉风险。
+
+在实际测试中，单轮选型场景下 Agent 调用 2 次工具（\texttt{search\_components} + \texttt{query\_design\_knowledge}），总耗时约 8 秒；多轮追问场景（如"第一个推荐方案有国产替代吗"）中 Agent 正确维护了上下文中的推荐器件型号，调用 4 次工具完成了进口与国产方案的对比分析。
+
+\section{Web 服务与前端展示}
+
+Web 服务层（\texttt{main.py}）基于 FastAPI 框架向外暴露了五个 REST 端点——\texttt{GET /health}（健康检查，返回服务版本与运行状态）、\texttt{POST /analyze}（Pipeline 模式，接收 \texttt{AnalyzeRequest} 并返回 \texttt{SelectionReport} JSON）、\texttt{POST /replacement}（替代器件查找，接收 \texttt{ReplacementRequest} 并返回 \texttt{ReplacementReport} JSON）、\texttt{POST /agent/chat}（Agent 模式，接收 \texttt{AgentRequest} 并返回推理过程与工具调用记录）、\texttt{GET /agent/sessions}（查看活跃会话列表）——同时通过 \texttt{RequestValidationError} 异常处理器统一处理请求体格式校验失败和 UTF-8 中文编码兼容问题，保障了前端与推理层之间通信的稳定性。
+
+前端展示层（\texttt{frontend/streamlit\_app.py}）基于 Streamlit 框架构建了可视化的选型交互界面。用户通过左侧边栏的快捷预设或自由文本输入框提交自然语言需求后，前端以工具调用步骤卡片的形式实时展示 Pipeline 各阶段的执行进度和中间结果；候选器件的评分结果被呈现为按推荐/备选/不推荐分级的可折叠仪表盘面板，每张卡片展示综合得分进度条、五维子评分项、关键电气参数速览和评分原因标签；证据链与参数对比模块被整合为一个增强面板——顶部以四项统计指标（证据总条数、覆盖器件数、证据类型数、高置信度条目数）汇总证据概览，中部支持按器件型号筛选查看具体证据条目，底部以表格形式展示全部候选器件的关键电气参数（输入电压范围、最大输出电流、温度范围、车规标识、生命周期、库存、价格及综合得分），方便工程师快速进行横向参数对比。左侧边栏同时提供了三个竞赛演示场景的快捷入口（USB-C PD 100W 快充方案、12V→5V 车规降压方案、国产替代优先方案），使得评审过程中无需手动输入即可快速加载标准测试用例。
