@@ -24,6 +24,8 @@
 \usepackage{xcolor}
 \usepackage{listings}
 \usepackage{footmisc}
+\usepackage{epstopdf}
+\epstopdfsetup{update}
 
 % ── CJK 字体（Overleaf 兼容） ────────────────────────────────
 % 强制使用 Fandol 字族，确保 Overleaf 编译不乱码
@@ -108,10 +110,10 @@
 {\heitifont\zihao{-2} An Intelligent Agent System for Electronic Component}\\[0.2cm]
 {\heitifont\zihao{-2} Selection and Risk Assessment on eZ-PLM Platform}\\[2.5cm]
 {\heitifont\zihao{-3} 参赛单位：上海师范大学}\\[0.8cm]
-{\heitifont\zihao{-3} 队伍名称：XXXX}\\[0.8cm]
+{\heitifont\zihao{-3} 队伍名称：曼波爱喝王老吉}\\[0.8cm]
 {\heitifont\zihao{-3} 指导老师：杨茹}\\[0.8cm]
 {\heitifont\zihao{-3} 参赛队员：陆杰 \quad 蒋启源 \quad 王浩燕}\\[0.8cm]
-{\heitifont\zihao{-3} 完成时间：2026年6月}\\[2cm]
+{\heitifont\zihao{-3} 完成时间：2026年5月}\\[2cm]
 \end{center}
 \end{titlepage}
 
@@ -132,10 +134,8 @@
 \begin{center}
 {\heitifont\zihao{3} 摘\quad 要}
 \end{center}
-\vspace{0.8cm}
 \input{chapters/abstract-cn}
-\vspace{0.6cm}
-\noindent{\heitifont 关键词：}电子元器件选型；大语言模型；混合评分；供应链风险评估；eZ-PLM API集成；中间表示
+{\heitifont 关键词：}电子元器件选型；检索增强生成工程知识库；智能体；供应链风险评估
 
 % ═══════════════════════════════════════════════════════════════
 % 英文摘要
@@ -143,13 +143,10 @@
 \newpage
 \thispagestyle{empty}
 \begin{center}
-{\heitifont\zihao{3} ABSTRACT}
+{\heitifont\zihao{3} \textbf{ABSTRACT}}
 \end{center}
-\vspace{0.8cm}
 \input{chapters/abstract-en}
-\vspace{0.6cm}
-\noindent{\bfseries Keywords:} Electronic Component Selection; Large Language Model; Hybrid Scoring; Supply Chain Risk Assessment; eZ-PLM API Integration; Intermediate Representation
-
+\\{\bfseries Keywords:} Electronic component selection; RAG-based engineering knowledge base; Agent; supply chain risk assessment
 % ═══════════════════════════════════════════════════════════════
 % 正文
 % ═══════════════════════════════════════════════════════════════
