@@ -36,15 +36,15 @@ _CAT_NORM: dict = {
     "dc_dc_converter": "dc_dc_converter",
     "dc-dc": "dc_dc_converter", "dc_dc": "dc_dc_converter",
     "电源转换": "dc_dc_converter", "电源管理": "dc_dc_converter",
-    "降压": "dc_dc_converter", "升压": "dc_dc_converter",
+    "降压": "dc_dc_converter", "降到": "dc_dc_converter", "升压": "dc_dc_converter", "升到": "dc_dc_converter",
     "buck": "dc_dc_converter", "boost": "dc_dc_converter",
     "pmic": "dc_dc_converter",
     "ldo": "ldo", "线性稳压": "ldo", "低压差": "ldo",
     "linear": "ldo",
 }
 _TOPO_NORM: dict = {
-    "降压": "buck",  "buck": "buck",  "buck converter": "buck",
-    "升压": "boost", "boost": "boost", "boost converter": "boost",
+    "降压": "buck",  "降到": "buck", "buck": "buck",  "buck converter": "buck",
+    "升压": "boost", "升到": "boost", "boost": "boost", "boost converter": "boost",
     "buck/boost": "buck_boost",
     "ldo": "ldo", "线性": "ldo", "linear regulator": "ldo",
 }
@@ -114,10 +114,10 @@ def parse_requirement(text: str) -> RequirementConstraints:
             pass
 
     # ── 规则化 category / topology（规则优先，覆盖 LLM）─────────
-    if "buck" in lower or "降压" in lower:
+    if "buck" in lower or "降压" in lower or "降到" in lower:
         rc.category = "dc_dc_converter"
         rc.topology = "buck"
-    elif "boost" in lower or "升压" in lower:
+    elif "boost" in lower or "升压" in lower or "升到" in lower:
         rc.category = "dc_dc_converter"
         rc.topology = "boost"
     elif "ldo" in lower or "低压差" in lower or "线性稳压" in lower:
@@ -238,10 +238,14 @@ def parse_requirement(text: str) -> RequirementConstraints:
                 rc.temperature_min_c = nums[0]
 
     # ── 等级 ──────────────────────────────────────────────────────
-    if "车规" in lower or "automotive" in lower:
+    # 归一化 LLM 返回的等级值（"车规级"/"AEC-Q100"/"automotive" → "automotive"）
+    _AUTO_GRADES = {"automotive", "车规", "车规级", "aec-q100", "aec-q200", "aec_q100", "vehicle"}
+    if rc.grade and rc.grade.lower().strip() in _AUTO_GRADES:
+        rc.grade = "automotive"
+    if "车规" in lower or "automotive" in lower or "aec-q" in lower:
         # 排除否定句式："非车规"、"不是车规"、"不要求车规"
         if not re.search(r"(非|不是|不要求|无需|不用)\s*车规", text):
-            rc.grade = rc.grade or "automotive"
+            rc.grade = "automotive"
         elif rc.grade != "automotive":
             rc.grade = "industrial"  # 明确非车规 → 默认工业级
 
@@ -252,7 +256,8 @@ def parse_requirement(text: str) -> RequirementConstraints:
     # ── preferences ───────────────────────────────────────────────
     if ("国产" in lower or "国产替代" in lower or "优先国产" in lower) and "domestic_alternative" not in rc.preferences:
         rc.preferences.append("domestic_alternative")
-    if ("低供应" in lower or "低供应链风险" in lower) and "low_supply_risk" not in rc.preferences:
+    _LOW_SUPPLY_KW = ["低供应", "低供应链风险", "库存充足", "优先有库存", "供应稳定", "供应链风险低", "库存优先"]
+    if any(kw in lower for kw in _LOW_SUPPLY_KW) and "low_supply_risk" not in rc.preferences:
         rc.preferences.append("low_supply_risk")
 
     # ── must_have ─────────────────────────────────────────────────

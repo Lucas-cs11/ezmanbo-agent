@@ -1,7 +1,7 @@
 {
   "total": 28,
-  "passed": 26,
-  "pass_rate": 0.9285714285714286,
+  "passed": 28,
+  "pass_rate": 1.0,
   "field_accuracy": {
     "category": 1.0,
     "topology": 1.0,
@@ -13,83 +13,94 @@
   },
   "score_stats": {
     "total": {
-      "mean": 90.81,
-      "median": 92.22,
-      "std": 8.89,
+      "mean": 85.55,
+      "median": 82.0,
+      "std": 7.05,
       "min": 72.0,
       "max": 100.0,
-      "count": 8
+      "count": 151
     },
     "param": {
-      "mean": 91.32,
-      "median": 90.28,
-      "std": 5.97,
-      "min": 83.33,
+      "mean": 90.07,
+      "median": 89.58,
+      "std": 7.48,
+      "min": 65.0,
       "max": 100.0,
-      "count": 8
+      "count": 151
     },
     "supply": {
-      "mean": 88.75,
-      "median": 100.0,
-      "std": 31.82,
-      "min": 10.0,
+      "mean": 67.88,
+      "median": 50.0,
+      "std": 24.04,
+      "min": 50.0,
       "max": 100.0,
-      "count": 8
+      "count": 151
     }
   },
   "rec_count_dist": {
-    "1": 7,
-    "0": 21
+    "5": 18,
+    "1": 3,
+    "2": 3,
+    "4": 1,
+    "3": 2,
+    "0": 1
   },
   "cand_count_dist": {
-    "1": 6,
-    "0": 21,
-    "2": 1
+    "6": 7,
+    "5": 4,
+    "7": 3,
+    "1": 4,
+    "2": 3,
+    "9": 2,
+    "15": 2,
+    "4": 1,
+    "3": 2
   },
   "risk_dist": {
-    "high": 24,
-    "medium": 4
+    "medium": 17,
+    "high": 4,
+    "low": 7
   },
   "risk_type_counts": {
-    "supply": 28,
-    "engineering": 3
+    "supply": 73,
+    "engineering": 19
   },
   "evidence_stats": {
     "per_case": {
-      "mean": 3.39,
-      "median": 1.0,
-      "std": 4.5,
-      "min": 1,
-      "max": 18,
+      "mean": 30.21,
+      "median": 25.0,
+      "std": 19.34,
+      "min": 4,
+      "max": 70,
       "count": 28
     },
     "confidence": {
-      "mean": 0.87,
-      "median": 0.9,
-      "std": 0.12,
+      "mean": 0.9,
+      "median": 0.95,
+      "std": 0.11,
       "min": 0.3,
       "max": 0.95,
-      "count": 95
+      "count": 846
     },
-    "total": 95,
-    "human_review": 4
+    "total": 846,
+    "human_review": 22
   },
   "latency": {
-    "mean": 1.12,
-    "median": 0.02,
-    "std": 5.75,
-    "min": 0.01,
-    "max": 30.47,
+    "mean": 4.89,
+    "median": 4.55,
+    "std": 2.95,
+    "min": 2.11,
+    "max": 16.47,
     "count": 28
   },
   "cat_results": {
     "dc": {
-      "total": 20,
+      "total": 18,
       "passed": 18
     },
     "ldo": {
-      "total": 8,
-      "passed": 8
+      "total": 10,
+      "passed": 10
     }
   }
 }
