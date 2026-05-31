@@ -1,19 +1,15 @@
-\begin{table}[H]
+\begin{table}[htbp]
 \centering
 \caption{需求解析各约束字段准确率}
 \label{tab:parse_accuracy}
-\small
-\begin{tabular}{lr}
+\footnotesize
+\setlength{\tabcolsep}{8pt}
+\renewcommand{\arraystretch}{0.9}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccccccc@{}}
 \toprule
-\textbf{约束字段} & \textbf{准确率} \\
+\textbf{字段} & \textbf{类别} & \textbf{拓扑} & \textbf{输出电压} & \textbf{输出电流} & \textbf{温度下限} & \textbf{温度上限} & \textbf{器件等级} \\
 \midrule
-    类别 & 100.0\% \\
-    拓扑 & 100.0\% \\
-    输出电压 & 100.0\% \\
-    输出电流 & 100.0\% \\
-    温度下限 & 100.0\% \\
-    温度上限 & 100.0\% \\
-    器件等级 & 100.0\% \\
+\textbf{准确率} & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 100.0\% \\
 \bottomrule
-\end{tabular}
+\end{tabular*}
 \end{table}
