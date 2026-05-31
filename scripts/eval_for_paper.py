@@ -238,7 +238,7 @@ def _stats(values):
 # =====================================================================
 
 def gen_tables(results, metrics):
-    # ── Table 1: Summary of all test cases ──
+    # ── Table 1: Comprehensive per-case results ──
     rows = []
     for r in results:
         cid = r["case_id"]
@@ -249,31 +249,42 @@ def gen_tables(results, metrics):
             cand_n = len(rep.candidates or [])
             top_score = rep.candidates[0].score.total_score if rep.candidates else 0
             risk = rep.risks.overall_risk_level if rep.risks else "N/A"
+            evidence = rep.evidence or []
+            ev_n = len(evidence)
+            ev_conf = round(statistics.mean([e.confidence for e in evidence]), 2) if evidence else 0.0
         else:
-            rec_n = cand_n = top_score = 0
+            rec_n = cand_n = top_score = ev_n = 0
+            ev_conf = 0.0
             risk = "ERR"
         elapsed_ms = int(r["elapsed_s"] * 1000)
         mark = r"$\checkmark$" if passed else r"$\times$"
-        risk_str = risk.upper()
-        rows.append(f"    {cid} & {mark} & {cand_n} & {rec_n} & {top_score:.1f} & {risk_str} & {elapsed_ms} \\\\")
+        risk_map = {"low": "LOW", "medium": "MED", "high": "HIGH"}
+        risk_str = risk_map.get(risk.lower(), risk.upper())
+        rows.append(f"    {cid} & {mark} & {cand_n} & {rec_n} & {top_score:.1f} & {risk_str} & {ev_n} & {ev_conf:.2f} & {elapsed_ms} \\\\")
 
     total = metrics["total"]
-    passed = metrics["passed"]
+    passed_n = metrics["passed"]
     rate = metrics["pass_rate"] * 100
 
-    tex = rf"""\begin{{table}}[H]
-\centering
-\caption{{端到端评测结果汇总（{total}条用例，通过率{rate:.1f}\%）}}
-\label{{tab:eval_summary}}
-\small
-\begin{{tabular}}{{lcccrllr}}
+    tex = rf"""\begin{{longtable}}{{lcccrcccc}}
+\caption{{端到端评测综合结果（{total}条用例，通过率{rate:.1f}\%）}}
+\label{{tab:eval_summary}}\\
 \toprule
-\textbf{{用例}} & \textbf{{通过}} & \textbf{{候选}} & \textbf{{推荐}} & \textbf{{首选得分}} & \textbf{{风险}} & \textbf{{耗时/ms}} \\
+\textbf{{用例}} & \textbf{{通过}} & \textbf{{候选}} & \textbf{{推荐}} & \textbf{{首选得分}} & \textbf{{风险}} & \textbf{{证据}} & \textbf{{置信度}} & \textbf{{耗时/ms}} \\
 \midrule
-{chr(10).join(rows)}
+\endfirsthead
+\multicolumn{{9}}{{c}}{{\tablename\ \thetable{{}}（续）}} \\
+\toprule
+\textbf{{用例}} & \textbf{{通过}} & \textbf{{候选}} & \textbf{{推荐}} & \textbf{{首选得分}} & \textbf{{风险}} & \textbf{{证据}} & \textbf{{置信度}} & \textbf{{耗时/ms}} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{{9}}{{r}}{{接下页}} \\
+\endfoot
 \bottomrule
-\end{{tabular}}
-\end{{table}}"""
+\endlastfoot
+{chr(10).join(rows)}
+\end{{longtable}}"""
     _write_tex("eval_summary", tex)
 
     # ── Table 2: Parse accuracy by field ──
