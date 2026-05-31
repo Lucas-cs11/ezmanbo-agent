@@ -1,46 +1,50 @@
-\begin{longtable}{p{1.8cm}p{1.2cm}p{4.5cm}p{5.0cm}}
+\begin{longtable}{p{2.1cm}p{1.3cm}p{5.0cm}p{5.4cm}}
 \caption{28 条评测用例内容与验证重点}
-\label{tab:cases_overview}\
+\label{tab:cases_overview}\\
 \toprule
-\textbf{用例编号} & \textbf{拓扑} & \textbf{主要约束} & \textbf{验证重点/特点} \
+\textbf{用例编号} & \textbf{拓扑} & \textbf{主要约束} & \textbf{验证重点/特点} \\
 \midrule
 \endfirsthead
-\multicolumn{4}{c}{\tablename\ \thetable{}（续）} \
+
+\multicolumn{4}{c}{\tablename\ \thetable{}（续）} \\
 \toprule
-\textbf{用例编号} & \textbf{拓扑} & \textbf{主要约束} & \textbf{验证重点/特点} \
+\textbf{用例编号} & \textbf{拓扑} & \textbf{主要约束} & \textbf{验证重点/特点} \\
 \midrule
 \endhead
+
 \midrule
-\multicolumn{4}{r}{接下页} \
+\multicolumn{4}{r}{接下页} \\
 \endfoot
+
 \bottomrule
 \endlastfoot
-    dc\_dc\_001 & Buck & 12\,V→5\,V / 3\,A，569Xl40$\textasciitilde85\,°C & 标准降压场景，工业级基准用例 \\
-    dc\_dc\_002 & Buck & 24\,V→12\,V / 2\,A，569Xl40$\textasciitilde85\,°C & 高压输入降压，工业级 \\
-    dc\_dc\_003 & Buck & 5\,V→3.3\,V / 1\,A，常温 & 否定句式（非车规）解析 \\
-    dc\_dc\_004 & Buck & 12\,V→5\,V / 3\,A，569Xl40$\textasciitilde125\,°C & 车规级 AEC-Q100 认证 \\
-    dc\_dc\_005 & Buck & 5\,V→3.3\,V / 500\,mA & mA 单位表述，单位转换验证 \\
-    dc\_dc\_006 & Buck & 12\,V→5\,V / 3\,A & 国产替代偏好解析 \\
-    dc\_dc\_007 & Buck & 24\,V→12\,V / 2\,A，569Xl40$\textasciitilde85\,°C & 高压输入 + 国产替代组合 \\
-    dc\_dc\_008 & Buck & 4.5--60\,V→5\,V / 5\,A，569Xl40$\textasciitilde125\,°C & 宽压输入 + 大电流 \\
-    dc\_dc\_009 & Buck & 48\,V→12\,V / 6\,A & 超高压输入 + 大电流 \\
-    dc\_dc\_010 & Buck & 5\,V→1.8\,V / 600\,mA & 低电压输出 + 国产替代 \\
-    dc\_dc\_011 & Buck & 5\,V→1.2\,V / 300\,mA & 极低电压输出 \\
-    dc\_dc\_012 & Buck & 12\,V→5\,V / 3\,A，569Xl40$\textasciitilde85\,°C & 否定句式（不需要车规）解析 \\
-    dc\_dc\_013 & Buck & 12\,V→5\,V / 3\,A，569Xl40$\textasciitilde125\,°C & 车规级 + 国产替代（多约束组合） \\
-    dc\_dc\_014 & Buck & 12\,V→3.3\,V / 1.5\,A & 口语化降到表述，类别识别验证 \\
-    dc\_dc\_015 & Boost & 3.3\,V→5\,V / 2\,A & Boost 升压基础场景 \\
-    dc\_dc\_016 & Boost & 5\,V→12\,V / 1\,A & 升压至较高电压 \\
-    dc\_dc\_017 & Boost & 3.7\,V→5\,V / 2\,A & 锂电池升压 + 国产替代 \\
-    dc\_dc\_018 & Boost & 1.8\,V→3.3\,V / 500\,mA，569Xl40$\textasciitilde85\,°C & 低压升压 + 温度约束 \\
-    ldo\_001 & LDO & 5\,V→3.3\,V / 500\,mA，569Xl40$\textasciitilde85\,°C & LDO 标准场景基准用例 \\
-    ldo\_002 & LDO & 12\,V→5\,V / 1\,A，569Xl40$\textasciitilde85\,°C & 较高压差 LDO \\
-    ldo\_003 & LDO & 3.3\,V→1.8\,V / 300\,mA & 低输出电压 LDO \\
-    ldo\_004 & LDO & 5\,V→3.3\,V / 1\,A & 口语化线性稳压器表述 + 国产 \\
-    ldo\_005 & LDO & 5\,V→3.3\,V / 200\,mA，569Xl40$\textasciitilde125\,°C & 车规级 LDO，AEC-Q100 \\
-    ldo\_006 & LDO & 3.3\,V→1.2\,V / 300\,mA & 超低输出电压 LDO \\
-    ldo\_007 & LDO & 5\,V→3.3\,V / 800\,mA & 否定句式（不要车规）解析 \\
-    ldo\_008 & LDO & 5\,V→3.3\,V / 100\,mA & 口语化低功耗表述 + 国产替代 \\
-    ldo\_009 & LDO & 12\,V→5\,V / 500\,mA，569Xl40$\textasciitilde125\,°C & 车规级 LDO，高压差 \\
-    ldo\_010 & LDO & 3.3\,V→1.8\,V / 300\,mA & 低压 LDO + 国产替代 \\
+
+\texttt{dc\_dc\_001} & Buck & 12\,V$\rightarrow$5\,V / 3\,A，-40\textasciitilde{}85\,°C & 标准降压场景，工业级基准用例 \\
+\texttt{dc\_dc\_002} & Buck & 24\,V$\rightarrow$12\,V / 2\,A，-40\textasciitilde{}85\,°C & 高压输入降压，工业级 \\
+\texttt{dc\_dc\_003} & Buck & 5\,V$\rightarrow$3.3\,V / 1\,A，常温 & 否定句式（非车规）解析 \\
+\texttt{dc\_dc\_004} & Buck & 12\,V$\rightarrow$5\,V / 3\,A，-40\textasciitilde{}125\,°C & 车规级 AEC-Q100 认证 \\
+\texttt{dc\_dc\_005} & Buck & 5\,V$\rightarrow$3.3\,V / 500\,mA & mA 单位表述，单位转换验证 \\
+\texttt{dc\_dc\_006} & Buck & 12\,V$\rightarrow$5\,V / 3\,A & 国产替代偏好解析 \\
+\texttt{dc\_dc\_007} & Buck & 24\,V$\rightarrow$12\,V / 2\,A，-40\textasciitilde{}85\,°C & 高压输入与国产替代组合 \\
+\texttt{dc\_dc\_008} & Buck & 4.5--60\,V$\rightarrow$5\,V / 5\,A，-40\textasciitilde{}125\,°C & 宽压输入与大电流约束 \\
+\texttt{dc\_dc\_009} & Buck & 48\,V$\rightarrow$12\,V / 6\,A & 超高压输入与大电流约束 \\
+\texttt{dc\_dc\_010} & Buck & 5\,V$\rightarrow$1.8\,V / 600\,mA & 低电压输出与国产替代偏好 \\
+\texttt{dc\_dc\_011} & Buck & 5\,V$\rightarrow$1.2\,V / 300\,mA & 极低输出电压场景 \\
+\texttt{dc\_dc\_012} & Buck & 12\,V$\rightarrow$5\,V / 3\,A，-40\textasciitilde{}85\,°C & 否定句式（不需要车规）解析 \\
+\texttt{dc\_dc\_013} & Buck & 12\,V$\rightarrow$5\,V / 3\,A，-40\textasciitilde{}125\,°C & 车规级与国产替代多约束组合 \\
+\texttt{dc\_dc\_014} & Buck & 12\,V$\rightarrow$3.3\,V / 1.5\,A & 口语化“降到”表述与类别识别 \\
+\texttt{dc\_dc\_015} & Boost & 3.3\,V$\rightarrow$5\,V / 2\,A & Boost 升压基础场景 \\
+\texttt{dc\_dc\_016} & Boost & 5\,V$\rightarrow$12\,V / 1\,A & 升压至较高电压场景 \\
+\texttt{dc\_dc\_017} & Boost & 3.7\,V$\rightarrow$5\,V / 2\,A & 锂电池升压与国产替代偏好 \\
+\texttt{dc\_dc\_018} & Boost & 1.8\,V$\rightarrow$3.3\,V / 500\,mA，-40\textasciitilde{}85\,°C & 低压升压与温度约束 \\
+\texttt{ldo\_001} & LDO & 5\,V$\rightarrow$3.3\,V / 500\,mA，-40\textasciitilde{}85\,°C & LDO 标准场景基准用例 \\
+\texttt{ldo\_002} & LDO & 12\,V$\rightarrow$5\,V / 1\,A，-40\textasciitilde{}85\,°C & 较高压差 LDO 场景 \\
+\texttt{ldo\_003} & LDO & 3.3\,V$\rightarrow$1.8\,V / 300\,mA & 低输出电压 LDO 场景 \\
+\texttt{ldo\_004} & LDO & 5\,V$\rightarrow$3.3\,V / 1\,A & 口语化“线性稳压器”表述与国产偏好 \\
+\texttt{ldo\_005} & LDO & 5\,V$\rightarrow$3.3\,V / 200\,mA，-40\textasciitilde{}125\,°C & 车规级 LDO 与 AEC-Q100 认证 \\
+\texttt{ldo\_006} & LDO & 3.3\,V$\rightarrow$1.2\,V / 300\,mA & 超低输出电压 LDO 场景 \\
+\texttt{ldo\_007} & LDO & 5\,V$\rightarrow$3.3\,V / 800\,mA & 否定句式（不要车规）解析 \\
+\texttt{ldo\_008} & LDO & 5\,V$\rightarrow$3.3\,V / 100\,mA & 口语化低功耗表述与国产替代偏好 \\
+\texttt{ldo\_009} & LDO & 12\,V$\rightarrow$5\,V / 500\,mA，-40\textasciitilde{}125\,°C & 车规级 LDO 与高压差约束 \\
+\texttt{ldo\_010} & LDO & 3.3\,V$\rightarrow$1.8\,V / 300\,mA & 低压 LDO 与国产替代偏好 \\
 \end{longtable}

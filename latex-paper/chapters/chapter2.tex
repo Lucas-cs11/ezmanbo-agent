@@ -1,8 +1,9 @@
 % ============================================================
-% 第2章：方案论证与设计
+% 第2章：系统方案与架构设计
 % ============================================================
 
 \section{总体架构设计}
+\label{sec:architectrue}
 系统采用“服务层—流水线推理层—工具层—数据层”的四层架构，将自然语言需求输入到三类工程文档输出的全过程组织为可自动执行的处理链路。各层之间职责边界清晰，数据流转方向限定为自上而下的逐层加工过程，从而提升系统的模块化程度、可维护性和可扩展性。
 
 服务层基于 FastAPI 框架构建 API 服务，对外提供以下五个核心端点：\texttt{GET /health} 用于系统健康检查；\texttt{POST /analyze} 用于接收自然语言需求并返回完整的 \texttt{SelectionReport} JSON；\texttt{POST /replacement} 用于接收原始器件型号并返回 \texttt{ReplacementReport} JSON；\texttt{POST /agent/chat} 用于支持携带 \texttt{session\_id} 的多轮对话式选型交互；\texttt{GET /agent/sessions} 用于查看当前活跃的 Agent 会话列表。该层同时负责请求路由、参数校验、UTF-8 中文编码兼容和异常捕获，保障前端与推理层之间通信的稳定性。
@@ -66,113 +67,140 @@ S_{\text{param}} = \frac{\displaystyle\sum_{i=1}^{N} s_i}{N} \times 100
 \label{eq:param}
 \end{equation}
 
-式中，$N$ 表示实际存在的参数约束项数量，$s_i \in [0,1]$ 表示对应约束项的归一化得分。当用户未提供明确参数约束时，系统将参数匹配分设为中性值 50，以避免对候选器件产生系统性惩罚。参数评分综合考虑了输入电压覆盖、输出电压匹配、输出电流满足和温度范围适配四个维度；供应链稳定性评分则依据库存水平和生命周期状态进行分段计算，并对停产或过时化器件施加显著惩罚，以充分反映供应链风险。
+式中，$N$ 表示实际存在的参数约束项数量，$s_i \in [0,1]$ 表示对应约束项的归一化得分。当用户未提供明确参数约束时，系统将参数匹配分设为中性值 50，以避免对候选器件产生系统性惩罚。
 
 \subsection{LLM 增强模式}
 
-当 LLM 服务可用且候选器件具备参考设计数据时，评分模型扩展为四维混合评分机制：
+当 LLM 服务可用且候选器件具备参考设计数据时，评分模型由双维规则评分扩展为四维混合评分：
 
 \begin{equation}
 S_{\text{total}} = 0.40 S_{\text{param}} + 0.10 S_{\text{supply}} + 0.25 S_{\text{app}} + 0.25 S_{\text{design}}
 \label{eq:hybrid}
 \end{equation}
 
-与纯规则模式相比，增强模式在权重分配上进行了两方面的调整。一方面，参数匹配的权重从 0.80 下调至 0.40，供应链稳定性的权重从 0.20 下调至 0.10，腾出的权重空间（合计 0.50）被分配给两个由 LLM 基于参考设计数据评估的软性维度——应用场景适配度 $S_{\text{app}}$ 和设计成熟度 $S_{\text{design}}$，各占 0.25。这一分配逻辑参考了智能选型系统中"硬约束主导、软知识增强"的分层评估思路\cite{wang2022selection}：当外部知识源（参考设计案例）可用时，系统有依据地将部分决策权重从确定性规则维度转移至知识增强维度；而当外部知识源缺失时，系统则自动回退至纯规则模式，以规则维度的更高权重保障评分结果的稳定性。两个 LLM 软评分维度的取值均被严格约束在 $[0,100]$ 区间，系统对 LLM 的返回 JSON 执行 clamp 校验与格式验证，任何异常均触发向纯规则模式的自动回退，从而确保增强模式的可靠性不会被 LLM 的不确定性所削弱。
+其中，$S_{\text{param}}$ 和 $S_{\text{supply}}$ 分别表示参数匹配分和供应链稳定性分，$S_{\text{app}}$ 和 $S_{\text{design}}$ 分别表示应用场景适配度和设计成熟度。与纯规则模式相比，增强模式将参数匹配权重由 0.80 调整为 0.40，将供应链稳定性权重由 0.20 调整为 0.10，并将释放出的 0.50 权重分配给两个基于参考设计数据的 LLM 软评分维度。该设计遵循“硬约束主导、软知识增强”的分层评估思路 \cite{wang2022selection}：在参考设计数据可用时，引入知识增强维度以提升应用适配性判断能力；在参考设计数据缺失或 LLM 输出异常时，自动回退至纯规则模式，以保证评分稳定性。
+
+为降低 LLM 输出不确定性对评分结果的影响，系统将 $S_{\text{app}}$ 和 $S_{\text{design}}$ 的取值范围限定为 $[0,100]$，并对模型返回结果进行格式校验与数值边界检查。若返回结果格式不完整、字段缺失或分值越界，系统将触发回退机制，改用纯规则评分结果。
 
 \subsection{去重、排序与推荐分级}
+eZ-PLM API 返回同一型号族的查询结果时，可能包含多个仅在封装后缀、质量等级或卷带标识上存在差异的变体。以 TI 的 LM2596 系列为例，查询结果可能同时包含 LM2596S-5.0/NOPB、LM2596SX-5.0/NOPB 和 LM2596T-5.0/LF03 等记录。这些器件在核心电气特性上高度一致，主要差异体现在封装形式或包装方式。若直接全部纳入推荐列表，容易造成信息冗余，并降低不同型号之间的有效区分度。
 
-eZ-PLM API 在返回同一型号族的查询结果时，常包含多个仅在封装后缀或卷带标识上存在差异的变体。以 TI 的 LM2596 系列为例，一次针对 Buck 拓扑的查询可能同时返回 LM2596S-5.0/NOPB（S 封装）、LM2596SX-5.0/NOPB（SX 封装）、LM2596T-5.0/LF03（T 封装）等同型号族的多条记录，这些变体在电气特性上完全一致，仅在物理封装形式和包装方式上有所不同。若不加处理地将其全部列入推荐列表，不仅会造成信息冗余，还会挤占其他独立型号的展示空间，降低推荐结果的有效区分度。
+为减少同型号族变体对排序结果的干扰，系统通过 \texttt{\_extract\_core\_mpn()} 函数提取候选器件的核心 MPN（Manufacturer Part Number，即制造商型号）。该过程会去除 “/NOPB”“/LF03” 等后缀、“-TR”“-T\&R” 等卷带标识，以及末尾的非功能性封装变体字符，从而获得代表器件电气型号的核心标识。随后，系统以核心 MPN 为键对候选器件进行分组去重，每组仅保留综合得分最高的变体，并将被合并变体的完整型号信息记录至 \texttt{reasons} 字段，以保留结果可追溯性。
 
-为此，系统通过 \texttt{\_extract\_core\_mpn()} 函数对每条候选器件的完整 MPN 字符串进行处理——去除 “/NOPB”、”/LF03” 等质量等级后缀、”-TR”、”-T\&R” 等卷带标识，以及末尾的封装变体字母（如 RUWT 中的 T），从中提取出代表该器件电气型号的核心 MPN（如 LM2596S-5.0）。以提取到的核心 MPN 为键，系统对全部候选器件进行分组去重：同一组内仅保留综合得分最高的那个变体，同时将被合并变体的完整型号信息追加至保留记录的 reasons 字段中，以确保变体信息的可查阅性。在上述 LM2596 系列的例子中，三个封装变体被合并为一条记录，最终推荐列表中仅展示该系列的最高分变体，从而将推荐结果的型号多样性从”同一系列的多个变体”提升为”不同系列的独立型号”。
-
-完成去重后，系统按综合得分降序排列，并采用 Top-N 分级策略生成推荐结果。以一次典型的”12 V 转 5 V、3 A、工业级”选型查询为例，系统在检索阶段共召回 15 条候选器件，经去重合并后保留约 10 个独立型号，随后按评分排序并分级：综合得分不低于 75 分且排名前五的器件被标注为”推荐”（例如得分 93.33 的 TPS1100D 和得分 86.67 的 MOCK-BUCK-005）；排名第六至第十五且综合得分不低于 50 分的被标注为”备选”；其余器件则标注为”不推荐”。最终输出列表被截断至最多 15 条记录，兼顾了信息完整性与前端展示的可读性。
-
+去重完成后，系统按照综合得分降序排序，并采用 Top-N 分级策略生成推荐结果。综合得分不低于 75 分且排名前五的器件被标注为“推荐”（recommended）；排名第六至第十五且综合得分不低于 50 分的器件被标注为“备选”（backup）；其余器件则标注为“不推荐”（not\_recommended）。最终输出结果最多保留 15 条记录，以兼顾推荐结果的信息完整性和前端展示的可读性。
 \section{数据模型设计}
 
-为了同时满足 eZ-PLM 平台的数据互通需求与三类工程文档的结构化输出需求，系统以 Pydantic v2 为基础定义了一套标准化的中间表示（IR）数据模型体系，并为无 Pydantic 的轻量化部署环境提供了等价的 Python dataclass 兜底实现。该体系包含了五个核心数据模型。
+为了同时满足 eZ-PLM 平台的数据互通需求与三类工程文档的结构化输出需求，系统以 Pydantic 为基础定义了一套标准化的 IR 数据模型体系, 该体系由以下五个核心数据模型构成：
 
-\textbf{PartIR} 由 21 个字段组成，完整描述了一个电子元器件的全部可检索属性，各字段的类别归属与含义如表\ref{tab:partir}所示。其中，\texttt{source} 字段用于区分数据的真实来源（\texttt{ezplm} 或 \texttt{mock}），\texttt{output\_voltage\_v} 字段通过 MPN 型号推断函数与 API 属性解析结果的双源校验机制来避免固定输出电压被误识别。
-
-\begin{table}[H]
+（一）\texttt{PartIR} 由 21 个字段组成，完整描述了一个电子元器件的全部可检索属性，各字段的类别归属与含义如表\ref{tab:partir}所示。
+```latex
+\begin{table}[htbp]
 \centering
-\caption{PartIR 字段定义}
+\caption{\texttt{PartIR} 字段说明}
 \label{tab:partir}
-\small
-\begin{tabular}{p{2.5cm}p{3.0cm}p{2.8cm}p{3.0cm}}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{0.9}
+\begin{tabularx}{\textwidth}{p{2cm}p{4cm}X}
 \toprule
-\textbf{类别} & \textbf{字段名} & \textbf{类型} & \textbf{说明} \\
+\textbf{类别} & \textbf{字段名} & \textbf{说明} \\
 \midrule
-\multirow{2}{*}{制造商信息} & part\_number & str & 制造商型号（MPN）\\
- & manufacturer & Optional[str] & 制造商名称 \\
+
+\multirow{2}{*}{制造商信息}
+& \texttt{part\_number} & 制造商型号 (MPN)\\
+& \texttt{manufacturer} & 制造商名称 \\
 \midrule
-\multirow{4}{*}{电气参数} & input\_voltage\_min\_v & Optional[float] & 最小输入电压（V）\\
- & input\_voltage\_max\_v & Optional[float] & 最大输入电压（V）\\
- & output\_voltage\_v & Optional[float] & 固定输出电压（V），可调器件为 None\\
- & output\_current\_max\_a & Optional[float] & 最大输出电流（A）\\
+
+\multirow{4}{*}{电气参数}
+& \texttt{input\_voltage\_min\_v} & 最小输入电压（V） \\
+& \texttt{input\_voltage\_max\_v} & 最大输入电压（V） \\
+& \texttt{output\_voltage\_v} & 固定输出电压（V），可调器件为空值 \\
+& \texttt{output\_current\_max\_a} & 最大输出电流（A） \\
 \midrule
-\multirow{2}{*}{物理属性} & package & Optional[str] & 封装类型（如 QFN-32、SOT-23-5）\\
- & temperature\_min\_c/max\_c & Optional[float] & 工作温度范围（°C）\\
+
+\multirow{2}{*}{物理属性}
+& \texttt{package} & 封装类型（如 QFN-32、SOT-23-5） \\
+& \texttt{temperature\_min\_c} / \texttt{temperature\_max\_c} & 工作温度范围（°C） \\
 \midrule
-分类标识 & category / topology & Optional[str] & 器件类别（dc\_dc\_converter/ldo）与拓扑（buck/boost/ldo）\\
+
+分类标识
+& \texttt{category} / \texttt{topology} & 器件类别（DC-DC/LDO）及拓扑类型（Buck/Boost/LDO） \\
 \midrule
-国产标识 & is\_domestic & bool & 是否为国产器件\\
+
+国产标识
+& \texttt{is\_domestic} & 是否为国产器件 \\
 \midrule
-\multirow{2}{*}{认证与合规} & automotive\_grade & bool & 是否通过 AEC-Q100 车规认证\\
- & lifecycle\_status & Optional[str] & 生命周期状态（active/nrnd/obsolete/discontinued）\\
+
+\multirow{2}{*}{认证与合规}
+& \texttt{automotive\_grade} & 是否通过 AEC-Q100 车规认证 \\
+& \texttt{lifecycle\_status} & 生命周期状态（Active、NRND、Obsolete、Discontinued） \\
 \midrule
-\multirow{3}{*}{供应链状态} & stock & Optional[int] & 当前库存数量\\
- & unit\_price\_cny & Optional[float] & 参考单价（人民币）\\
- & replacement\_for & List[str] & 可替代的型号列表\\
+
+\multirow{3}{*}{供应链状态}
+& \texttt{stock} & 当前库存数量 \\
+& \texttt{unit\_price\_cny} & 参考单价（人民币） \\
+& \texttt{replacement\_for} & 可替代型号列表 \\
 \midrule
-\multirow{3}{*}{数据溯源} & datasheet\_url & Optional[str] & 数据手册链接\\
- & ezplm\_part\_id & Optional[str] & eZ-PLM 平台内部 ID\\
- & source & str & 数据来源标识（ezplm / mock）\\
+
+\multirow{3}{*}{数据溯源}
+& \texttt{datasheet\_url} & 数据手册链接 \\
+& \texttt{ezplm\_part\_id} & eZ-PLM 平台内部标识符 \\
+& \texttt{source} & 数据来源标识 \\
 \midrule
-描述 & description & Optional[str] & 器件功能描述文本\\
+
+描述
+& \texttt{description} & 器件功能描述文本 \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{table}
 
-\textbf{ScoreBreakdown} 记录了一个候选器件在评分过程中产生的全部维度信息——各子维度分数（parameter\_match\_score、supply\_risk\_score、total\_score）、评分原因列表（reasons，包含参数覆盖情况、库存水平、LLM 评估结论等可读文本）、评分模式标识（scoring\_mode，取值为 rule\_only 或 llm\_enhanced）以及 LLM 子评分项的详细记录（llm\_application\_score、llm\_design\_risk\_score、llm\_reasoning），使得任何一条评分结论都能被追溯到其具体的计算依据。
+（二）\texttt{ScoreBreakdown} 用于记录候选器件在评分过程中的维度信息与计算依据，主要包括子维度分数（\texttt{parameter\_match\_score}、\texttt{supply\_risk\_score}、\texttt{total\_\\score}）、评分原因列表（\texttt{reasons}）、评分模式标识（\texttt{scoring\_mode}，取值为 \texttt{rule\_only} 或 \texttt{llm\_enhanced}），以及 LLM 子评分结果（\texttt{llm\_application\_score}、\texttt{llm\_design\_risk\_score}、\texttt{llm\_reasoning}）。其中，\texttt{reasons} 用于保存参数覆盖情况、库存水平和 LLM 评估结论等可读说明，从而保证评分结论能够追溯至具体计算依据。
 
-\textbf{TopologyIR} 采用了四子模型嵌套结构，各子模型的字段定义如表\ref{tab:topoir}所示。顶层 TopologyIR 将下述三子模型与 Mermaid 框图源码、PCB Layout 规则列表和设计引用文件路径整合为一个可直接序列化为 JSON 的完整拓扑描述。
-
+(三) \texttt{TopologyIR} 采用了四子模型嵌套结构，各子模型的字段定义如表\ref{tab:topoir}所示。
 \begin{table}[H]
 \centering
-\caption{TopologyIR 子模型字段定义}
+\caption{\texttt{TopologyIR} 字段说明}
 \label{tab:topoir}
-\small
-\begin{tabular}{p{2.8cm}p{2.8cm}p{2.4cm}p{3.5cm}}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{0.9}
+\begin{tabularx}{\textwidth}{p{3.2cm}p{4.5cm}X}
 \toprule
-\textbf{子模型} & \textbf{字段名} & \textbf{类型} & \textbf{说明} \\
+\textbf{子模型} & \textbf{字段名} & \textbf{说明} \\
 \midrule
-\multirow{6}{*}{TopoNode（拓扑功能节点）} & node\_id & str & 节点唯一标识（如 vin\_cin、power\_ind）\\
- & node\_type & str & 节点类型（controller\_ic / passive\_inductor / diode / ground）\\
- & label & str & 中文标签（如"储能电感 L"）\\
- & description & str & 功能描述文本\\
- & connected\_to & List[str] & 邻接节点 ID 列表\\
- & signal\_type & str & 信号类型（power / control / feedback / ground）\\
+\multirow{6}{*}{\texttt{TopoNode}}
+& \texttt{node\_id} & 节点唯一标识（如 \texttt{vin\_cin}、\texttt{power\_ind}） \\
+& \texttt{node\_type} & 节点类型（如 \texttt{controller\_ic}、\texttt{passive\_inductor}、\texttt{diode}、\texttt{ground}） \\
+& \texttt{label} & 中文标签（如“储能电感 L”） \\
+& \texttt{description} & 功能描述文本 \\
+& \texttt{connected\_to} & 邻接节点 ID 列表 \\
+& \texttt{signal\_type} & 信号类型（如 \texttt{power}、\texttt{control}、\texttt{feedback}、\texttt{ground}） \\
 \midrule
-\multirow{8}{*}{ExternalComponent（外围元件）} & refdes & str & 参考位号（如 L1、CIN1、RFBT）\\
- & component\_type & str & 元件类型（inductor / capacitor\_mlcc / resistor / diode）\\
- & value & Optional[str] & 推荐参数值（如"6.8μH"、"22μF"）\\
- & tolerance & Optional[str] & 容差（如"±1\%"）\\
- & voltage\_rating & Optional[str] & 耐压等级（如"25V"）\\
- & temperature\_coeff. & Optional[str] & 温度系数（如"X7R"）\\
- & package & Optional[str] & 封装（如"0805"）\\
- & selection\_notes & Optional[str] & 选型备注\\
+
+\multirow{8}{*}{\texttt{ExternalComponent}}
+& \texttt{refdes} & 参考位号（如 \texttt{L1}、\texttt{CIN1}、\texttt{RFBT}） \\
+& \texttt{component\_type} & 元件类型（如 \texttt{inductor}、\texttt{capacitor\_mlcc}、\texttt{resistor}、\texttt{diode}） \\
+& \texttt{value} & 推荐参数值（如“6.8 μH”“22 μF”） \\
+& \texttt{tolerance} & 容差（如“±1\%”） \\
+& \texttt{voltage\_rating} & 耐压等级（如“25 V”） \\
+& \texttt{temperature\_coeff} & 温度系数（如“X7R”） \\
+& \texttt{package} & 封装规格（如“0805”） \\
+& \texttt{selection\_notes} & 选型备注 \\
 \midrule
-\multirow{7}{*}{ThermalEstimate（热性能估算）} & estimated\_efficiency\_pct & float & 估算效率（\%）\\
- & output\_power\_w & float & 输出功率（W）\\
- & total\_power\_loss\_w & float & 总功耗（W）\\
- & junction\_temp\_c & float & 结温估算值（°C）\\
- & junction\_temp\_max\_c & float & 最高允许结温（°C）\\
- & thermal\_margin\_c & float & 热余量（°C）\\
- & needs\_heatsink & bool & 是否需要散热器\\
+
+\multirow{7}{*}{\texttt{ThermalEstimate}}
+& \texttt{estimated\_efficiency\_pct} & 估算效率（\%） \\
+& \texttt{output\_power\_w} & 输出功率（W） \\
+& \texttt{total\_power\_loss\_w} & 总功耗（W） \\
+& \texttt{junction\_temp\_c} & 结温估算值（°C） \\
+& \texttt{junction\_temp\_max\_c} & 最高允许结温（°C） \\
+& \texttt{thermal\_margin\_c} & 热余量（°C） \\
+& \texttt{needs\_heatsink} & 是否需要散热器 \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{table}
 
-\textbf{RiskIR} 包含整体风险等级（overall\_risk\_level，取值为 low、medium 或 high）和一个 RiskItem 列表。每条 RiskItem 记录了风险类型（supply 或 engineering）、严重程度、描述文本、相关器件型号、缓解建议以及证据引用字段（evidence\_refs）——后者为 FMEA 的 RPN（Risk Priority Number）量化扩展提供了数据接口。系统的规则引擎覆盖了 13 类确定性风险检测场景，所有检测结果均以 RiskItem 的形式被组织为结构化列表，LLM 仅能在此基础上进行工程背景的补充叙述而不能独立生成新的风险条目。
+（四）\texttt{RiskIR} 描述选型方案的整体风险及其结构化风险条目。整体风险等级划分为低（low）、中（medium）和高（high）三级，用于表征方案的供应链与工程风险水平。每条风险条目（\texttt{RiskItem}）均由规则引擎生成，包含风险类型、严重程度、风险描述、相关器件型号、缓解建议及证据引用字段（\texttt{evidence\_refs}）。该结构遵循失效模式与影响分析（Failure Mode and Effects Analysis, FMEA）的“失效模式—失效影响—失效原因—现行控制措施—建议措施”记录范式，使风险信息能够追溯至其触发条件和处置路径。\texttt{evidence\_refs} 字段为后续引入风险优先级数（Risk Priority Number, RPN）提供支持。RPN 由严重度（Severity）、发生频率（Occurrence）和可检测度（Detection）三项指标乘积计算得到，可在现有定性风险分级基础上进一步实现定量评估。在当前实现中，规则引擎已覆盖 13 类确定性风险场景，包括无候选器件、库存不足、停产器件、供应商过度集中以及关键字段缺失等。所有风险检测结果均以 \texttt{RiskItem} 列表形式统一输出，LLM 仅负责补充工程背景说明，不参与风险判定或新增风险条目，从而保证风险结论建立在可验证的事实基础之上。
 
-\textbf{SelectionReport} 与 \textbf{ReplacementReport} 分别作为 Pipeline 选型分析和替代器件搜索的顶层输出结构。SelectionReport 封装了原始用户输入、解析后的结构约束、候选器件完整列表、推荐器件子集、风险汇总、证据链全集和 Markdown 格式的摘要文本；ReplacementReport 则封装了原始型号信息、替代候选列表、兼容等级评估结论和结构化的对比摘要，为国产替代和功能等效替代两类场景提供了统一的数据返回格式。
+
+（五）\texttt{SelectionReport} 与 \texttt{ReplacementReport} 分别作为流水线选型分析和替代器件搜索的顶层输出结构。\texttt{SelectionReport} 封装了原始用户输入、解析后的结构约束、候选器件完整列表、推荐器件子集、风险汇总、证据链全集和摘要文本；\texttt{ReplacementReport} 则封装了原始型号信息、替代候选列表、兼容等级评估结论和结构化的对比摘要，为国产替代和功能等效替代两类场景提供了统一的数据返回格式。
