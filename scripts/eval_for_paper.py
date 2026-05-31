@@ -14,6 +14,10 @@ from pathlib import Path
 from collections import Counter, defaultdict
 from datetime import datetime
 
+# ── Load .env for LLM + API mode ──
+from dotenv import load_dotenv
+load_dotenv()
+
 # ── Ensure project root importable ──
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -386,7 +390,7 @@ def gen_figures(results, metrics):
         ax.set_title("Score Distribution of All Candidates", fontsize=11)
         ax.grid(axis="y", alpha=0.3)
         fig.tight_layout()
-        fig.savefig(FIG_DIR / "score_distribution.pdf")
+        fig.savefig(FIG_DIR / "score_distribution.pdf"); fig.savefig(FIG_DIR / "score_distribution.eps")
         plt.close(fig)
         print(f"  [FIG] {FIG_DIR / 'score_distribution.pdf'}")
 
@@ -408,7 +412,7 @@ def gen_figures(results, metrics):
                 startangle=90, textprops={"fontsize": 10})
             ax.set_title("Risk Level Distribution", fontsize=11)
             fig.tight_layout()
-            fig.savefig(FIG_DIR / "risk_distribution.pdf")
+            fig.savefig(FIG_DIR / "risk_distribution.pdf"); fig.savefig(FIG_DIR / "risk_distribution.eps")
             plt.close(fig)
             print(f"  [FIG] {FIG_DIR / 'risk_distribution.pdf'}")
 
@@ -429,7 +433,7 @@ def gen_figures(results, metrics):
             if v > 1000:
                 bars[i].set_color("#E74C3C")
         fig.tight_layout()
-        fig.savefig(FIG_DIR / "latency_per_case.pdf")
+        fig.savefig(FIG_DIR / "latency_per_case.pdf"); fig.savefig(FIG_DIR / "latency_per_case.eps")
         plt.close(fig)
         print(f"  [FIG] {FIG_DIR / 'latency_per_case.pdf'}")
 
@@ -458,7 +462,7 @@ def gen_figures(results, metrics):
             ax.text(bar.get_x() + bar.get_width()/2, v + 1, f"{v:.0f}%",
                     ha="center", va="bottom", fontsize=8)
         fig.tight_layout()
-        fig.savefig(FIG_DIR / "parse_accuracy.pdf")
+        fig.savefig(FIG_DIR / "parse_accuracy.pdf"); fig.savefig(FIG_DIR / "parse_accuracy.eps")
         plt.close(fig)
         print(f"  [FIG] {FIG_DIR / 'parse_accuracy.pdf'}")
 
@@ -477,7 +481,7 @@ def gen_figures(results, metrics):
         ax.set_title("Evidence Confidence Distribution", fontsize=11)
         ax.grid(axis="y", alpha=0.3)
         fig.tight_layout()
-        fig.savefig(FIG_DIR / "evidence_confidence.pdf")
+        fig.savefig(FIG_DIR / "evidence_confidence.pdf"); fig.savefig(FIG_DIR / "evidence_confidence.eps")
         plt.close(fig)
         print(f"  [FIG] {FIG_DIR / 'evidence_confidence.pdf'}")
 
