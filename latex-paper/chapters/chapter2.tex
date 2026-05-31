@@ -4,7 +4,7 @@
 
 \section{总体架构设计}
 
-系统采用"服务层—流水线（Pipeline）推理层—工具层—数据层"四层架构，如图\ref{fig:arch}所示（待补充系统架构图）。
+系统采用"服务层—流水线（Pipeline）推理层—工具层—数据层"四层架构，。
 
 \textbf{服务层}：基于FastAPI框架构建表述性状态传递（REST）风格API服务，暴露三个核心端点：\texttt{GET /health}（健康检查）、\texttt{POST /analyze}（输入自然语言需求，返回SelectionReport JSON）、\texttt{POST /replacement}（输入原厂型号，返回ReplacementReport JSON），负责请求路由、参数校验与错误处理。
 
@@ -42,7 +42,7 @@
 
 \subsection{双模自适应评分框架}
 
-系统评分引擎依据运行时环境自动选择评分模式，如图\ref{fig:scoring}所示（待补充评分流程图）。判断逻辑为：若环境变量\texttt{OPENAI\_API\_KEY}非空，且当前器件存在来自eZ-PLM参考设计接口的设计案例数据（\texttt{ref\_designs} $\neq \emptyset$），则启用LLM增强模式；否则回退至纯规则模式。两种模式共享参数评分与供应链评分两个基础维度，仅总分合并权重不同，保证评分结果的可比性与可降级性。
+系统评分引擎依据运行时环境自动选择评分模式，判断逻辑为：若环境变量\texttt{OPENAI\_API\_KEY}非空，且当前器件存在来自eZ-PLM参考设计接口的设计案例数据（\texttt{ref\_designs} $\neq \emptyset$），则启用LLM增强模式；否则回退至纯规则模式。两种模式共享参数评分与供应链评分两个基础维度，仅总分合并权重不同，保证评分结果的可比性与可降级性。
 
 \subsection{纯规则模式}
 
