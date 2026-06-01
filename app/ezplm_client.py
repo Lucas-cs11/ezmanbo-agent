@@ -18,7 +18,8 @@ def _load_parts() -> List[dict]:
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except Exception as e:
+        from .log_util import warn_swallow; warn_swallow("ezplm_client", e, "load_parts")
         return []
 
 
@@ -76,29 +77,37 @@ def search_parts(constraints: RequirementConstraints) -> List[PartIR]:
     results: List[PartIR] = []
 
     if ez_key:
-        # EZ-PLM API only supports keyword search (by MPN/name), not spec-based filtering.
-        topology = getattr(constraints, "topology", None) or ""
+        # EZ-PLM API only supports MPN-prefix search; category/topology keywords return 0.
+        # Use manufacturer-prefix keywords grouped by category/topology.
         category = getattr(constraints, "category", None) or ""
-        if topology == "buck":
-            keyword = "DC-DC Buck"
-        elif topology == "boost":
-            keyword = "DC-DC Boost"
-        elif category == "dc_dc_converter":
-            keyword = "DC-DC"
-        else:
-            keyword = topology or category or "DC-DC"
-        params: Dict[str, Any] = {"keyword": keyword, "pageSize": 50}
-        status, body = _request_json(ez_base, ez_key, "/api/v1/api-key/parts", params)
-        api_items = []
-        if status == 200:
-            api_items = body.get("data") or []
-        if api_items:
-            for p in api_items:
-                mapped = _map_api_part_to_partir(p)
-                if mapped and _part_matches_constraints(mapped, constraints):
-                    results.append(mapped)
-            return results
-        # API returned empty (whitelist restriction) — fall through to mock data
+        topology = getattr(constraints, "topology", None)
+
+        cat_map = _API_KEYWORDS.get(category) or _API_KEYWORDS.get("dc_dc_converter", {})
+        keywords: list = cat_map.get(topology) or cat_map.get(None) or []
+
+        seen_pns: set = set()
+        api_results: list = []
+
+        for kw in keywords:
+            if len(api_results) >= _API_MAX_TOTAL:
+                break
+            status, body = _request_json(
+                ez_base, ez_key, "/api/v1/api-key/parts",
+                {"keyword": kw, "pageSize": str(_API_MAX_PER_KEYWORD)},
+            )
+            if status != 200:
+                continue
+            for raw in (body.get("data") or []):
+                mapped = _map_api_part_to_partir(raw)
+                if not mapped or mapped.part_number in seen_pns:
+                    continue
+                seen_pns.add(mapped.part_number)
+                if _part_matches_constraints(mapped, constraints):
+                    api_results.append(mapped)
+
+        if api_results:
+            return api_results
+        # No API results for any prefix → fall through to mock data
 
     # local mock filtering (also used as fallback when API is empty)
     parts = _load_parts()
@@ -110,6 +119,22 @@ def search_parts(constraints: RequirementConstraints) -> List[PartIR]:
         if _part_matches_constraints(part, constraints):
             results.append(part)
     return results
+
+
+def fetch_reference_designs(part_id: str) -> List[Dict[str, Any]]:
+    """调用 /api/v1/api-key/reference-designs 获取该器件的参考设计列表。"""
+    ez_key = os.getenv("EZPLM_API_KEY", "").strip()
+    ez_base = os.getenv("EZPLM_BASE_URL", "https://www.ezplm.cn").strip()
+    if not ez_key or not part_id:
+        return []
+    status, body = _request_json(
+        ez_base, ez_key,
+        "/api/v1/api-key/reference-designs",
+        {"partlibId": part_id, "pageSize": "5"},
+    )
+    if status == 200:
+        return body.get("data") or []
+    return []
 
 
 def find_replacements(part_number: str) -> List[PartIR]:
@@ -154,6 +179,50 @@ _DOMESTIC_MANUFACTURERS = {
     "纳芯微", "杰华特", "芯源系统", "美芯晟", "晶丰明源", "上海贝岭",
 }
 
+# EZ-PLM API 仅支持型号前缀搜索，按 category/topology 分组
+# 覆盖已开放的 TI / ADI(含 LTC) / Microchip / ST 四大厂
+_API_KEYWORDS: Dict[str, Dict] = {
+    "dc_dc_converter": {
+        "buck":  ["TPS54", "TPS62", "LM2596", "LM2576", "ADP23", "LTC388", "LTC365", "ST1S", "L5970"],
+        "boost": ["TPS61", "TPS63", "LTC370", "LTC358", "MCP1640"],
+        None:    ["TPS54", "TPS62", "TPS61", "LM2596", "ADP23", "LTC388"],
+    },
+    "ldo": {
+        None:    ["TPS79", "TPS72", "MCP1703", "MCP1700", "ADP312", "LT1763", "MCP1501"],
+    },
+}
+_API_MAX_PER_KEYWORD = 50   # 每个 keyword 最多取 N 条
+_API_MAX_TOTAL = 200        # 总条数上限，避免过多请求
+
+
+# ── 型号输出固定电压解析（如 LM2596S-5.0 → 5.0V）────────────
+import re as _re_mpn
+
+_MPN_VOUT_PAT = _re_mpn.compile(
+    r"(?:^|[-\s])(\d+[.]?\d*)\s*[Vv]?(?:$|[-\s/])"
+)
+
+
+def _infer_output_voltage_from_mpn(part_number: str) -> "float | None":
+    """从型号中推断固定输出电压（如 LM2596S-5.0 → 5.0V）。
+    仅当型号含有明确电压数字时提取，ADJ 后缀的不提取。
+    """
+    if not part_number:
+        return None
+    if "ADJ" in part_number.upper():
+        return None
+    # 查找 -X.X 或 -XXV 模式（如 -5.0, -12, -3.3, -1.8V）
+    m = _re_mpn.search(_MPN_VOUT_PAT, part_number)
+    if not m:
+        return None
+    try:
+        v = float(m.group(1))
+        if 0.5 <= v <= 60:  # 合理的输出电压范围
+            return v
+    except ValueError:
+        pass
+    return None
+
 
 def _parse_attrs(attrs: list) -> Dict[str, Any]:
     """从 EZ-PLM attributes 数组中提取电气参数。"""
@@ -168,6 +237,10 @@ def _parse_attrs(attrs: list) -> Dict[str, Any]:
                 result["input_voltage_max_v"] = float(val)
             elif "输入电压" in name and "最小" in name:
                 result["input_voltage_min_v"] = float(val)
+            elif "输出电压" in name and ("标称" in name or "nominal" in name.lower()):
+                result["output_voltage_v"] = float(val)
+            elif "输出电压" in name:
+                result["output_voltage_v"] = float(val)
             elif "输出电流" in name and "最大" in name:
                 result["output_current_max_a"] = float(val)
             elif "温度" in name and ("范围" in name or "工作" in name):
@@ -178,6 +251,15 @@ def _parse_attrs(attrs: list) -> Dict[str, Any]:
                     result["temperature_max_c"] = float(m.group(2))
             elif "封装" in name or "package" in name.lower():
                 result["package"] = val
+            elif "拓扑" in name:
+                _topo_map = {
+                    "buck": "buck", "boost": "boost", "ldo": "ldo",
+                    "buck/boost": "buck_boost", "降压": "buck", "升压": "boost",
+                }
+                topo_raw = val.lower().strip()
+                result["topology"] = next(
+                    (v for k, v in _topo_map.items() if k in topo_raw), topo_raw
+                )
         except (ValueError, TypeError):
             pass
     return result
@@ -228,15 +310,22 @@ def _map_api_part_to_partir(api_obj: Dict[str, Any]) -> "PartIR | None":
         # parse attributes array for electrical specs
         attrs = _parse_attrs(api_obj.get("attributes") or [])
 
+        # MPN 推断优先于 API attrs：固定电压器件的型号电压比 API 属性更可靠
+        # （API attrs 可能返回"最大输出电压"等范围值，不可用于固定输出判定）
+        output_voltage_v = _infer_output_voltage_from_mpn(part_number)
+        if output_voltage_v is None:
+            output_voltage_v = attrs.get("output_voltage_v")
+
         return PartIR.parse_obj({
             "part_number": part_number,
             "manufacturer": manufacturer,
             "category": category,
-            "topology": api_obj.get("topology"),
+            "topology": attrs.get("topology") or api_obj.get("topology"),
             "is_domestic": is_domestic,
             "description": api_obj.get("description") or api_obj.get("summary"),
             "input_voltage_min_v": attrs.get("input_voltage_min_v"),
             "input_voltage_max_v": attrs.get("input_voltage_max_v"),
+            "output_voltage_v": output_voltage_v,
             "output_current_max_a": attrs.get("output_current_max_a"),
             "temperature_min_c": attrs.get("temperature_min_c"),
             "temperature_max_c": attrs.get("temperature_max_c"),
@@ -264,6 +353,19 @@ def _part_matches_constraints(part: PartIR, constraints: RequirementConstraints)
     if constraints.input_voltage_nominal_v is not None and part.input_voltage_min_v is not None and part.input_voltage_max_v is not None:
         if not (part.input_voltage_min_v <= constraints.input_voltage_nominal_v <= part.input_voltage_max_v):
             return False
+    # ── 输出固定电压匹配（P0修复：过滤固定电压不匹配的器件）────
+    part_vout = part.output_voltage_v
+    if part_vout is None:
+        # 尝试从型号推断
+        part_vout = _infer_output_voltage_from_mpn(part.part_number)
+        if part_vout is not None:
+            part.output_voltage_v = part_vout  # 回填
+    if (constraints.output_voltage_v is not None
+            and part_vout is not None
+            and part.topology in ("buck", None)):
+        # 对于固定输出器件，允许 ±5% 容差匹配
+        if not (0.95 * constraints.output_voltage_v <= part_vout <= 1.05 * constraints.output_voltage_v):
+            return False
     # output current
     if constraints.output_current_a is not None and (part.output_current_max_a is None or part.output_current_max_a < constraints.output_current_a):
         return False
@@ -273,9 +375,8 @@ def _part_matches_constraints(part: PartIR, constraints: RequirementConstraints)
             return False
         if not (part.temperature_min_c <= constraints.temperature_min_c and part.temperature_max_c >= constraints.temperature_max_c):
             return False
-    # automotive
-    if constraints.grade == "automotive" and not part.automotive_grade:
-        return False
+    # automotive — 不执行硬过滤（mock/API 数据普遍无车规认证字段），
+    # 车规需求仅在风险报告中标注"未确认车规认证"作为提示
     return True
 
 
