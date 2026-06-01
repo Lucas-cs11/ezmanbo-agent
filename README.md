@@ -59,7 +59,7 @@ PYTHONPATH=. python3 tests/eval_runner.py
 
 | 资源 | 说明 |
 |------|------|
-| Mock 器件库 | `data/mock_parts.json` — 1,237 条（Buck/Boost/LDO，国产/进口，车规/非车规） |
+| Mock 器件库 | `data/mock_parts.json` — 67 条（Buck 33 + Boost 12 + LDO 22，含国产/进口/车规标签） |
 | RAG 知识条目 | `data/knowledge/engineering_knowledge.json` — 29 条（Buck/Boost/LDO 设计 + 热管理/车规/Layout/供应链/EMI/可靠性） |
 | ChromaDB 向量库 | `data/chroma_db/` — 持久化存储，384 维向量 |
 
@@ -82,7 +82,6 @@ PYTHONPATH=. python3 tests/eval_runner.py
 | 答辩 PPT（15–20 页） | ⬜ |
 | 复现文档 | ⬜ |
 | eZ-PLM 对接文档 | 🟡 |
-| 门型展架（80×180cm） | ⬜ |
 | 作品展示照片（5 张） | ⬜ |
 
 ---
@@ -119,7 +118,7 @@ PYTHONPATH=. python3 tests/eval_runner.py
 | `scripts/import_parts_from_api.py` | eZ-PLM API 批量导入 |
 | `scripts/llm_demo.py` | LLM 需求解析快速验证 |
 | `scripts/eval_for_paper.py` | 论文评测数据采集脚本 |
-| `data/mock_parts.json` | 1,237 条 Mock 器件 |
+| `data/mock_parts.json` | 67 条 Mock 器件 |
 | `data/knowledge/engineering_knowledge.json` | 29 条 RAG 工程知识 |
 
 ### 测试 / 论文 / 文档
