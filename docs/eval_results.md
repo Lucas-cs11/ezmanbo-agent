@@ -1,52 +1,122 @@
 [
   {
     "case_id": "dc_dc_001",
+    "input": "我需要一个 12V 转 5V、3A 的车规级降压芯片，工作温度 -40°C 到 125°C，优先国产替代。",
     "passed": true,
-    "recommended_count": 10
+    "failures": [],
+    "recommended_count": 0,
+    "risk_level": "high",
+    "top1": null,
+    "top1_score": null,
+    "elapsed_s": 15.87,
+    "mode": "rule-only"
   },
   {
     "case_id": "dc_dc_002",
+    "input": "需要 24V 转 12V、2A 的降压方案，工作温度 -40°C 到 85°C。",
     "passed": true,
-    "recommended_count": 15
+    "failures": [],
+    "recommended_count": 5,
+    "risk_level": "medium",
+    "top1": "TPS1100D",
+    "top1_score": 93.33,
+    "elapsed_s": 0.03,
+    "mode": "rule-only"
   },
   {
     "case_id": "dc_dc_003",
+    "input": "我需要 12V 转 5V、4A 的降压芯片，非车规，室温使用。",
     "passed": true,
-    "recommended_count": 4
+    "failures": [],
+    "recommended_count": 1,
+    "risk_level": "medium",
+    "top1": "MOCK-BUCK-005",
+    "top1_score": 86.67,
+    "elapsed_s": 0.02,
+    "mode": "rule-only"
   },
   {
     "case_id": "dc_dc_004",
+    "input": "12V转5V，3A，温度范围 -20C 到 85C，优先低供应链风险。",
     "passed": true,
-    "recommended_count": 11
+    "failures": [],
+    "recommended_count": 5,
+    "risk_level": "low",
+    "top1": "MOCK-BUCK-005",
+    "top1_score": 93.33,
+    "elapsed_s": 0.01,
+    "mode": "rule-only"
   },
   {
     "case_id": "dc_dc_005",
+    "input": "请给我一个 5V 到 3.3V 的降压芯片，输出 1A。",
     "passed": true,
-    "recommended_count": 6
+    "failures": [],
+    "recommended_count": 5,
+    "risk_level": "medium",
+    "top1": "TPS1100D",
+    "top1_score": 100.0,
+    "elapsed_s": 0.02,
+    "mode": "rule-only"
   },
   {
     "case_id": "dc_dc_006",
+    "input": "需要 48V 转 12V、1.5A 的降压模块，用于工业温度 -40°C 到 85°C，优先国产。",
     "passed": true,
-    "recommended_count": 2
+    "failures": [],
+    "recommended_count": 5,
+    "risk_level": "medium",
+    "top1": "TPS16530PWPR",
+    "top1_score": 100.0,
+    "elapsed_s": 0.02,
+    "mode": "rule-only"
   },
   {
     "case_id": "dc_dc_007",
+    "input": "找一个 9V 转 5V、2A 的降压，温度 0°C 到 70°C，非车规。",
     "passed": true,
-    "recommended_count": 7
+    "failures": [],
+    "recommended_count": 5,
+    "risk_level": "low",
+    "top1": "MOCK-BUCK-005",
+    "top1_score": 100.0,
+    "elapsed_s": 0.01,
+    "mode": "rule-only"
   },
   {
     "case_id": "dc_dc_008",
+    "input": "需要 12V 到 5V、3A 的车规级降压（automotive）。",
     "passed": true,
-    "recommended_count": 9
+    "failures": [],
+    "recommended_count": 0,
+    "risk_level": "high",
+    "top1": null,
+    "top1_score": null,
+    "elapsed_s": 0.02,
+    "mode": "rule-only"
   },
   {
     "case_id": "dc_dc_009",
+    "input": "5V转3.3V，输出 0.5A，优先低供应链风险。",
     "passed": true,
-    "recommended_count": 8
+    "failures": [],
+    "recommended_count": 5,
+    "risk_level": "medium",
+    "top1": "TPS1100D",
+    "top1_score": 100.0,
+    "elapsed_s": 0.03,
+    "mode": "rule-only"
   },
   {
     "case_id": "dc_dc_010",
+    "input": "输入 24V，输出 5V，电流 10A，高功率场景。",
     "passed": true,
-    "recommended_count": 2
+    "failures": [],
+    "recommended_count": 0,
+    "risk_level": "high",
+    "top1": null,
+    "top1_score": null,
+    "elapsed_s": 0.02,
+    "mode": "rule-only"
   }
 ]

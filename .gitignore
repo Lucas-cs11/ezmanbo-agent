@@ -4,3 +4,8 @@ __pycache__/
 *.pyc
 .omc/
 .idea/
+data/chroma_db/
+docs/reports/
+latex-paper/*.pdf
+scripts/archive/
+data/mock_parts.json.backup*
