@@ -121,6 +121,48 @@ def _assess_risks(constraints: RequirementConstraints, scored: List[ScoredPart])
                 mitigation="核实输入电压范围、输出电流余量是否满足实际工况，必要时重新选型。",
             ))
 
+    # ── P0 新增：数据完整性风险 ──────────────────────────────────
+    _all_parts = scored or []
+    # 10. 生命周期状态全部未知
+    if _all_parts and all(not p.part.lifecycle_status for p in _all_parts):
+        risk_items.append(RiskItem(
+            risk_type="supply",
+            severity="medium",
+            description=f"全部 {len(_all_parts)} 条候选器件的生命周期状态未知，无法评估停产/断供风险。",
+            mitigation="从制造商官网或授权分销商处确认各器件当前生命周期状态（Active/NRND/EOL）。",
+        ))
+
+    # 11. 库存信息全部缺失
+    if _all_parts and all(p.part.stock is None for p in _all_parts):
+        risk_items.append(RiskItem(
+            risk_type="supply",
+            severity="medium",
+            description="全部候选器件的当前库存信息缺失，无法评估现货供应能力与交期。",
+            mitigation="通过 eZ-PLM API 或分销商接口获取实时库存数据。",
+        ))
+
+    # 12. 封装信息全部缺失
+    if _all_parts and all(not p.part.package for p in _all_parts):
+        risk_items.append(RiskItem(
+            risk_type="engineering",
+            severity="low",
+            description="全部候选器件的封装信息缺失，PCB Layout 评估缺少依据。",
+            mitigation="从数据手册或制造商网站获取封装代码与推荐焊盘图纸。",
+        ))
+
+    # 13. 地缘政治/贸易合规风险（推荐器件全部来自单一非国产供应商）
+    if recommended:
+        all_mfrs = {p.part.manufacturer for p in recommended if p.part.manufacturer}
+        if len(recommended) >= 2 and len(all_mfrs) == 1:
+            sole_mfr = next(iter(all_mfrs))
+            if not any(p.part.is_domestic for p in recommended):
+                risk_items.append(RiskItem(
+                    risk_type="supply",
+                    severity="medium",
+                    description=f"推荐器件全部来自境外单一供应商 {sole_mfr}，存在贸易管制/关税变动的地缘政治风险。",
+                    mitigation="纳入至少 1 家国产兼容型号作为第二供应源，或评估非美国来源替代方案。",
+                ))
+
     # ── 整体风险等级 ──────────────────────────────────────────────
     severities = {r.severity for r in risk_items}
     if "high" in severities:
