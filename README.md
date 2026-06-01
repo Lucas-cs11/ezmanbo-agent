@@ -32,151 +32,58 @@ PYTHONPATH=. python3 tests/eval_runner.py
 
 ---
 
-## 当前进展（2026-05-30）
+## 项目现状（2026-06-01）
 
-### 已完成模块
+### 核心模块
 
-| 模块 | 文件 | 状态 | 说明 |
-|------|------|:----:|------|
-| 数据模型 | `app/schemas.py` | ✅ | PartIR / RiskIR / TopologyIR / ScoreBreakdown，Pydantic v2 + dataclass 双实现 |
-| 需求解析 | `app/requirement_parser.py` | ✅ | 四级容错链：LLM 语义 → 规则覆盖 → 电压兜底 → 温度匹配 |
-| eZ-PLM 客户端 | `app/ezplm_client.py` | ✅ | HMAC-SHA256 签名 + 多前缀分组查询 + MPN 电压推断 + Mock 兜底 |
-| LLM 客户端 | `app/llm_client.py` | ✅ | DeepSeek/OpenAI 兼容，需求解析 + 器件评分双 Prompt |
-| 混合评分 | `app/scoring.py` | ✅ | 双模自适应（rule_only / llm_enhanced）+ 去重 + Top-N 分级 |
-| 证据链 | `app/evidence.py` | ✅ | 8 类字段级证据，含置信度与人工复核标记 |
-| 风险报告 | `app/report_generator.py` | ✅ | 13 条规则引擎 + LLM 叙述分离 + FMEA RPN + 5×5 热力矩阵 |
-| 报告输出 | `app/output_generator.py` | ✅ | BOM / 风险评估 / 拓扑分析 Markdown + TopologyIR JSON |
-| Pipeline 调度 | `app/agent_orchestrator.py` | ✅ | 五阶段流水线 + RAG 自动检索 + 参考设计拉取 |
-| RAG 知识库 | `app/rag.py` | ✅ | ChromaDB + sentence-transformers，29 条工程知识（11 个类别） |
-| ReAct Agent | `app/react_agent.py` | ✅ | LangChain 1.3，4 工具，多轮会话 |
-| Agent 工具 | `app/agent_tools.py` | ✅ | search / knowledge / alternatives / report |
-| 数据手册 RAG | `app/datasheet_rag.py` | ✅ | 数据手册 QA 模块（队员 B） |
-| FastAPI 服务 | `app/main.py` | ✅ | `/health` `/analyze` `/replacement` `/agent/chat` `/agent/sessions` |
-| Mock 数据 | `data/mock_parts.json` | ✅ | 1237 条（Buck/Boost/LDO，国产/进口，车规/非车规） |
-| RAG 知识条目 | `data/knowledge/` | ✅ | 29 条（Buck/Boost/LDO 设计 + USB-C PD + 热管理/车规/Layout/供应链/EMI/可靠性） |
-| Streamlit 前端 | `frontend/streamlit_app.py` | ✅ | 增强版 UI（队员 A） |
-| 评测框架 | `tests/eval_runner.py` | ✅ | 20 条用例，90% 通过率（队员 A 扩展） |
-| PDF 报告生成 | `generate_detailed_pdf.py` | ✅ | 中文 PDF 工作报告（队员 B） |
-| 技术论文 | `latex-paper/` | ✅ | LaTeX 6 章 + 40 篇参考文献，Overleaf-ready |
-| CI/CD | `.github/workflows/` | ✅ | Python 3.11 自动评测 |
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| 数据模型 | `app/schemas.py` | PartIR / RiskIR / TopologyIR / ScoreBreakdown，Pydantic v2 |
+| 需求解析 | `app/requirement_parser.py` | 四级容错链：LLM 语义 → 规则覆盖 → 电压兜底 → 温度匹配 |
+| eZ-PLM 客户端 | `app/ezplm_client.py` | HMAC-SHA256 签名 + 多前缀分组查询 + MPN 电压推断 + Mock 兜底 |
+| LLM 客户端 | `app/llm_client.py` | DeepSeek/OpenAI 兼容，需求解析 + 器件评分双 Prompt |
+| 混合评分 | `app/scoring.py` | 双模自适应（rule_only / llm_enhanced）+ 去重 + Top-N 分级 |
+| 证据链 | `app/evidence.py` | 8 类字段级证据，含置信度与人工复核标记 |
+| 风险报告 | `app/report_generator.py` | 13 条规则引擎 + LLM 叙述分离 + FMEA RPN + 5×5 热力矩阵 |
+| 报告输出 | `app/output_generator.py` | BOM / 风险评估 / 拓扑分析 Markdown + TopologyIR JSON |
+| BOM 输出 | `app/output_bom.py` | BOM 选型清单 Markdown 渲染（独立模块） |
+| Pipeline 调度 | `app/agent_orchestrator.py` | 五阶段流水线 + RAG 自动检索 + 参考设计拉取 |
+| RAG 知识库 | `app/rag.py` | ChromaDB + sentence-transformers，29 条工程知识（11 个类别） |
+| ReAct Agent | `app/react_agent.py` | LangChain 1.3，4 工具，多轮会话，幻觉检测 |
+| Agent 工具 | `app/agent_tools.py` | search / knowledge / alternatives / report |
+| 数据手册 RAG | `app/datasheet_rag.py` | 数据手册 QA 模块 |
+| FastAPI 服务 | `app/main.py` | `/health` `/analyze` `/replacement` `/agent/chat` `/agent/sessions` |
+| 调试日志 | `app/log_util.py` | 调试日志工具 |
+
+### 数据与知识库
+
+| 资源 | 说明 |
+|------|------|
+| Mock 器件库 | `data/mock_parts.json` — 1,237 条（Buck/Boost/LDO，国产/进口，车规/非车规） |
+| RAG 知识条目 | `data/knowledge/engineering_knowledge.json` — 29 条（Buck/Boost/LDO 设计 + 热管理/车规/Layout/供应链/EMI/可靠性） |
+| ChromaDB 向量库 | `data/chroma_db/` — 持久化存储，384 维向量 |
 
 ### 评测结果
 
-```
-队员 A 20 条用例版：18/20（90%）
-队长 10 条用例版：  10/10（100%）
-```
+| 评测 | 用例数 | 通过率 |
+|------|:------:|:------:|
+| 端到端 Pipeline | 28 条（Buck 14 + Boost 4 + LDO 10） | 100% |
+| 核心字段解析准确率 | 7 个字段 | 100% |
+| 证据链 | 846 条（平均置信度 0.90） | — |
+| 端到端延迟 | 28 条用例 | 中位数 4.55s |
 
----
+### 竞赛提交材料进度
 
-## 分支合并状态（2026-05-28 晚）
-
-| 分支 | 负责人 | 提交数 | 状态 |
-|------|--------|:------:|:----:|
-| `feature/backend/more-mock-data` | 队员 B | — | ✅ 已合并至 main（5/28 上午） |
-| `feature/backend/api-integration` | 队员 B | 10 | ✅ 已合并至 main（5/28 晚） |
-| `feature/frontend/eval-report` | 队员 A | 3 | ✅ 已合并至 main（5/28 晚） |
-| `feature/frontend/ui-v2` | 队员 A | 0 | ✅ 已包含于 eval-report |
-
-> 当前 GitHub 仅保留 `main` 分支（43 次提交）。详细合并报告见 [`docs/merge-report-2026-05-28.md`](docs/merge-report-2026-05-28.md)。
-
----
-
-## 项目规划 vs 实际进度（对照总规划文件）
-
-> 基准：总规划五周 5/14–6/20。当前日期：5/28 晚（W2 结束，进入 W3）。
-
-| 阶段 | 规划任务 | 状态 | 差距说明 |
-|------|----------|:----:|------|
-| **W1** 地基 (5/14–20) | IR 数据模型定义 | ✅ | PartIR / RiskIR / TopologyIR / ScoreBreakdown 全部就绪 |
-| | eZ-PLM API 客户端（含 Mock） | ✅ | HMAC-SHA256 签名 + 多前缀分组查询 + 209 条 Mock |
-| | 注册 eZ-PLM，读懂 API 文档 | ✅ | 操作手册已入库 |
-| **W2** 知识库 (5/21–27) | 收集工程文档 | ✅ | 12 条知识条目（Buck/热/车规/Layout/供应链） |
-| | 搭建 ChromaDB 向量知识库 | ✅ | `app/rag.py`，持久化存储，Pipeline 自动集成 |
-| | 验证 RAG 检索准确性 | ✅ | Top-3 结果相关度 0.50–0.57 |
-| **W3** Agent (5/28–6/3) | 实现 LangChain ReAct Agent | ✅ | 4 工具，多轮会话，`/agent/chat` 端点（提前完成） |
-| | 封装三个工具 | ✅ | search / knowledge / alternatives / report |
-| | 场景 1（USB-C PD 方案）端到端 | ✅ | Pipeline 跑通，功率推断 100W→20V/5A |
-| | 场景 2（车规降压）端到端 | ✅ | Pipeline 跑通，车规硬过滤已移除 |
-| | 场景 3（国产替代追问） | ✅ | Agent 多轮对话跑通 |
-| **W4** 集成 (6/4–10) | FastAPI 后端 + 会话管理 | ✅ | 5 端点就绪，Agent 多轮会话支持 |
-| | Streamlit 前端界面 | ✅ | 增强版 UI，竞赛三场景快捷入口 |
-| | 接入真实 eZ-PLM API | ✅ | TI/ADI/Microchip/ST 四厂，单次召回 31 条 |
-| | 三个演示场景全跑通 | ✅ | 场景 1/2/3 全部可演示 |
-| **W5** 交付 (6/11–20) | 技术论文 6000–8000 字 | ✅ | LaTeX 6 章定稿，40 篇参考文献，27 处引用 |
-| | 演示视频 3–5 分钟 | ⬜ | |
-| | 答辩 PPT 15–20 页 | ⬜ | |
-| | 门型展架设计 | ⬜ | |
-| | 复现文档 | ⬜ | |
-| | eZ-PLM 对接文档 | ⬜ | |
-| | 作品展示照片 5 张 | ⬜ | |
-| | 完整源代码 | ✅ | 43 commits，15 模块 |
-
-### 竞赛提交清单对照
-
-| 材料 | 规格 | 状态 |
-|------|------|:----:|
-| 技术论文 | PDF + DOCX，6000–8000 字 | 🟡 初稿 |
-| 演示视频 | MP4，1080p，3–5 分钟 | ⬜ |
-| 完整源代码 | 含 README、requirements.txt | ✅ |
-| AI 相关文件 | Prompt 模板、知识库数据、Agent 配置 | 🟡 缺整理打包 |
-| 复现文档 | 详细步骤、依赖清单、预期结果 | ⬜ |
-| eZ-PLM 对接文档 | API 调用方式、数据流向、IR 提交 | 🟡 部分（操作手册已入库） |
-| 答辩 PPT | 15–20 页 | ⬜ |
-| 门型展架 | JPG，80×180cm，≤30MB | ⬜ |
-| 作品展示照片 | 5 张，全貌+特写，每张 ≤2MB | ⬜ |
-| 专家评审表 | — | ⬜ |
-
----
-
-## 后续工作计划与分工（截至 6/20 提交）
-
-### 场景补齐（W3 剩余 + W4，截至 6/10）
-
-| 优先级 | 任务 | 负责人 | 说明 |
-|:----:|------|:----:|------|
-| ✅ | **场景 1 USB-C PD 100W 方案** | 已完成 | 功率推断 100W→20V/5A，Pipeline + Streamlit 可演示 |
-| ✅ | **场景 2 车规降压完整演示** | 已完成 | 车规硬过滤已移除，Pipeline + Streamlit 可演示 |
-| ✅ | **场景 3 国产替代追问打磨** | 已完成 | Agent 多轮对话 + 幻觉检测，`/agent/chat` 端点可用 |
-| 🟡 | **Streamlit 对接 Agent 推理可视化** | 队员 A | 展示工具调用步骤卡片、中间结果折叠面板 |
-| 🟢 | **LDO 测试用例补充** | 队员 A | `tests/cases/ldo_cases.jsonl`，≥5 条 |
-| 🟢 | **RAG 知识库扩充** | 队长 | 工程知识 12→30+ 条，导入 TI 应用笔记 + IPC 标准 |
-
-### 材料冲刺（W5，6/11–6/20）
-
-| 优先级 | 任务 | 负责人 | 说明 |
-|:----:|------|:----:|------|
-| 🔴 | **论文定稿** | 队长 | 补充场景 1/2 实验结果，润色英文摘要，确认图表引用 |
-| 🔴 | **演示视频录制** | 队员 A | 三个场景完整演示 + 画外音解说，1080p，3–5 分钟 |
-| 🔴 | **答辩 PPT** | 全员 | 15–20 页，分工：队长 技术架构+创新点，队员 B API/测试，队员 A 前端/演示 |
-| 🟡 | **复现文档** | 队员 B | 环境配置步骤、依赖清单、评测复现命令、预期输出 |
-| 🟡 | **eZ-PLM 对接文档** | 队员 B | API 签名流程、IR 数据格式、数据流向图、提交示例 |
-| 🟡 | **门型展架设计** | 队员 A | 80×180cm，JPG，含架构图+场景截图+QR码 |
-| 🟢 | **AI 文件整理** | 队长 | Prompt 模板、知识库数据 JSON、Agent 配置文件收集打包 |
-| 🟢 | **作品展示照片** | 全员 | 系统运行界面 5 张（主页+分析结果+报告+BOM+拓扑图） |
-| 🟢 | **代码最终检查** | 全员 | CI 全绿、README 最终更新、.gitignore 无敏感文件 |
-
-### 每日工作流
-
-```bash
-# 从 main 创建当日分支
-git checkout main && git pull origin main
-git checkout -b feature/<role>/<task>
-
-# 开发 → 测试 → 提交
-# 评测验证
-PYTHONPATH=. python3 tests/eval_runner.py
-
-# 推送到 GitHub
-git push origin feature/<role>/<task>
-# → 发起 PR → main，队长 Review 后 Squash & Merge
-```
-
-| 角色 | 当前负责文件 |
-|------|-------------|
-| 队长 | `app/rag.py` `app/agent_tools.py` `app/react_agent.py` `app/scoring.py` `app/requirement_parser.py` `app/agent_orchestrator.py` `data/knowledge/` `latex-paper/` |
-| 队员 B | `app/ezplm_client.py` `app/main.py` `data/mock_parts.json` `generate_detailed_pdf.py` `app/datasheet_rag.py` |
-| 队员 A | `frontend/streamlit_app.py` `tests/eval_runner.py` `tests/cases/` `docs/` |
+| 材料 | 状态 |
+|------|:----:|
+| 技术论文（LaTeX，~8,400 字正文，30 页，38 篇参考文献） | ✅ 定稿 |
+| 完整源代码（89 commits） | ✅ |
+| 演示视频（MP4，1080p，3–5 分钟） | ⬜ |
+| 答辩 PPT（15–20 页） | ⬜ |
+| 复现文档 | ⬜ |
+| eZ-PLM 对接文档 | 🟡 |
+| 门型展架（80×180cm） | ⬜ |
+| 作品展示照片（5 张） | ⬜ |
 
 ---
 
@@ -194,36 +101,37 @@ git push origin feature/<role>/<task>
 | `evidence.py` | 8 类字段级证据链（含置信度 + 人工复核标记） |
 | `report_generator.py` | 双层风险评估（13 条规则引擎 + LLM 叙述分离） |
 | `output_generator.py` | BOM / 风险评估 / 拓扑分析 Markdown + TopologyIR JSON |
+| `output_bom.py` | BOM 选型清单生成（独立模块） |
 | `agent_orchestrator.py` | Pipeline 主调度 + RAG 检索 + LLM 参考设计拉取 |
 | `main.py` | FastAPI 服务（5 端点） |
 | `rag.py` | ChromaDB 向量存储 + sentence-transformers 语义检索 |
 | `agent_tools.py` | 4 个 LangChain Tool（搜索/知识/替代/报告） |
 | `react_agent.py` | ReAct Agent + 多轮会话管理 + 幻觉检测 |
-| `output_bom.py` | BOM 选型清单生成（独立模块） |
-| `datasheet_rag.py` | 数据手册 RAG 模块（队员 B） |
+| `datasheet_rag.py` | 数据手册 RAG 模块 |
+| `log_util.py` | 调试日志工具 |
 
 ### 前端 / 脚本 / 数据
 
 | 路径 | 说明 |
 |------|------|
-| `frontend/streamlit_app.py` | Streamlit 增强版 UI（队员 A） |
+| `frontend/streamlit_app.py` | Streamlit 增强版 UI，竞赛三场景快捷入口 |
 | `scripts/build_knowledge_base.py` | RAG 知识库构建（`--rebuild` / `--query`） |
 | `scripts/import_parts_from_api.py` | eZ-PLM API 批量导入 |
 | `scripts/llm_demo.py` | LLM 需求解析快速验证 |
-| `data/mock_parts.json` | 209 条 Mock 器件 |
-| `data/knowledge/engineering_knowledge.json` | 12 条 RAG 工程知识 |
-| `generate_detailed_pdf.py` | PDF 工作报告生成（队员 B） |
+| `scripts/eval_for_paper.py` | 论文评测数据采集脚本 |
+| `data/mock_parts.json` | 1,237 条 Mock 器件 |
+| `data/knowledge/engineering_knowledge.json` | 29 条 RAG 工程知识 |
 
-### 测试 / 文档
+### 测试 / 论文 / 文档
 
 | 路径 | 说明 |
 |------|------|
-| `tests/eval_runner.py` | 20 条用例自动评测框架（队员 A 扩展） |
+| `tests/eval_runner.py` | 自动评测框架 |
 | `tests/cases/dc_dc_cases.jsonl` | DC-DC 评测用例 |
-| `latex-paper/` | 技术论文 LaTeX 包（XeLaTeX 编译） |
-| `docs/daily/` | 工作日报 |
+| `tests/cases/ldo_cases.jsonl` | LDO 评测用例 |
+| `面向eZ_PLM的...系统v3/` | 技术论文 LaTeX 包（XeLaTeX → BibTeX → XeLaTeX ×2 编译） |
 | `docs/merge-report-2026-05-28.md` | 分支合并详细报告 |
-| `docs/eval_results/` | 评测结果（队员 A） |
+| `docs/eval_results/` | 评测结果 |
 
 ---
 
@@ -245,7 +153,7 @@ curl -s -X POST http://localhost:8000/analyze \
   -H 'Content-Type: application/json' \
   -d '{"user_input":"12V转5V 3A 车规"}' | python3 -m json.tool
 
-# Agent 对话（单轮）
+# Agent 单轮对话
 curl -s -X POST http://localhost:8000/agent/chat \
   -H 'Content-Type: application/json' \
   -d '{"user_input":"12V转5V 3A buck降压芯片推荐"}'
@@ -269,6 +177,20 @@ curl -s -X POST http://localhost:8000/agent/chat \
 | `OPENAI_MODEL` | 否 | 模型名称；DeepSeek 设为 `deepseek-chat` |
 
 复制 `.env.example` 为 `.env` 并填写密钥。**`.env` 已在 `.gitignore` 中，勿提交。**
+
+---
+
+## 论文编译
+
+```bash
+cd "面向eZ_PLM的电子元器件智能选型与风险评估Agent系统v3"
+xelatex main.tex
+bibtex main
+xelatex main.tex
+xelatex main.tex
+```
+
+需安装 TeX Live 2025（含 `gbt7714` 宏包）及 Fandol 中文字体。
 
 ---
 
