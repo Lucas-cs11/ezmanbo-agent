@@ -14,14 +14,14 @@
 \usepackage{tabularx}
 \usepackage{booktabs}
 \usepackage{float}
+\usepackage{placeins}
 \usepackage{caption}
 \usepackage{amsmath,amssymb}
-\usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{array}
 \usepackage{multirow}
 \usepackage{hyperref}
-\usepackage{cite}
+\usepackage{gbt7714}
 \usepackage{enumitem}
 \usepackage{xcolor}
 \usepackage{listings}
@@ -93,7 +93,7 @@
 }
 
 % ── 参考文献 ────────────────────────────────────────────────
-\bibliographystyle{unsrt}
+\bibliographystyle{gbt7714-numerical}
 
 % ================================================================
 \begin{document}
@@ -105,7 +105,7 @@
 \thispagestyle{empty}
 \begin{center}
 \vspace*{1cm}
-{\heitifont\zihao{1} 第二十一届中国研究生电子设计竞赛}\\[0.6cm]
+{\heitifont\zihao{-1} 第二十一届中国研究生电子设计竞赛}\\[0.6cm]
 {\heitifont\zihao{1} 技术论文}\\[2.5cm]
 {\heitifont\zihao{-2} 论文题目：}\\[0.5cm]
 {\heitifont\zihao{-2} 面向eZ-PLM的电子元器件智能选型与风险评估Agent系统}\\[0.6cm]
@@ -170,7 +170,7 @@
 \chapter{实验测试与结果分析}
 \input{chapters/chapter5}
 
-\chapter{总结与展望}
+\chapter{总结}
 \input{chapters/chapter6}
 
 % ═══════════════════════════════════════════════════════════════
