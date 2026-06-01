@@ -276,7 +276,7 @@ def _generate_report_html(
         p{font-size:0.82rem;color:#475569;margin:0.15rem 0;line-height:1.5;}
         hr{border:0;border-top:1px solid #e2e8f0;margin:0.3rem 0;}
     """
-    return f"<html><head><meta charset='utf-8'>{css}</head><body>{''.join(rows)}</body></html>"
+    return f"<html><head><meta charset='utf-8'><style>{css}</style></head><body>{''.join(rows)}</body></html>"
 
 
 # ---------- Sidebar ----------
