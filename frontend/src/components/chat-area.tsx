@@ -4,6 +4,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useStore } from "@/store/useStore";
 import type { Message, Session } from "@/store/useStore";
 import { MessageBubble } from "@/components/MessageBubble";
+import { ReportCard } from "@/components/ReportCard";
+import { PdfViewer } from "@/components/PdfViewer";
+import type { ReportBundle } from "@/store/useStore";
 
 function generateId() {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -50,7 +53,172 @@ export function ChatArea() {
     setActiveSession,
   } = useStore();
 
+  const {
+    setReportBundle,
+    setPdfUrl,
+    setPdfLoading,
+    reportBundle,
+  } = useStore();
+
   const activeSession = sessions.find((s) => s.id === activeSessionId);
+
+  /* ── 报告加载 ── */
+  const fetchReports = useCallback(
+    async (query: string) => {
+      setPdfLoading(true);
+      const backendUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+      try {
+        // 1. 请求结构化报告 JSON
+        const jsonRes = await fetch(
+          `${backendUrl}/api/report/json?q=${encodeURIComponent(query)}`
+        );
+        if (jsonRes.ok) {
+          const bundle: ReportBundle = await jsonRes.json();
+          setReportBundle(bundle);
+        }
+      } catch {
+        // 如果后端未实现，使用 mock 数据演示
+        setReportBundle({
+          selection: {
+            type: "selection",
+            title: "选型报告 · LM2596 降压电路",
+            parts: [
+              {
+                partNumber: "LM2596T-5.0",
+                manufacturer: "TI",
+                description: "3A 150kHz 降压转换器",
+                score: 85,
+                level: "HIGH",
+                params: { Vin: "40V", Iout: "3A", Freq: "150kHz" },
+              },
+              {
+                partNumber: "LM2596HV",
+                manufacturer: "TI",
+                description: "3A 150kHz 高压降压转换器",
+                score: 92,
+                level: "HIGH",
+                params: { Vin: "60V", Iout: "3A", Freq: "150kHz" },
+              },
+              {
+                partNumber: "TPS5430",
+                manufacturer: "TI",
+                description: "3A 500kHz 降压转换器",
+                score: 78,
+                level: "MEDIUM",
+                params: { Vin: "36V", Iout: "3A", Freq: "500kHz" },
+              },
+            ],
+          },
+          risk: {
+            type: "risk",
+            title: "风险评估报告 · LM2596 降压电路",
+            risks: [
+              {
+                id: "r1",
+                category: "电压应力",
+                level: "HIGH",
+                description:
+                  "LM2596 输入电压 24V，耐压裕量仅 33%，低于推荐 50% 裕量",
+                recommendation: "建议更换为耐压 ≥40V 的降压转换器",
+                confidence: 0.92,
+              },
+              {
+                id: "r2",
+                category: "热管理",
+                level: "MEDIUM",
+                description: "预估结温 Tj=112°C，接近 125°C 上限",
+                recommendation: "增加散热铜皮面积或考虑外部散热器",
+                confidence: 0.78,
+              },
+              {
+                id: "r3",
+                category: "输出纹波",
+                level: "LOW",
+                description: "计算输出纹波 15mVpp，在目标 20mVpp 范围内",
+                recommendation: "当前布局满足要求，可维持设计",
+                confidence: 0.95,
+              },
+              {
+                id: "r4",
+                category: "电感选型",
+                level: "MEDIUM",
+                description: "推荐电感饱和电流 2.5A，需求峰值电流 2.8A",
+                recommendation: "更换为饱和电流 ≥3.5A 的电感",
+                confidence: 0.85,
+              },
+            ],
+          },
+          replacement: {
+            type: "replacement",
+            title: "替换建议报告 · LM2596 降压电路",
+            replacements: [
+              {
+                originalPart: "LM2596T-5.0",
+                alternativePart: "LM2596HVT-5.0",
+                manufacturer: "TI",
+                reason: "输入电压裕量不足，LM2596HV 支持 60V 耐压，裕量提升至 60%",
+                paramDifferences: [
+                  {
+                    param: "Vin(max)",
+                    original: "40V",
+                    alternative: "60V",
+                  },
+                  {
+                    param: "Iout",
+                    original: "3A",
+                    alternative: "3A",
+                  },
+                  {
+                    param: "Freq",
+                    original: "150kHz",
+                    alternative: "150kHz",
+                  },
+                  {
+                    param: "Tj(max)",
+                    original: "125°C",
+                    alternative: "125°C",
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+
+      // 2. 请求 PDF 报告
+      try {
+        const pdfRes = await fetch(
+          `${backendUrl}/api/report/pdf?q=${encodeURIComponent(query)}`
+        );
+        if (pdfRes.ok) {
+          const blob = await pdfRes.blob();
+          const url = URL.createObjectURL(blob);
+          setPdfUrl(url);
+        }
+      } catch {
+        // PDF 暂不可用
+        setPdfUrl(null);
+      }
+
+      setPdfLoading(false);
+    },
+    [setReportBundle, setPdfUrl, setPdfLoading]
+  );
+
+  /* ── SSE 完成后加载报告 ── */
+  useEffect(() => {
+    if (streamComplete && streamDuration !== null) {
+      const lastUserMsg = activeSession?.messages
+        .slice()
+        .reverse()
+        .find((m) => m.role === "user");
+      if (lastUserMsg) {
+        fetchReports(lastUserMsg.content);
+      }
+    }
+  }, [streamComplete, streamDuration, activeSession?.messages, fetchReports]);
 
   const cancelStream = useCallback(() => {
     if (eventSourceRef.current) {
@@ -315,8 +483,18 @@ export function ChatArea() {
           </div>
         )}
 
+        {/* Report Card */}
+        {!isStreaming && reportBundle && (
+          <div className="max-w-4xl mx-auto">
+            <ReportCard />
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
+
+      {/* PdfViewer - fullscreen overlay */}
+      <PdfViewer />
 
       {/* Input Area */}
       <div className="p-3 border-t border-[var(--color-border)] bg-[var(--color-card)] shrink-0">
