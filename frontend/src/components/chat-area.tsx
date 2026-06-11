@@ -6,6 +6,8 @@ import type { Message, Session } from "@/store/useStore";
 import { MessageBubble } from "@/components/MessageBubble";
 import { ReportCard } from "@/components/ReportCard";
 import { PdfViewer } from "@/components/PdfViewer";
+import { SchematicPanel } from "@/components/SchematicPanel";
+import { RiskHeatmap } from "@/components/RiskHeatmap";
 import type { ReportBundle } from "@/store/useStore";
 
 function generateId() {
@@ -206,6 +208,27 @@ export function ChatArea() {
     },
     [setReportBundle, setPdfUrl, setPdfLoading]
   );
+
+  /* ── BOM 导出 ── */
+  const handleBomExport = useCallback(async () => {
+    const backendUrl =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    try {
+      const res = await fetch(`${backendUrl}/export/bom`);
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "BOM_Report.xlsx";
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch {
+      // Backend not available - show info
+      alert("BOM 导出需要后端支持。当前为演示模式。");
+    }
+  }, []);
 
   /* ── SSE 完成后加载报告 ── */
   useEffect(() => {
@@ -487,6 +510,43 @@ export function ChatArea() {
         {!isStreaming && reportBundle && (
           <div className="max-w-4xl mx-auto">
             <ReportCard />
+          </div>
+        )}
+
+        {/* Schematic + Heatmap + BOM (after report bundle is loaded) */}
+        {!isStreaming && reportBundle && (
+          <div className="max-w-4xl mx-auto space-y-4">
+            <SchematicPanel />
+            <RiskHeatmap />
+
+            {/* BOM Export Button */}
+            <div className="flex justify-end">
+              <button
+                onClick={handleBomExport}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] text-[12px] font-medium text-[var(--color-text-primary)] hover:bg-brand hover:text-white hover:border-brand transition-all cursor-pointer group"
+                title="导出 BOM 清单 (.xlsx)"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-risk-low group-hover:text-white transition-colors"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <path d="M8 13h2" />
+                  <path d="M8 17h2" />
+                  <path d="M14 13h2" />
+                  <path d="M14 17h2" />
+                </svg>
+                导出 BOM 清单 (.xlsx)
+              </button>
+            </div>
           </div>
         )}
 
