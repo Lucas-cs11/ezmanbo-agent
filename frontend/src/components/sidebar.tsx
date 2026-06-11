@@ -2,33 +2,26 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-
-interface Conversation {
-  id: string;
-  title: string;
-  timestamp: string;
-}
-
-const mockConversations: Conversation[] = [
-  { id: "1", title: "LM2596 降压电路风险分析", timestamp: "2026-06-11 14:30" },
-  { id: "2", title: "STM32F407 电源轨审核", timestamp: "2026-06-11 10:15" },
-  { id: "3", title: "BQ24075 充电方案检查", timestamp: "2026-06-10 16:45" },
-  { id: "4", title: "TPS5430 散热评估", timestamp: "2026-06-10 09:00" },
-  {
-    id: "5",
-    title: "DRV8825 步进电机驱动拓扑验证",
-    timestamp: "2026-06-09 11:30",
-  },
-];
+import { useStore } from "@/store/useStore";
+import type { Session } from "@/store/useStore";
 
 export function Sidebar() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const [activeId, setActiveId] = useState("1");
+
+  const sessions = useStore((s) => s.sessions);
+  const activeSessionId = useStore((s) => s.activeSessionId);
+  const setActiveSession = useStore((s) => s.setActiveSession);
+  const deleteSession = useStore((s) => s.deleteSession);
+  const isStreaming = useStore((s) => s.isStreaming);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleNewChat = () => {
+    setActiveSession(null);
+  };
 
   if (!mounted) {
     return (
@@ -72,7 +65,11 @@ export function Sidebar() {
 
       {/* New Chat Button */}
       <div className="p-3">
-        <button className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-[var(--color-border)] bg-transparent text-[var(--color-text-primary)] text-sm font-medium hover:bg-brand hover:text-white hover:border-brand transition-all duration-200 cursor-pointer">
+        <button
+          onClick={handleNewChat}
+          disabled={isStreaming}
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-[var(--color-border)] bg-transparent text-[var(--color-text-primary)] text-sm font-medium hover:bg-brand hover:text-white hover:border-brand transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <svg
             width="16"
             height="16"
@@ -95,22 +92,64 @@ export function Sidebar() {
         <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
           历史记录
         </p>
-        <nav className="space-y-0.5">
-          {mockConversations.map((conv) => (
-            <button
-              key={conv.id}
-              onClick={() => setActiveId(conv.id)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all duration-150 cursor-pointer ${
-                activeId === conv.id
-                  ? "bg-brand/10 text-brand font-medium"
-                  : "text-[var(--color-text-secondary)] hover:bg-[var(--color-background)] hover:text-[var(--color-text-primary)]"
-              }`}
-            >
-              <p className="truncate text-[13px] leading-tight">{conv.title}</p>
-              <p className="text-[10px] mt-0.5 opacity-60">{conv.timestamp}</p>
-            </button>
-          ))}
-        </nav>
+        {sessions.length === 0 ? (
+          <p className="px-3 py-4 text-[12px] text-[var(--color-text-secondary)] text-center">
+            暂无历史记录
+          </p>
+        ) : (
+          <nav className="space-y-0.5">
+            {sessions.map((session) => (
+              <div
+                key={session.id}
+                className={`group flex items-center rounded-lg transition-all duration-150 ${
+                  activeSessionId === session.id
+                    ? "bg-brand/10"
+                    : "hover:bg-[var(--color-background)]"
+                }`}
+              >
+                <button
+                  onClick={() => setActiveSession(session.id)}
+                  className={`flex-1 text-left px-3 py-2.5 rounded-lg text-sm cursor-pointer min-w-0 ${
+                    activeSessionId === session.id
+                      ? "text-brand font-medium"
+                      : "text-[var(--color-text-secondary)]"
+                  }`}
+                >
+                  <p className="truncate text-[13px] leading-tight">
+                    {session.title}
+                  </p>
+                  <p className="text-[10px] mt-0.5 opacity-60">
+                    {session.timestamp}
+                  </p>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteSession(session.id);
+                  }}
+                  className="px-2 py-2.5 text-[var(--color-text-secondary)] hover:text-risk-high opacity-0 group-hover:opacity-100 transition-all cursor-pointer shrink-0"
+                  title="删除会话"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <line x1="10" y1="11" x2="10" y2="17" />
+                    <line x1="14" y1="11" x2="14" y2="17" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </nav>
+        )}
       </div>
 
       {/* Footer */}
