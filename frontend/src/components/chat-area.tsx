@@ -266,13 +266,15 @@ export function ChatArea() {
 
   useEffect(() => {
     if (streamComplete && streamAssistIdRef.current && activeSession) {
-      const assistMsg: Message = {
-        id: streamAssistIdRef.current,
-        role: "assistant",
-        content: streamingContent,
-        timestamp: getTimeString(),
-      };
-      addMessage(activeSession.id, assistMsg);
+      if (streamingContent) {
+        const assistMsg: Message = {
+          id: streamAssistIdRef.current,
+          role: "assistant",
+          content: streamingContent,
+          timestamp: getTimeString(),
+        };
+        addMessage(activeSession.id, assistMsg);
+      }
       streamAssistIdRef.current = null;
       setStreamingContent("");
       setStreaming(false);

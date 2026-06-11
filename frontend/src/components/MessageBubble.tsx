@@ -161,7 +161,7 @@ export function MessageBubble({
               >
                 {displayContent}
               </ReactMarkdown>
-            ) : (
+            ) : isStreaming ? null : (
               <span className="text-[var(--color-text-secondary)] italic">
                 暂无内容
               </span>
