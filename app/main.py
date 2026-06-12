@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, AsyncGenerator
 from fastapi import FastAPI, Request, Body
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import json
@@ -166,3 +166,34 @@ async def analyze_stream_endpoint(body: AnalyzeRequest):
             "Connection": "keep-alive",
         }
     )
+
+
+# ── 电路图生成端点（B2 任务）────────────────────────────────────────
+
+@app.get("/schematic/{topology}")
+async def get_schematic(topology: str, Vin: float, Vout: float, Iout: float):
+    """生成参数化应用电路 SVG
+
+    Args:
+        topology: 拓扑类型 ('buck', 'boost', 'ldo')
+        Vin: 输入电压 (V)
+        Vout: 输出电压 (V)
+        Iout: 输出电流 (A)
+
+    Returns:
+        SVG 格式的电路图
+    """
+    try:
+        from .schematic_generator import generate_schematic
+        svg = generate_schematic(topology, Vin, Vout, Iout)
+        return Response(content=svg, media_type="image/svg+xml")
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": str(e)},
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"电路图生成错误: {str(e)}"},
+        )
