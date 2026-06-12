@@ -40,10 +40,24 @@ async def health():
 
 @app.post("/analyze")
 async def analyze_endpoint(body: AnalyzeRequest):
-    """Pipeline 模式：单次调用，返回完整 SelectionReport JSON。"""
+    """Pipeline 模式：单次调用，返回完整 SelectionReport JSON。
+
+    ── B4：语义缓存支持 ──
+    - 响应头 X-Cache: HIT 表示命中缓存
+    - 响应头 X-Cache: MISS 表示未命中缓存
+    """
     try:
+        # ── B4：检查语义缓存 ──────────────────────────────────────
+        from .semantic_cache import get_semantic_cache
+        cache = get_semantic_cache()
+        cache_result = cache.get(body.user_input)
+        cache_header = "HIT" if cache_result is not None else "MISS"
+
         report = analyze(body.user_input)
-        return report.dict()
+        return JSONResponse(
+            content=report.dict(),
+            headers={"X-Cache": cache_header}
+        )
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -93,6 +107,22 @@ async def _stream_analyze(req: AnalyzeRequest) -> AsyncGenerator[str, None]:
     """异步生成器：按阶段推送 SSE 事件"""
     start_time = time.time()
     try:
+        # ── B4：语义缓存层检查（ParseNode 前置）──────────────────
+        from .semantic_cache import get_semantic_cache
+        cache = get_semantic_cache()
+
+        cache_result = cache.get(req.user_input)
+        if cache_result is not None:
+            # 缓存命中：推送缓存状态和完整报告
+            elapsed = time.time() - start_time
+            cached_report = cache_result["cached_result"]
+            yield f"event: cache_hit\ndata: {json.dumps({'cache_hit': True, 'similarity': cache_result['similarity']})}\n\n"
+            yield f"event: done\ndata: {json.dumps({'status': '分析完成（来自缓存）', 'elapsed_seconds': round(elapsed, 2), 'report': cached_report})}\n\n"
+            return
+
+        # 缓存未命中，继续处理
+        yield f"event: cache_hit\ndata: {json.dumps({'cache_hit': False})}\n\n"
+
         # Step 1: 解析需求
         from .requirement_parser import parse_requirement
         from .ezplm_client import search_parts
@@ -138,6 +168,13 @@ async def _stream_analyze(req: AnalyzeRequest) -> AsyncGenerator[str, None]:
         elapsed = time.time() - start_time
         yield f"event: done\ndata: {json.dumps({'status': '分析完成', 'elapsed_seconds': round(elapsed, 2), 'report': report.dict()})}\n\n"
 
+        # ── B4：将结果存入语义缓存 ────────────────────────────────
+        try:
+            cache.set(req.user_input, report.dict())
+        except Exception as e:
+            from .log_util import warn_swallow
+            warn_swallow("main", e, "cache set")
+
     except Exception as e:
         elapsed = time.time() - start_time
         error_msg = f"{str(e)}\n{traceback.format_exc()}"
@@ -148,7 +185,12 @@ async def _stream_analyze(req: AnalyzeRequest) -> AsyncGenerator[str, None]:
 async def analyze_stream_endpoint(body: AnalyzeRequest):
     """流式输出端点：SSE 逐段推送选型报告
 
+    ── B4：语义缓存支持 ──
+    - 响应头 X-Cache: HIT 表示命中缓存
+    - 响应头 X-Cache: MISS 表示未命中缓存
+
     示例事件流：
+    - cache_hit: 缓存命中状态（HIT/MISS）
     - parse_done: 需求解析完成
     - search_done: 搜索完成 + 候选数量
     - score_update: 评分完成（多次）
@@ -157,6 +199,14 @@ async def analyze_stream_endpoint(body: AnalyzeRequest):
     - text_delta: 报告文本片段（多次）
     - done: 完成 + 总耗时 + 完整报告
     """
+    # ── B4：检查语义缓存 ──────────────────────────────────────
+    from .semantic_cache import get_semantic_cache
+    cache = get_semantic_cache()
+    cache_result = cache.get(body.user_input)
+
+    # 根据缓存状态设置响应头
+    cache_header = "HIT" if cache_result is not None else "MISS"
+
     return StreamingResponse(
         _stream_analyze(body),
         media_type="text/event-stream",
@@ -164,6 +214,7 @@ async def analyze_stream_endpoint(body: AnalyzeRequest):
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
             "Connection": "keep-alive",
+            "X-Cache": cache_header,
         }
     )
 
