@@ -40,6 +40,17 @@ def _query_rag_knowledge(user_input: str, req: RequirementConstraints) -> List[D
 
 
 def analyze(user_input: str) -> SelectionReport:
+    # ── B4：语义缓存层检查（ParseNode 前置）──────────────────────
+    from .semantic_cache import get_semantic_cache
+    cache = get_semantic_cache()
+
+    cache_result = cache.get(user_input)
+    if cache_result is not None:
+        # 缓存命中，直接返回缓存的报告
+        cached_report_dict = cache_result["cached_result"]
+        return SelectionReport(**cached_report_dict)
+
+    # 缓存未命中，继续处理
     req = parse_requirement(user_input)
     candidates = search_parts(req)
 
@@ -73,6 +84,14 @@ def analyze(user_input: str) -> SelectionReport:
         ))
 
     report = build_report(req, scored, evidence)
+
+    # ── B4：将结果存入语义缓存 ────────────────────────────────────
+    try:
+        cache.set(user_input, report.dict())
+    except Exception as e:
+        from .log_util import warn_swallow
+        warn_swallow("agent_orchestrator", e, "cache set")
+
     return report
 
 
