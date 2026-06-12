@@ -68,9 +68,16 @@ def _request_json(base_url: str, api_key: str, path: str, params: Dict[str, Any]
         return 0, {"error": str(e)}
 
 
-def search_parts(constraints: RequirementConstraints) -> List[PartIR]:
+def search_parts(constraints: RequirementConstraints, use_hybrid_retrieval: bool = False) -> List[PartIR]:
     """
     优先使用真实 EZ-PLM API（若环境变量提供 EZPLM_API_KEY 和 EZPLM_BASE_URL），否则回退到本地 mock 数据。
+
+    Args:
+        constraints: 需求约束条件
+        use_hybrid_retrieval: 是否使用混合检索（BM25 + 向量）增强本地搜索
+
+    Returns:
+        符合约束的候选器件列表
     """
     ez_key = os.getenv("EZPLM_API_KEY", "").strip()
     ez_base = os.getenv("EZPLM_BASE_URL", "https://www.ezplm.cn").strip()
@@ -110,14 +117,98 @@ def search_parts(constraints: RequirementConstraints) -> List[PartIR]:
         # No API results for any prefix → fall through to mock data
 
     # local mock filtering (also used as fallback when API is empty)
-    parts = _load_parts()
-    for p in parts:
+    if use_hybrid_retrieval:
+        # ── 混合检索模式：BM25 + 向量融合 ────────────────────────
         try:
-            part = PartIR.parse_obj(p)
-        except Exception:
-            continue
-        if _part_matches_constraints(part, constraints):
-            results.append(part)
+            from .hybrid_retrieval import HybridRetriever
+            from .rag import get_rag_store
+
+            # 获取 RAG 知识库的 ChromaDB collection
+            rag_store = get_rag_store()
+            chroma_collection = rag_store._collection
+
+            # 加载本地器件数据
+            parts_data = _load_parts()
+            if not parts_data:
+                return []
+
+            # 构建文档（型号+厂商+描述+参数）
+            documents = []
+            part_map: Dict[int, PartIR] = {}
+            for i, p in enumerate(parts_data):
+                try:
+                    part = PartIR.parse_obj(p)
+                    if not _part_matches_constraints(part, constraints):
+                        continue
+
+                    parts_list = [
+                        part.part_number,
+                        part.manufacturer or "",
+                        part.description or "",
+                        part.category or "",
+                        part.topology or "",
+                    ]
+                    if part.output_voltage_v:
+                        parts_list.append(f"{part.output_voltage_v}V")
+                    if part.output_current_max_a:
+                        parts_list.append(f"{part.output_current_max_a}A")
+
+                    doc = " ".join([str(x) for x in parts_list if x])
+                    documents.append(doc)
+                    part_map[len(documents) - 1] = part
+                except Exception:
+                    continue
+
+            if not documents:
+                return []
+
+            # 创建混合检索器并执行查询
+            retriever = HybridRetriever(
+                chroma_collection=chroma_collection,
+                documents=documents,
+                bm25_weight=0.5,  # 权衡 BM25（型号匹配）和向量（功能匹配）
+            )
+
+            # 构建查询文本：需求的原始输入 + 关键参数
+            query_parts = [constraints.raw_input]
+            if constraints.topology:
+                query_parts.append(constraints.topology)
+            if constraints.category:
+                query_parts.append(constraints.category)
+            if constraints.output_voltage_v:
+                query_parts.append(f"{constraints.output_voltage_v}V")
+            if constraints.output_current_a:
+                query_parts.append(f"{constraints.output_current_a}A")
+            query_text = " ".join(query_parts)
+
+            # 执行混合检索（返回 TOP-10）
+            retrieval_results = retriever.retrieve(query_text, k=10)
+
+            # 将检索结果映射回 PartIR 对象
+            for res in retrieval_results:
+                doc_idx = res.get("doc_idx")
+                if doc_idx in part_map:
+                    results.append(part_map[doc_idx])
+
+            return results if results else []
+
+        except Exception as e:
+            from .log_util import warn_swallow
+            warn_swallow("ezplm_client", e, "hybrid_retrieval fallback to pure filtering")
+            # 降级：回退到纯过滤
+            use_hybrid_retrieval = False
+
+    # 纯过滤模式（默认或混合检索失败后降级）
+    if not use_hybrid_retrieval:
+        parts = _load_parts()
+        for p in parts:
+            try:
+                part = PartIR.parse_obj(p)
+            except Exception:
+                continue
+            if _part_matches_constraints(part, constraints):
+                results.append(part)
+
     return results
 
 
