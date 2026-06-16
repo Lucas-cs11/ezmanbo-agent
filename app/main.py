@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import json
 import time
+import asyncio
 import traceback
 from .agent_orchestrator import analyze, replacement_report
 
@@ -103,82 +104,150 @@ async def agent_sessions_endpoint():
 
 # ── SSE 流式输出端点（B1 任务）──────────────────────────────────────
 
+def _safe_serialize(obj):
+    """安全序列化 Pydantic/dataclass 对象为 JSON 兼容 dict。"""
+    if hasattr(obj, 'dict'):
+        return _safe_serialize(obj.dict())
+    if hasattr(obj, 'model_dump'):
+        return _safe_serialize(obj.model_dump())
+    if isinstance(obj, dict):
+        return {k: _safe_serialize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_safe_serialize(v) for v in obj]
+    return obj
+
+
 async def _stream_analyze(req: AnalyzeRequest) -> AsyncGenerator[str, None]:
-    """异步生成器：按阶段推送 SSE 事件"""
-    start_time = time.time()
+    """异步生成器：按阶段推送 SSE 事件（含 B4 语义缓存集成）"""
+    t_start = time.time()
+    loop = asyncio.get_running_loop()
+
+    def _yield(event: str, data: dict) -> str:
+        return f"event: {event}\ndata: {json.dumps(_safe_serialize(data), ensure_ascii=False)}\n\n"
+
     try:
-        # ── B4：语义缓存层检查（ParseNode 前置）──────────────────
+        # ── B4：语义缓存层检查 ──────────────────────────────────
         from .semantic_cache import get_semantic_cache
         cache = get_semantic_cache()
-
         cache_result = cache.get(req.user_input)
+
         if cache_result is not None:
-            # 缓存命中：推送缓存状态和完整报告
-            elapsed = time.time() - start_time
-            cached_report = cache_result["cached_result"]
-            yield f"event: cache_hit\ndata: {json.dumps({'cache_hit': True, 'similarity': cache_result['similarity']})}\n\n"
-            yield f"event: done\ndata: {json.dumps({'status': '分析完成（来自缓存）', 'elapsed_seconds': round(elapsed, 2), 'report': cached_report})}\n\n"
+            elapsed = round(time.time() - t_start, 2)
+            yield _yield("cache_hit", {"hit": True, "similarity": cache_result.get("similarity", 0)})
+            yield _yield("done", {
+                "status": "分析完成（语义缓存命中）",
+                "elapsed_s": elapsed,
+                "cache_hit": True,
+            })
             return
 
-        # 缓存未命中，继续处理
-        yield f"event: cache_hit\ndata: {json.dumps({'cache_hit': False})}\n\n"
+        yield _yield("cache_hit", {"hit": False})
 
-        # Step 1: 解析需求
+        # ── Stage 1：需求解析 ──────────────────────────────────
+        yield _yield("stage", {"stage": "parse", "status": "started"})
         from .requirement_parser import parse_requirement
+        requirement = await loop.run_in_executor(None, parse_requirement, req.user_input)
+        yield _yield("parse_done", {
+            "status": "需求解析完成",
+            "constraints": _safe_serialize(requirement),
+            "fields_parsed": sum(1 for v in [
+                requirement.category, requirement.topology,
+                requirement.input_voltage_nominal_v, requirement.output_voltage_v,
+                requirement.output_current_a, requirement.temperature_min_c,
+                requirement.temperature_max_c, requirement.grade,
+            ] if v is not None),
+        })
+
+        # ── Stage 2：器件搜索 ──────────────────────────────────
+        yield _yield("stage", {"stage": "search", "status": "started"})
         from .ezplm_client import search_parts
+        candidates = await loop.run_in_executor(None, search_parts, requirement)
+        yield _yield("search_done", {
+            "status": "搜索完成",
+            "candidate_count": len(candidates),
+            "sources": list(set(getattr(c, "source", "mock") for c in candidates)),
+        })
+
+        if not candidates:
+            yield _yield("warning", {"message": "未找到匹配器件，请检查需求或扩充数据源"})
+
+        # ── Stage 3：评分计算 ──────────────────────────────────
+        yield _yield("stage", {"stage": "score", "status": "started", "total": len(candidates)})
         from .scoring import score_candidates
+        scored = await loop.run_in_executor(None, score_candidates, requirement, candidates)
+        for i, s in enumerate(scored):
+            yield _yield("score_update", {
+                "status": f"评分完成: {s.part.part_number}",
+                "index": i + 1,
+                "total": len(scored),
+                "part_number": s.part.part_number,
+                "manufacturer": s.part.manufacturer,
+                "total_score": s.score.total_score,
+                "parameter_match_score": s.score.parameter_match_score,
+                "recommendation_level": s.recommendation_level,
+                "scoring_mode": s.score.scoring_mode,
+            })
+
+        # ── Stage 4：证据构建 ──────────────────────────────────
+        yield _yield("stage", {"stage": "evidence", "status": "started"})
         from .evidence import build_evidence
-        from .report_generator import build_report
+        evidence = await loop.run_in_executor(None, build_evidence, scored, requirement)
+        avg_conf = round(sum(e.confidence for e in evidence) / len(evidence), 3) if evidence else 0.0
+        yield _yield("evidence_done", {
+            "status": "证据链构建完成",
+            "evidence_count": len(evidence),
+            "avg_confidence": avg_conf,
+        })
 
-        requirement = parse_requirement(req.user_input)
-        yield f"event: parse_done\ndata: {json.dumps({'status': '需求解析完成', 'constraint': requirement.dict()})}\n\n"
+        # ── Stage 5：风险评估 ──────────────────────────────────
+        yield _yield("stage", {"stage": "risk", "status": "started"})
+        from .report_generator import build_report, _assess_risks
+        risks = await loop.run_in_executor(None, _assess_risks, requirement, scored)
+        yield _yield("risk_done", {
+            "status": "风险评估完成",
+            "overall_risk_level": risks.overall_risk_level,
+            "risk_count": len(risks.risk_items),
+            "high": sum(1 for r in risks.risk_items if r.severity == "high"),
+            "medium": sum(1 for r in risks.risk_items if r.severity == "medium"),
+            "low": sum(1 for r in risks.risk_items if r.severity == "low"),
+            "supply_summary": risks.supply_risk_summary,
+            "engineering_summary": risks.engineering_risk_summary,
+        })
 
-        # Step 2: 搜索器件候选
-        candidates = search_parts(requirement)
-        yield f"event: search_done\ndata: {json.dumps({'status': '搜索完成', 'candidate_count': len(candidates)})}\n\n"
-
-        # Step 3: 评分（可以逐个器件推送）
-        scored = score_candidates(requirement, candidates)
-        for idx, part in enumerate(scored):
-            part_data = {
-                'status': f'评分完成: {part.part.part_number}',
-                'index': idx,
-                'total': len(scored),
-                'part_number': part.part.part_number,
-                'score': part.score.total_score,
-            }
-            yield f"event: score_update\ndata: {json.dumps(part_data)}\n\n"
-
-        # Step 4: 构建证据和风险评估
-        evidence = build_evidence(scored, requirement)
-        yield f"event: evidence_done\ndata: {json.dumps({'status': '证据链构建完成', 'evidence_count': len(evidence)})}\n\n"
-
-        # Step 5: 生成报告
-        report = build_report(requirement, scored, evidence)
-        risk_data = report.risks.dict() if report.risks else {}
-        yield f"event: risk_done\ndata: {json.dumps({'status': '风险评估完成', 'risk': risk_data})}\n\n"
-
-        # Step 6: 逐 token 推送报告文本（模拟流式文本）
+        # ── Stage 6：报告生成与流式输出 ─────────────────────────
+        yield _yield("stage", {"stage": "report", "status": "started"})
+        report = await loop.run_in_executor(None, build_report, requirement, scored, evidence)
         if report.summary_markdown:
-            for chunk in report.summary_markdown.split('\n'):
-                if chunk.strip():
-                    yield f"event: text_delta\ndata: {json.dumps({'text': chunk})}\n\n"
+            for line in report.summary_markdown.split('\n'):
+                if line.strip():
+                    yield _yield("text_delta", {"text": line})
 
-        # Step 7: 推送完整报告和完成信号
-        elapsed = time.time() - start_time
-        yield f"event: done\ndata: {json.dumps({'status': '分析完成', 'elapsed_seconds': round(elapsed, 2), 'report': report.dict()})}\n\n"
+        # ── Stage 7：完成 ──────────────────────────────────────
+        elapsed = round(time.time() - t_start, 2)
+        yield _yield("done", {
+            "status": "分析完成",
+            "elapsed_s": elapsed,
+            "request_id": report.request_id,
+            "recommended_count": len(report.recommended_parts),
+            "candidate_count": len(report.candidates),
+            "overall_risk": risks.overall_risk_level,
+        })
 
-        # ── B4：将结果存入语义缓存 ────────────────────────────────
+        # ── B4：将结果存入语义缓存 ────────────────────────────
         try:
-            cache.set(req.user_input, report.dict())
-        except Exception as e:
-            from .log_util import warn_swallow
-            warn_swallow("main", e, "cache set")
+            from .semantic_cache import get_semantic_cache
+            get_semantic_cache().set(req.user_input, report.dict())
+        except Exception:
+            pass
 
-    except Exception as e:
-        elapsed = time.time() - start_time
-        error_msg = f"{str(e)}\n{traceback.format_exc()}"
-        yield f"event: error\ndata: {json.dumps({'status': '错误', 'error': str(e), 'elapsed_seconds': round(elapsed, 2)})}\n\n"
+    except Exception as exc:
+        elapsed = round(time.time() - t_start, 2)
+        yield _yield("error", {
+            "status": "错误",
+            "message": str(exc),
+            "elapsed_s": elapsed,
+            "traceback": traceback.format_exc()[:500],
+        })
 
 
 @app.post("/analyze/stream")
