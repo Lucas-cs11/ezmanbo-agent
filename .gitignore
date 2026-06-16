@@ -5,6 +5,8 @@ __pycache__/
 .omc/
 .idea/
 data/chroma_db/
+data/chroma_cache/
+test_cache/
 docs/reports/
 latex-paper/*.pdf
 scripts/archive/
