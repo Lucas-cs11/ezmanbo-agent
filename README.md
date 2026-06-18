@@ -4,7 +4,7 @@
 
 # eZmanbo — 智能元器件选型与风险评估系统
 
-[![GitHub](https://img.shields.io/badge/GitHub-License%20MIT-blue?logo=github)](https://github.com/Lucas-cs11/ezplm-component-risk-agent)
+[![GitHub](https://img.shields.io/badge/GitHub-License%20MIT-blue?logo=github)](https://github.com/Lucas-cs11/ezmanbo-agent)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)](https://www.python.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-green?logo=fastapi)](https://fastapi.tiangolo.com/)
@@ -31,8 +31,8 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/Lucas-cs11/ezplm-component-risk-agent.git
-cd ezplm-component-risk-agent
+git clone https://github.com/Lucas-cs11/ezmanbo-agent.git
+cd ezmanbo-agent
 
 # 2. 自动配置环境（生成 venv、安装依赖、初始化 RAG）
 chmod +x setup.sh && ./setup.sh
@@ -161,7 +161,7 @@ CHROMA_DB_PATH=./data/chroma_db
 ### 📚 项目结构
 
 ```
-ezplm-component-risk-agent/
+ezmanbo-agent/
 ├── app/                          # 后端核心模块（23个）
 │   ├── main.py                   # FastAPI 应用入口（13个端点）
 │   ├── constraint_checker.py     # 参数提取与完整性校验
@@ -255,8 +255,8 @@ MIT License — 可自由使用、修改、商业化
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/Lucas-cs11/ezplm-component-risk-agent.git
-cd ezplm-component-risk-agent
+git clone https://github.com/Lucas-cs11/ezmanbo-agent.git
+cd ezmanbo-agent
 
 # 2. Auto setup environment (venv + dependencies + RAG)
 chmod +x setup.sh && ./setup.sh
@@ -385,7 +385,7 @@ CHROMA_DB_PATH=./data/chroma_db
 ### 📚 Project Structure
 
 ```
-ezplm-component-risk-agent/
+ezmanbo-agent/
 ├── app/                          # Backend core (23 modules)
 │   ├── main.py                   # FastAPI entry (13 endpoints)
 │   ├── constraint_checker.py     # Parameter extraction & validation
@@ -470,6 +470,6 @@ Pull Requests welcome! Please ensure:
 
 Made with ❤️ for the EDA & Electronics Community
 
-[GitHub](https://github.com/Lucas-cs11/ezplm-component-risk-agent) · [Issues](https://github.com/Lucas-cs11/ezplm-component-risk-agent/issues) · [Discussions](https://github.com/Lucas-cs11/ezplm-component-risk-agent/discussions)
+[GitHub](https://github.com/Lucas-cs11/ezmanbo-agent) · [Issues](https://github.com/Lucas-cs11/ezmanbo-agent/issues) · [Discussions](https://github.com/Lucas-cs11/ezmanbo-agent/discussions)
 
 </div>
