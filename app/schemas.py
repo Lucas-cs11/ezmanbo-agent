@@ -43,8 +43,10 @@ if HAS_PYDANTIC:
         input_voltage_max_v: Optional[float] = Field(default=None, ge=0)
         output_voltage_v: Optional[float] = Field(default=None, ge=0)
         output_current_max_a: Optional[float] = Field(default=None, ge=0)
-        temperature_min_c: Optional[float] = Field(default=None, ge=-40)
+        # ge=-65 covers industrial/military-grade parts (-55°C), not just commercial (-40°C)
+        temperature_min_c: Optional[float] = Field(default=None, ge=-65)
         temperature_max_c: Optional[float] = Field(default=None, ge=-40)
+        # eZ-PLM API may return package as str or {'id': ..., 'name': ...}
         package: Optional[str] = None
         automotive_grade: bool = False
         lifecycle_status: Optional[str] = None
