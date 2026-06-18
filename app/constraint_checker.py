@@ -59,41 +59,77 @@ P1_QUESTIONS: Dict[str, str] = {
     "grade": "需要满足什么等级标准？车规 (AEC-Q100)、工业级还是商业级？",
 }
 
-# P0 字段是否可从其他字段推断
-_VOLTAGE_INFER = re.compile(
-    r"(\d+\.?\d*)\s*[Vv伏][\s\S]{0,8}?(?:转|→|->|to|输?出|降到|升到)[\s]*(\d+\.?\d*)\s*[Vv伏]"
-    r"|(\d+\.?\d*)\s*[Vv伏]\s*[-–—]\s*(\d+\.?\d*)\s*[Vv伏]"  # 范围: 6V–36V
+# P0 字段提取正则
+# 输入电压: "输入12V", "Vin 5V", "输入最高20V", "输入电压最高 20V"
+# 使用负向后顾避免匹配"X V 输入"中的"输入"（那属于范围表达的后缀）
+_VIN_REGEX = re.compile(
+    r"(?:^|[^0-9])(?:输入|Vin|VIN|供电|电源)(?:电压|最高|最大|范围)?[\s\S]{0,4}?(\d+\.?\d*)\s*[Vv伏]"
 )
-_CURRENT_INFER = re.compile(r"(\d+\.?\d*)\s*(?:A|a|安|\s*毫安|mA|ｍＡ)")
+# 输出电压: "输出5V", "Vout 3.3V", "输出电压有5V", "转5V", "升到12V"
+_VOUT_REGEX = re.compile(
+    r"(?:输出|Vout|VOUT|转\s*|→|->|升到|降到|输出电压)[\s\S]{0,6}?(\d+\.?\d*)\s*[Vv伏]"
+)
+# 最高电压: "最高20V", "最大 48V", "不超过 20V"
+_VMAX_REGEX = re.compile(
+    r"(?:最高|最大|max|不超过|不高于|≤|<=)\D{0,3}(\d+\.?\d*)\s*[Vv伏]"
+)
+# 电压范围: "6V–36V", "6~36V", "6-36V", "6 到 36 V"
+_VRANGE_REGEX = re.compile(
+    r"(\d+\.?\d*)\s*[Vv伏]\s*(?:[-–—~到至])\s*(\d+\.?\d*)\s*[Vv伏]"
+)
+_CURRENT_INFER = re.compile(r"(\d+\.?\d*)\s*(?:A|a|安)(?![a-zA-Z])")
 _MA_INFER = re.compile(r"(\d+)\s*(?:mA|毫安|ｍＡ)")
 
 
 def extract_constraints(text: str) -> dict:
-    """从用户输入文本中提取约束参数（规则层快速提取）。"""
+    """从用户输入文本中提取约束参数（规则层快速提取）。
+
+    提取顺序经过优化，确保：
+    1. 电压范围优先匹配（避免"6V–36V 输入"误提取 Vin）
+    2. 转/升到/降到 模式提取完整 Vin→Vout 对
+    3. 独立 Vin/Vout 模式作为后备
+    """
     result: dict = {}
 
-    # 电压：X V 转 Y V 或 X V – Y V 范围
-    vm = _VOLTAGE_INFER.search(text)
-    if vm:
-        if vm.group(1) and vm.group(2):
-            # "12V转5V" 模式
-            result["input_voltage_nominal_v"] = float(vm.group(1))
-            result["output_voltage_v"] = float(vm.group(2))
-        elif vm.group(3) and vm.group(4):
-            # "6V–36V" 范围模式 — 提取为 Vin 范围
-            result["input_voltage_min_v"] = float(vm.group(3))
-            result["input_voltage_max_v"] = float(vm.group(4))
-            # 从文本上下文中提取输出电压
-            vout_m = re.search(r"(\d+)V\s*(?:输?出|转|→|->)", text)
-            if vout_m:
-                result["output_voltage_v"] = float(vout_m.group(1))
-        else:
-            # 单电压数值
-            single_v = vm.group(1) or vm.group(3)
-            if single_v:
-                result["input_voltage_nominal_v"] = float(single_v)
+    # ── 1. 电压范围优先（6V–36V）─────────────────
+    vr_m = _VRANGE_REGEX.search(text)
+    if vr_m:
+        result["input_voltage_min_v"] = float(vr_m.group(1))
+        result["input_voltage_max_v"] = float(vr_m.group(2))
+        result["input_voltage_nominal_v"] = float(vr_m.group(2))
 
-    # 电流：优先匹配毫安
+    # ── 2. 转换模式：X V 转/升/降 Y V ──────────
+    #    "12V转5V" → Vin=12, Vout=5
+    #    "5V升压到12V" → Vin=5, Vout=12
+    xform_m = re.search(
+        r"(\d+\.?\d*)\s*[Vv伏][\s\S]{0,6}?(?:转|升压到|升到|降压到|降到|→|->)\s*(\d+\.?\d*)\s*[Vv伏]",
+        text
+    )
+    if xform_m:
+        if "input_voltage_nominal_v" not in result:
+            result["input_voltage_nominal_v"] = float(xform_m.group(1))
+        result["output_voltage_v"] = float(xform_m.group(2))
+
+    # ── 3. 最高电压 ──────────────────────────────
+    vmax_m = _VMAX_REGEX.search(text)
+    if vmax_m:
+        vmax_val = float(vmax_m.group(1))
+        if "input_voltage_nominal_v" not in result:
+            result["input_voltage_nominal_v"] = vmax_val
+
+    # ── 4. 输入电压（独立模式） ──────────────────
+    if "input_voltage_nominal_v" not in result:
+        vin_m = _VIN_REGEX.search(text)
+        if vin_m:
+            result["input_voltage_nominal_v"] = float(vin_m.group(1))
+
+    # ── 5. 输出电压（独立模式） ──────────────────
+    if "output_voltage_v" not in result:
+        vout_m = _VOUT_REGEX.search(text)
+        if vout_m:
+            result["output_voltage_v"] = float(vout_m.group(1))
+
+    # ── 6. 电流：优先匹配毫安 ────────────────────
     ma = _MA_INFER.search(text)
     if ma:
         result["output_current_a"] = float(ma.group(1)) / 1000.0
@@ -102,14 +138,14 @@ def extract_constraints(text: str) -> dict:
         if cm:
             result["output_current_a"] = float(cm.group(1))
 
-    # 温度
+    # ── 7. 温度 ──────────────────────────────────
     tm = re.search(r"(-?\d+)\s*(?:~|到|至|-)\s*(-?\d+)\s*(?:°|°C|C|度)", text)
     if tm:
         result["temperature_min_c"] = float(tm.group(1))
         result["temperature_max_c"] = float(tm.group(2))
 
-    # 等级
-    if re.search(r"车规|automotive|AEC", text, re.I):
+    # ── 8. 等级 ──────────────────────────────────
+    if re.search(r"车规|automotive|AEC|AEC-Q", text, re.I):
         result["grade"] = "automotive"
     elif re.search(r"工业|industrial", text, re.I):
         result["grade"] = "industrial"
@@ -118,17 +154,17 @@ def extract_constraints(text: str) -> dict:
     elif re.search(r"非车规|不要车规|不是车规", text, re.I):
         result["grade"] = "industrial"
 
-    # 封装
+    # ── 9. 封装 ──────────────────────────────────
     pkg_m = re.search(r"(SOT-\d+|QFN\d*|TO-\d+|SOIC-\d+|TSSOP-\d+|DFN\d*)", text, re.I)
     if pkg_m:
         result["package_preference"] = pkg_m.group(1).upper()
 
-    # 拓扑
-    if re.search(r"降压|buck|降到|step.down", text, re.I):
+    # ── 10. 拓扑 ─────────────────────────────────
+    if re.search(r"降压|buck|降到|step[.\s]?down", text, re.I):
         result["topology"] = "buck"
-    elif re.search(r"升压|boost|升到|step.up", text, re.I):
+    elif re.search(r"升压|boost|升到|step[.\s]?up", text, re.I):
         result["topology"] = "boost"
-    elif re.search(r"ldo|线性|LDO", text, re.I):
+    elif re.search(r"\bldo\b|线性稳压|LDO", text, re.I):
         result["topology"] = "ldo"
 
     return result

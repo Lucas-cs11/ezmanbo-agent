@@ -41,15 +41,9 @@ export function Sidebar() {
   return (
     <aside className="w-[260px] h-full flex flex-col bg-surface-sidebar border-r border-gray-200 shrink-0 overflow-y-auto">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-brand-700 flex items-center justify-center overflow-hidden">
-            <Image src="/icon.svg" alt="eZmanbo" width={24} height={24} className="w-6 h-6 object-contain" />
-          </div>
-          <div>
-            <div className="text-sm font-bold text-brand-900">eZmanbo</div>
-            <div className="text-[10px] text-gray-500">智能元器件选型</div>
-          </div>
+      <div className="p-3 border-b border-gray-200 bg-gradient-to-b from-surface-card to-gray-50">
+        <div className="flex justify-center mb-3">
+          <Image src="/logo.svg" alt="eZmanbo Logo" width={160} height={85} className="w-40 h-auto object-contain" />
         </div>
         <button
           onClick={handleCreateSession}

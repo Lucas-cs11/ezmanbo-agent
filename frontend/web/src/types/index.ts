@@ -91,6 +91,15 @@ export interface EvidenceItem {
   need_human_review: boolean;
 }
 
+export interface DimensionScore {
+  id: string;
+  name: string;
+  weight: number;
+  max_score: number;
+  current_score?: number;
+  description?: string;
+}
+
 export interface AnalysisReport {
   request_id: string;
   constraints: Constraints;
@@ -102,6 +111,7 @@ export interface AnalysisReport {
   evidence_items: EvidenceItem[];
   elapsed_s: number;
   summary: string;
+  dimensions?: DimensionScore[];
 }
 
 export interface Session {
