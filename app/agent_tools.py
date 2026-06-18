@@ -22,25 +22,46 @@ from langchain.tools import tool
 # Tool 1: 元器件搜索
 # ═══════════════════════════════════════════════════════════════════
 
+# ── 搜索重试计数器（防止 Agent 循环） ────────────────────────
+_search_retry_count: dict = {}
+
+
 @tool
 def search_components(requirement: str) -> str:
     """搜索电子元器件数据库，返回匹配的候选器件列表。
 
-    将用户的自然语言选型需求解析为结构化约束，然后搜索 eZ-PLM / Mock
-    数据库，返回匹配器件的型号、参数和评分摘要。
+    将用户的自然语言选型需求解析为结构化约束，然后查询 eZ-PLM API，
+    返回匹配器件的型号、参数和评分摘要。
 
-    使用时机：收到任何新的选型需求时，首先调用此工具。
-    如果搜索结果为空或不理想，应调整需求描述后重新搜索。
+    **关键规则**：
+    - 对每个用户需求只调用一次。
+    - 如果返回"未找到匹配"，说明数据库中没有该类型器件，必须停止搜索并如实告知用户。
+    - **严禁**在搜索结果为空时用不同措辞重复搜索。直接回复用户当前数据库暂无该类型器件。
 
     Args:
-        requirement: 用户的自然语言选型需求，如"12V转5V 3A 车规级降压芯片"
+        requirement: 用户的自然语言选型需求
     """
+    global _search_retry_count
+
+    # ── 重试保护 ──
+    req_key = requirement.strip().lower()[:60]
+    count = _search_retry_count.get(req_key, 0) + 1
+    _search_retry_count[req_key] = count
+
+    if count > 2:
+        return (
+            f"【已搜索 {count} 次，停止重复搜索】\n"
+            f"该需求 \"{requirement[:50]}...\" 在当前数据库中未找到匹配器件。\n"
+            f"**必须立即回复用户**：说明数据库暂不支持该类型器件，建议调整需求或联系管理员扩充数据。\n"
+            f"**不要再调用任何搜索工具**，直接基于已有信息回复用户。"
+        )
+
     from .agent_orchestrator import analyze
 
     try:
         report = analyze(requirement)
     except Exception as e:
-        return f"搜索失败：{e}"
+        return f"搜索失败：{e}。请直接告知用户当前无法完成搜索，不要重复尝试。"
 
     rec = report.recommended_parts
     bak = [s for s in report.candidates if s.recommendation_level == "backup"]
@@ -68,7 +89,6 @@ def search_components(requirement: str) -> str:
                 f"| {s.score.total_score:.0f} | {vout} | {iout} | {p.package or '-'} |"
             )
 
-        # 关键理由
         top = rec[0]
         lines.append("")
         lines.append(f"**首选推荐**：{top.part.part_number}（{top.part.manufacturer or '未知厂商'}）")
@@ -76,8 +96,13 @@ def search_components(requirement: str) -> str:
         key_reasons = [r for r in top.score.reasons if "✓" in r][:3]
         for kr in key_reasons:
             lines.append(f"- {kr}")
+    elif total == 0:
+        lines.append(
+            "【重要】搜索结果为空 — 数据库中**完全没有**匹配该需求的器件。"
+            "**必须立即停止搜索**，直接回复用户：当前数据库暂不支持该类型器件的选型。"
+        )
     else:
-        lines.append("⚠ 未找到满足推荐门槛（≥75分）的器件。建议放宽约束条件后重新搜索。")
+        lines.append("⚠ 候选器件评分未达推荐门槛。请基于以下备选器件回复用户，或建议放宽约束。")
         if bak:
             lines.append(f"有 {len(bak)} 款备选器件可参考（得分 50-74）。")
 
@@ -236,12 +261,25 @@ def generate_full_report(requirement: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 工具列表
+# 工具列表 + 注册
 # ═══════════════════════════════════════════════════════════════════
 
+from .tool_schema import register_tool
+
+register_tool(search_components, pool="selection")
+register_tool(query_design_knowledge, pool="selection")
+register_tool(find_alternative_parts, pool="replacement")
+register_tool(generate_full_report, pool="selection")
+
+# 全量工具（向后兼容）
 AGENT_TOOLS = [
     search_components,
     query_design_knowledge,
     find_alternative_parts,
     generate_full_report,
 ]
+
+# 按池分类
+SELECTION_TOOLS = [search_components, query_design_knowledge, generate_full_report]
+REPLACEMENT_TOOLS = [search_components, find_alternative_parts]  # 替代也需要搜索
+CHAT_TOOLS = [query_design_knowledge]  # 对话模式仅保留知识检索

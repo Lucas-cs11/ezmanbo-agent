@@ -10,7 +10,7 @@ def build_evidence(
     for sp in scored_parts:
         p = sp.part
         pn = p.part_number
-        src_type = "ezplm_api" if getattr(p, "source", "mock") == "api" else "mock_data"
+        src_type = "ezplm_api" if getattr(p, "source", "") in ("api", "ezplm") else "unverified"
 
         # ── 电压证据 ──────────────────────────────────────────────
         if p.input_voltage_min_v is not None and p.input_voltage_max_v is not None:

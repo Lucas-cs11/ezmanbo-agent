@@ -25,11 +25,34 @@ _embedding_model = None
 
 
 def _get_embedding_model():
-    """懒加载 sentence-transformers 模型（all-MiniLM-L6-v2，轻量）。"""
+    """懒加载 sentence-transformers 模型（all-MiniLM-L6-v2，轻量）。
+
+    H2 修复：先尝试在线加载，失败后尝试离线模式，均失败时给出明确错误提示。
+    """
     global _embedding_model
     if _embedding_model is None:
+        import os as _os
         from sentence_transformers import SentenceTransformer
-        _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+        # ── H2: 先尝试在线模式（首次部署可能无缓存）──
+        try:
+            _os.environ.pop("HF_HUB_OFFLINE", None)  # 清除可能的离线标记
+            _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+        except Exception as online_err:
+            # 在线加载失败 → 尝试离线模式（本地已有缓存）
+            _os.environ["HF_HUB_OFFLINE"] = "1"
+            try:
+                _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+            except Exception as offline_err:
+                _os.environ.pop("HF_HUB_OFFLINE", None)
+                raise RuntimeError(
+                    f"无法加载 embedding 模型 all-MiniLM-L6-v2。\n"
+                    f"在线加载错误: {online_err}\n"
+                    f"离线加载错误: {offline_err}\n"
+                    f"请执行以下命令下载模型: python -c \"from sentence_transformers import SentenceTransformer; "
+                    f"SentenceTransformer('all-MiniLM-L6-v2')\"\n"
+                    f"或手动下载到 ~/.cache/huggingface/hub/"
+                )
     return _embedding_model
 
 
@@ -56,14 +79,25 @@ class RAGStore:
     def count(self) -> int:
         return self._collection.count()
 
-    def ingest_documents(self, documents: List[Dict[str, Any]], batch_size: int = 32):
-        """批量摄入文档。每个文档含 content 和 metadata 字段。"""
+    def ingest_documents(
+        self,
+        documents: List[Dict[str, Any]],
+        batch_size: int = 32,
+        id_offset: int = 0,
+    ):
+        """批量摄入文档。每个文档含 content 和 metadata 字段。
+
+        Args:
+            documents: 文档列表
+            batch_size: 内部编码批次大小
+            id_offset: ID 起始偏移（避免多次调用时 ID 碰撞）
+        """
         model = _get_embedding_model()
 
         for i in range(0, len(documents), batch_size):
             batch = documents[i:i + batch_size]
             texts = [doc["content"] for doc in batch]
-            ids = [f"doc_{i + j}" for j in range(len(batch))]
+            ids = [f"doc_{id_offset + i + j}" for j in range(len(batch))]
             metadatas = [doc.get("metadata", {}) for doc in batch]
 
             # 生成 embedding 并入库

@@ -19,13 +19,13 @@ if HAS_PYDANTIC:
         application: Optional[str] = None
         category: Optional[str] = None
         topology: Optional[str] = None
-        input_voltage_nominal_v: Optional[float] = None
-        input_voltage_min_v: Optional[float] = None
-        input_voltage_max_v: Optional[float] = None
-        output_voltage_v: Optional[float] = None
-        output_current_a: Optional[float] = None
-        temperature_min_c: Optional[float] = None
-        temperature_max_c: Optional[float] = None
+        input_voltage_nominal_v: Optional[float] = Field(default=None, ge=0)
+        input_voltage_min_v: Optional[float] = Field(default=None, ge=0)
+        input_voltage_max_v: Optional[float] = Field(default=None, ge=0)
+        output_voltage_v: Optional[float] = Field(default=None, ge=0)
+        output_current_a: Optional[float] = Field(default=None, ge=0)
+        temperature_min_c: Optional[float] = Field(default=None, ge=-40)
+        temperature_max_c: Optional[float] = Field(default=None, ge=-40)
         grade: Optional[str] = None
         package_preference: Optional[str] = None
         preferences: List[str] = Field(default_factory=list)
@@ -39,12 +39,12 @@ if HAS_PYDANTIC:
         topology: Optional[str] = None
         is_domestic: bool = False
         description: Optional[str] = None
-        input_voltage_min_v: Optional[float] = None
-        input_voltage_max_v: Optional[float] = None
-        output_voltage_v: Optional[float] = None
-        output_current_max_a: Optional[float] = None
-        temperature_min_c: Optional[float] = None
-        temperature_max_c: Optional[float] = None
+        input_voltage_min_v: Optional[float] = Field(default=None, ge=0)
+        input_voltage_max_v: Optional[float] = Field(default=None, ge=0)
+        output_voltage_v: Optional[float] = Field(default=None, ge=0)
+        output_current_max_a: Optional[float] = Field(default=None, ge=0)
+        temperature_min_c: Optional[float] = Field(default=None, ge=-40)
+        temperature_max_c: Optional[float] = Field(default=None, ge=-40)
         package: Optional[str] = None
         automotive_grade: bool = False
         lifecycle_status: Optional[str] = None
@@ -53,19 +53,24 @@ if HAS_PYDANTIC:
         datasheet_url: Optional[str] = None
         ezplm_part_id: Optional[str] = None
         replacement_for: List[str] = Field(default_factory=list)
-        source: str = "mock"
+        source: str = "unknown"
+        # ── eZ-PLM 详情富化字段（v2 新增）────────────────────────
+        switching_frequency_khz: Optional[float] = None   # 开关频率（kHz）
+        quiescent_current_ua: Optional[float] = None      # 静态电流（μA）
+        efficiency_pct: Optional[float] = None            # 典型效率（%）
+        features: List[str] = Field(default_factory=list) # 特性标签（AEC-Q100、Sync等）
 
     class ScoreBreakdown(BaseModel):
-        parameter_match_score: float = 0.0
-        supply_risk_score: float = 0.0
-        cost_score: float = 0.0
-        domestic_score: float = 0.0
-        evidence_score: float = 0.0
-        total_score: float = 0.0
+        parameter_match_score: float = Field(default=0.0, ge=0, le=100)
+        supply_risk_score: float = Field(default=0.0, ge=0, le=100)
+        cost_score: float = Field(default=0.0, ge=0, le=100)
+        domestic_score: float = Field(default=0.0, ge=0, le=100)
+        evidence_score: float = Field(default=0.0, ge=0, le=100)
+        total_score: float = Field(default=0.0, ge=0, le=100)
         reasons: List[str] = Field(default_factory=list)
         scoring_mode: str = "rule_only"
-        llm_application_score: Optional[float] = None
-        llm_design_risk_score: Optional[float] = None
+        llm_application_score: Optional[float] = Field(default=None, ge=0, le=100)
+        llm_design_risk_score: Optional[float] = Field(default=None, ge=0, le=100)
         llm_reasoning: Optional[str] = None
 
     class ScoredPart(BaseModel):
@@ -144,12 +149,22 @@ if HAS_PYDANTIC:
         related_part_number: Optional[str] = None
         mitigation: Optional[str] = None
         evidence_refs: List[str] = Field(default_factory=list)
+        # 十维模型扩展字段
+        dimension: Optional[str] = None          # D1–D10
+        risk_score: Optional[float] = None       # 1–5 分
+        is_gate_item: bool = False               # 是否为门禁触发项
+        action_required: Optional[str] = None   # 必要闭环动作
 
     class RiskIR(BaseModel):
         overall_risk_level: str
         risk_items: List[RiskItem] = Field(default_factory=list)
         supply_risk_summary: Optional[str] = None
         engineering_risk_summary: Optional[str] = None
+        # 十维量化模型扩展字段
+        risk_index: Optional[float] = None               # 0–100 风险指数
+        risk_level_code: Optional[str] = None            # L1/L2/L3/L4/L5
+        gate_items_triggered: List[str] = Field(default_factory=list)
+        per_part_risks: List[dict] = Field(default_factory=list)
 
     class SelectionReport(BaseModel):
         request_id: str
@@ -220,7 +235,12 @@ else:
         datasheet_url: Optional[str] = None
         ezplm_part_id: Optional[str] = None
         replacement_for: List[str] = field(default_factory=list)
-        source: str = "mock"
+        source: str = "unknown"
+        # ── eZ-PLM 详情富化字段（v2 新增）────────────────────────
+        switching_frequency_khz: Optional[float] = None
+        quiescent_current_ua: Optional[float] = None
+        efficiency_pct: Optional[float] = None
+        features: List[str] = field(default_factory=list)
 
         @classmethod
         def parse_obj(cls, obj: dict):
@@ -365,6 +385,10 @@ else:
         related_part_number: Optional[str] = None
         mitigation: Optional[str] = None
         evidence_refs: List[str] = field(default_factory=list)
+        dimension: Optional[str] = None
+        risk_score: Optional[float] = None
+        is_gate_item: bool = False
+        action_required: Optional[str] = None
 
         @classmethod
         def parse_obj(cls, obj: dict):
@@ -379,13 +403,10 @@ else:
         risk_items: List[RiskItem] = field(default_factory=list)
         supply_risk_summary: Optional[str] = None
         engineering_risk_summary: Optional[str] = None
-
-        @classmethod
-        def parse_obj(cls, obj: dict):
-            return _parse_obj_dataclass(cls, obj)
-
-        def dict(self):
-            return asdict(self)
+        risk_index: Optional[float] = None
+        risk_level_code: Optional[str] = None
+        gate_items_triggered: List[str] = field(default_factory=list)
+        per_part_risks: List[dict] = field(default_factory=list)
 
     @dataclass
     class SelectionReport:

@@ -26,9 +26,10 @@ _PD_POWER_MAP: dict = {
 }
 
 try:
-    from .llm_client import parse_requirement_with_llm
+    from .llm_client import parse_requirement_with_fc, parse_requirement_with_llm
 except Exception as e:
     from .log_util import warn_swallow; warn_swallow("requirement_parser", e, "LLM import")
+    parse_requirement_with_fc = None
     parse_requirement_with_llm = None
 
 # ── LLM 输出归一化映射 ────────────────────────────────────────────
@@ -96,10 +97,22 @@ def parse_requirement(text: str) -> RequirementConstraints:
     rc = RequirementConstraints(raw_input=text)
     lower = text.lower()
 
-    # ── LLM 优先解析（若 API Key 存在）──────────────────────────
-    if os.getenv("OPENAI_API_KEY") and parse_requirement_with_llm is not None:
-        try:
-            llm_res = parse_requirement_with_llm(text)
+    # ── LLM 优先解析（Function Calling → 旧版 fallback）────────
+    if os.getenv("OPENAI_API_KEY"):
+        llm_res = {}
+        # 优先使用 Function Calling（P2）
+        if parse_requirement_with_fc is not None:
+            try:
+                llm_res = parse_requirement_with_fc(text)
+            except Exception:
+                pass
+        # Fallback: 旧版 JSON 解析
+        if not llm_res and parse_requirement_with_llm is not None:
+            try:
+                llm_res = parse_requirement_with_llm(text)
+            except Exception:
+                pass
+        if llm_res:
             if "category" in llm_res:
                 llm_res["category"] = _norm_cat(llm_res["category"])
             if "topology" in llm_res:
@@ -110,8 +123,6 @@ def parse_requirement(text: str) -> RequirementConstraints:
                         setattr(rc, k, v)
                     except Exception:
                         pass
-        except Exception:
-            pass
 
     # ── 规则化 category / topology（规则优先，覆盖 LLM）─────────
     if "buck" in lower or "降压" in lower or "降到" in lower:

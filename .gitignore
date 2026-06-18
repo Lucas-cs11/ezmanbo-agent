@@ -11,3 +11,16 @@ docs/reports/
 latex-paper/*.pdf
 scripts/archive/
 data/mock_parts.json.backup*
+
+# Runtime artifacts (scripts output)
+docs/datasheets/*.json
+
+# OMC agent runtime memory
+memory/
+
+# Large binary assets (keep only in frontend/public)
+icon.png
+icon-svg.png
+icon-svg.svg
+talk_icon.jpeg
+*.pids
