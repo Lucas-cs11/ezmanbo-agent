@@ -43,37 +43,53 @@ export function ReportCard({ report }: { report: AnalysisReport }) {
       {/* Tab content */}
       <div className="p-3 max-h-[320px] overflow-y-auto">
         {tab === "selection" && (
-          <div className="space-y-2">
-            {parts?.slice(0, 8).map((sp, i) => (
-              <div key={i} className="flex items-center gap-3 p-2 rounded-lg border border-gray-100 hover:bg-gray-50">
-                <span className={cn(
-                  "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0",
-                  sp.recommendation_level === "recommended" ? "bg-brand-600" :
-                  sp.recommendation_level === "backup" ? "bg-amber-500" : "bg-gray-400"
-                )}>
-                  {i + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-medium text-sm">{sp.part.part_number}</span>
-                    <span className="text-[10px] text-gray-400">{sp.part.manufacturer}</span>
-                    {sp.part.automotive_grade && (
-                      <span className="text-[9px] px-1 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">AEC-Q100</span>
-                    )}
-                  </div>
-                  <div className="flex gap-3 text-[10px] text-gray-500 mt-0.5">
-                    {sp.part.output_voltage_v && <span>Vout: {sp.part.output_voltage_v}V</span>}
-                    {sp.part.output_current_max_a && <span>Imax: {sp.part.output_current_max_a}A</span>}
-                    {sp.part.package && <span>{sp.part.package}</span>}
-                    {sp.part.stock != null && <span>库存: {sp.part.stock}</span>}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="font-mono font-bold text-sm">{sp.score.total_score}</div>
-                  <div className="text-[9px] text-gray-400">总分</div>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th className="w-8">#</th>
+                  <th className="flex-1">型号</th>
+                  <th className="w-20">厂商</th>
+                  <th className="w-16">规格</th>
+                  <th className="w-12 text-right">评分</th>
+                  <th className="w-16 text-center">推荐级别</th>
+                </tr>
+              </thead>
+              <tbody>
+                {parts?.slice(0, 8).map((sp, i) => (
+                  <tr key={i}>
+                    <td className="text-center">
+                      <span className={cn(
+                        "inline-flex items-center justify-center w-6 h-6 rounded-full text-[9px] font-bold text-white",
+                        sp.recommendation_level === "recommended" ? "bg-brand-600" :
+                        sp.recommendation_level === "backup" ? "bg-amber-500" : "bg-gray-400"
+                      )}>
+                        {i + 1}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="font-mono font-medium text-gray-800">{sp.part.part_number}</span>
+                      {sp.part.automotive_grade && (
+                        <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">AEC</span>
+                      )}
+                    </td>
+                    <td className="text-gray-500 truncate">{sp.part.manufacturer}</td>
+                    <td className="text-gray-500 text-[10px]">
+                      {sp.part.output_voltage_v ? `${sp.part.output_voltage_v}V` : "-"}
+                    </td>
+                    <td className="text-right">
+                      <span className="font-mono font-bold text-brand-700">{sp.score.total_score}</span>
+                    </td>
+                    <td className="text-center">
+                      <span className="text-[10px] font-medium text-gray-600">
+                        {sp.recommendation_level === "recommended" ? "推荐" :
+                         sp.recommendation_level === "backup" ? "备选" : "风险"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 

@@ -240,10 +240,10 @@ def run_agent(
     # 构建消息列表
     messages = list(history) + [HumanMessage(content=user_input)]
 
-    # 调用 Agent（限制最大递归步数）
+    # 调用 Agent（限制最大递归步数，每轮 think+tool+observe 约 3 步）
     result = agent.invoke(
         {"messages": messages},
-        config={"recursion_limit": 5},
+        config={"recursion_limit": 25},
     )
 
     # 提取结果

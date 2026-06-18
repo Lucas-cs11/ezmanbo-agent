@@ -54,8 +54,8 @@ export function MessageBubble({ message, progress }: { message: ChatMessage; pro
   return (
     <div className={cn("flex gap-3 animate-slide-up", isUser ? "justify-end" : "justify-start")}>
       {!isUser && (
-        <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center overflow-hidden shrink-0 mt-1">
-          <Image src="/icon.svg" alt="eZmanbo" width={20} height={20} className="w-5 h-5 object-contain" />
+        <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center overflow-hidden shrink-0 mt-1">
+          <Image src="/agent_avatar.jpeg" alt="Agent" width={32} height={32} className="w-8 h-8 object-cover" />
         </div>
       )}
 
