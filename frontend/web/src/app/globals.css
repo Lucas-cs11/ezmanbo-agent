@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface text-gray-900 antialiased;
+    font-family: "SF Pro Display", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  }
+}
+
+/* ── 自定义滚动条 ───────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+/* ── Markdown 渲染样式 ─────────────────────────── */
+.markdown-body h1 { @apply text-lg font-bold mb-2 mt-4; }
+.markdown-body h2 { @apply text-base font-semibold mb-2 mt-3 text-brand-800; }
+.markdown-body h3 { @apply text-sm font-medium mb-1 mt-2; }
+.markdown-body p { @apply leading-relaxed mb-2; }
+.markdown-body ul { @apply list-disc pl-5 mb-2; }
+.markdown-body code {
+  @apply bg-gray-100 text-rose-700 px-1 py-0.5 rounded text-xs font-mono;
+}
+.markdown-body pre { @apply bg-gray-900 text-gray-100 p-3 rounded-lg mb-3 overflow-x-auto; }
+.markdown-body pre code { @apply bg-transparent text-inherit p-0; }
+.markdown-body strong { @apply font-semibold text-gray-900; }
+.markdown-body table { @apply w-full border-collapse mb-3; }
+.markdown-body th { @apply bg-brand-50 text-left p-2 text-xs font-semibold border-b-2 border-brand-200; }
+.markdown-body td { @apply p-2 text-xs border-b border-gray-100; }
+
+/* ── 打字光标动画 ──────────────────────────────── */
+.typing-cursor::after {
+  content: "▊";
+  animation: pulseDot 1.4s infinite ease-in-out;
+  @apply text-brand-500 ml-0.5;
+}
+
+/* ── SSE 进度条动画 ────────────────────────────── */
+.stage-bar {
+  @apply h-1 rounded-full bg-brand-100 overflow-hidden;
+}
+.stage-bar-fill {
+  @apply h-full bg-brand-500 rounded-full;
+  animation: stageProgress 0.6s ease-out;
+}
+@keyframes stageProgress {
+  from { width: 0%; }
+  to { width: 100%; }
+}

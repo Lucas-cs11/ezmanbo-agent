@@ -4,10 +4,9 @@ test_hybrid_retrieval.py - Hybrid retrieval evaluation script
 Compare hybrid retrieval (BM25 + vector) vs pure vector retrieval recall.
 """
 
-import json
 import sys
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List
 
 # Add project path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -15,31 +14,28 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.hybrid_retrieval import HybridRetriever
 
 
-def load_mock_parts() -> List[str]:
-    """Load component descriptions from mock database."""
-    data_file = Path(__file__).parent.parent / "data" / "mock_parts.json"
-    with open(data_file, "r", encoding="utf-8") as f:
-        parts = json.load(f)
+# ── 内联样本数据（用于测试 BM25/Hybrid 逻辑，不依赖外部文件）────────────
+_SAMPLE_DOCUMENTS: List[str] = [
+    "TPS54360 Texas Instruments buck 36V 3.5A",
+    "TPS62130 Texas Instruments buck 17V 3A 5V",
+    "LM2596 Texas Instruments buck 40V 3A",
+    "TPS7A4501 Texas Instruments ldo 30V 1A",
+    "TLV75801 Texas Instruments ldo 5.5V 1A",
+    "LTC3633 Analog Devices buck 15V 8A",
+    "LT1763 Analog Devices ldo 20V 1.5A",
+    "ADP2384 Analog Devices buck 20V 4A 5V",
+    "MCP16301 Microchip buck 32V 1.2A",
+    "MCP1703 Microchip ldo 16V 0.25A 3.3V",
+    "ST1S10 STMicroelectronics buck 18V 3A",
+    "LD1117 STMicroelectronics ldo 15V 0.8A 5V",
+    "SY8240 Silergy buck 20V 5V 3A domestic",
+    "SGM2576 SGMICRO buck 40V 3A automotive AEC-Q100",
+]
 
-    documents = []
-    for p in parts:
-        # Build document: MPN + manufacturer + description + params
-        parts_list = [
-            p.get("part_number", ""),
-            p.get("manufacturer", ""),
-            p.get("description", ""),
-            p.get("category", ""),
-            p.get("topology", ""),
-        ]
-        if p.get("output_voltage_v"):
-            parts_list.append(f"{p['output_voltage_v']}V")
-        if p.get("output_current_max_a"):
-            parts_list.append(f"{p['output_current_max_a']}A")
 
-        doc = " ".join([str(x) for x in parts_list if x])
-        documents.append(doc)
-
-    return documents
+def load_sample_documents() -> List[str]:
+    """返回内联样本文档列表（供 HybridRetriever 逻辑测试用）。"""
+    return list(_SAMPLE_DOCUMENTS)
 
 
 class MockCollection:
@@ -59,7 +55,7 @@ def test_bm25_basic():
     print("=" * 60)
 
     try:
-        documents = load_mock_parts()
+        documents = load_sample_documents()
         print(f"OK: Loaded {len(documents)} component documents\n")
 
         # Create retriever with mock collection
@@ -158,7 +154,7 @@ def test_hybrid_weight():
     print("=" * 60)
 
     try:
-        documents = load_mock_parts()
+        documents = load_sample_documents()
         print(f"OK: Loaded {len(documents)} documents\n")
 
         query = "SY8240"
@@ -204,7 +200,7 @@ def test_edge_cases():
     print("=" * 60)
 
     try:
-        documents = load_mock_parts()
+        documents = load_sample_documents()
         retriever = HybridRetriever(
             chroma_collection=MockCollection(documents),
             documents=documents,

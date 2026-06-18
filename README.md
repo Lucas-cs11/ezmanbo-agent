@@ -6,62 +6,74 @@
 
 ---
 
-## 快速运行
+## 快速运行（一键克隆部署）
 
 ```bash
-# 1. 安装依赖
-pip install -r requirements.txt
+# 0. 克隆仓库
+git clone https://github.com/Lucas-cs11/ezplm-component-risk-agent.git
+cd ezplm-component-risk-agent
 
-# 2. 配置环境变量（复制 .env.example 为 .env 并填写真实密钥）
-cp .env.example .env
+# 1. 一键环境搭建
+chmod +x setup.sh && ./setup.sh
 
-# 3. 构建 RAG 知识库（首次运行必需）
-PYTHONPATH=. python3 scripts/build_knowledge_base.py
+# 2. 编辑 .env 填写 API 密钥（EZPLM_API_KEY、OPENAI_API_KEY）
+vim .env
 
-# 4. 启动后端（FastAPI）
+# 3. 启动后端（FastAPI）
 PYTHONPATH=. python3 -m uvicorn app.main:app --reload --port 8000
 
-# 5. 启动前端演示（Streamlit）
-PYTHONPATH=. python3 -m streamlit run frontend/streamlit_app.py
+# 4. 启动 Web 前端（Next.js，推荐）
+cd frontend/web && npm install && npm run dev
 
-# 6. 运行评测
-PYTHONPATH=. python3 tests/eval_runner.py
+# 5. （可选）启动旧版 Streamlit UI
+PYTHONPATH=. streamlit run frontend/streamlit_app.py
 ```
 
-> **注意**：所有脚本需在项目根目录下加 `PYTHONPATH=.` 运行。
+> **环境要求**：Python 3.9+ | Node.js 18+ | macOS / Linux / WSL2
+
+> **数据手册下载**（可选，已有 49 份预置）：`PYTHONPATH=. python3 scripts/download_datasheets.py`
 
 ---
 
-## 项目现状（2026-06-01）
+## 项目现状（2026-06-18）
 
 ### 核心模块
 
 | 模块 | 文件 | 说明 |
 |------|------|------|
-| 数据模型 | `app/schemas.py` | PartIR / RiskIR / TopologyIR / ScoreBreakdown，Pydantic v2 |
+| 数据模型 | `app/schemas.py` | PartIR / RiskIR / TopologyIR / ScoreBreakdown 等 13 个 Pydantic v2 模型，含 Field(ge=0) 校验 |
 | 需求解析 | `app/requirement_parser.py` | 四级容错链：LLM 语义 → 规则覆盖 → 电压兜底 → 温度匹配 |
-| eZ-PLM 客户端 | `app/ezplm_client.py` | HMAC-SHA256 签名 + 多前缀分组查询 + MPN 电压推断 + Mock 兜底 |
+| 约束校验 | `app/constraint_checker.py` | 需求约束完整性与合理性校验 |
+| 意图分类 | `app/intent_classifier.py` | 三层意图分类：选型 / 对话 / 替换 |
+| eZ-PLM 客户端 | `app/ezplm_client.py` | HMAC-SHA256 签名 + 多前缀分组查询 + 详情富化 + LRU 缓存淘汰 |
 | LLM 客户端 | `app/llm_client.py` | DeepSeek/OpenAI 兼容，需求解析 + 器件评分双 Prompt |
-| 混合评分 | `app/scoring.py` | 双模自适应（rule_only / llm_enhanced）+ 去重 + Top-N 分级 |
-| 证据链 | `app/evidence.py` | 8 类字段级证据，含置信度与人工复核标记 |
-| 风险报告 | `app/report_generator.py` | 13 条规则引擎 + LLM 叙述分离 + FMEA RPN + 5×5 热力矩阵 |
+| 混合评分 | `app/scoring.py` | **Scoring v2.0**：五层复合模型（Gate → Fit F → Risk R → Confidence C → Robustness B → RS），52 厂商统一白名单，车规/工业/消费三档成本基准 |
+| 证据链 | `app/evidence.py` | 字段级证据 + 置信度 + 数据手册本地验证（S=1.00 最高可靠度） |
+| 风险评估 | `app/report_generator.py` | **十维风险评估引擎**（ISO 31000 / IEC 60812）：D1–D10 加权评分 + 门禁项 + 0–100 风险指数 |
 | 报告输出 | `app/output_generator.py` | BOM / 风险评估 / 拓扑分析 Markdown + TopologyIR JSON |
-| BOM 输出 | `app/output_bom.py` | BOM 选型清单 Markdown 渲染（独立模块） |
-| Pipeline 调度 | `app/agent_orchestrator.py` | 五阶段流水线 + RAG 自动检索 + 参考设计拉取 |
-| RAG 知识库 | `app/rag.py` | ChromaDB + sentence-transformers，29 条工程知识（11 个类别） |
+| BOM 输出 | `app/output_bom.py` | **专业 EBOM**：29 列主表 + AVL/AML + 供应链风险 + Excel 4-Sheet 导出 |
+| Pipeline 编排 | `app/agent_orchestrator.py` | 7 阶段流水线 + RAG 检索 + 参考设计 + session 隔离 |
+| LangGraph 编排 | `app/langgraph_orchestrator.py` | LangGraph 工作流编排（增强模式） |
+| RAG 知识库 | `app/rag.py` | ChromaDB + sentence-transformers（all-MiniLM-L6-v2），离线容错 |
 | ReAct Agent | `app/react_agent.py` | LangChain 1.3，4 工具，多轮会话，幻觉检测 |
 | Agent 工具 | `app/agent_tools.py` | search / knowledge / alternatives / report |
-| 数据手册 RAG | `app/datasheet_rag.py` | 数据手册 QA 模块 |
-| FastAPI 服务 | `app/main.py` | `/health` `/analyze` `/replacement` `/agent/chat` `/agent/sessions` |
-| 调试日志 | `app/log_util.py` | 调试日志工具 |
+| 工具 Schema | `app/tool_schema.py` | Agent 工具 JSON Schema 定义 |
+| 数据手册解析 | `app/datasheet_parser.py` | PyMuPDF 解析 + 章节检测 + 滑动窗口分块（51 条正则模式覆盖 TI/ADI/ST/Microchip） |
+| 数据手册 RAG | `app/datasheet_rag.py` | **50 器件注册表**（TI 22 / ADI 11 / Microchip 7 / ST 10）+ 双重注册验证 |
+| 语义缓存 | `app/semantic_cache.py` | 选型结果语义缓存（减少重复 API 调用） |
+| 会话记忆 | `app/memory.py` | Agent 会话记忆管理 |
+| 深度思考 | `app/thinking.py` | LLM 思考深度控制 |
+| FastAPI 服务 | `app/main.py` | **13 个 API 端点**（流式 SSE + session 隔离 + CORS 环境变量 + 文件上传增强） |
+| 调试日志 | `app/log_util.py` | 结构化调试日志 |
 
 ### 数据与知识库
 
 | 资源 | 说明 |
 |------|------|
-| Mock 器件库 | `data/mock_parts.json` — 67 条（Buck 33 + Boost 12 + LDO 22，含国产/进口/车规标签） |
-| RAG 知识条目 | `data/knowledge/engineering_knowledge.json` — 29 条（Buck/Boost/LDO 设计 + 热管理/车规/Layout/供应链/EMI/可靠性） |
-| ChromaDB 向量库 | `data/chroma_db/` — 持久化存储，384 维向量 |
+| eZ-PLM API | TI / ADI / Microchip / ST 四厂商物料；HMAC-SHA256 签名，24h 关键词缓存，详情富化 |
+| 工程知识 RAG | `data/knowledge/` — 29 条（Buck/Boost/LDO 设计 + 热管理/车规/Layout/供应链/EMI/可靠性） |
+| 数据手册 RAG | **50 器件 × 8,021 chunks** — 10 种 field type（overview / pinout / electrical / thermal / layout / package / application / absolute_max / typical_perf / general），384 维向量 |
+| ChromaDB | `data/chroma_db/` — 持久化存储，cosine 距离 |
 
 ### 评测结果
 
@@ -88,38 +100,48 @@ PYTHONPATH=. python3 tests/eval_runner.py
 
 ## 代码文件说明
 
-### 应用层（`app/`）
+### 应用层（`app/`，共 23 个模块）
 
 | 文件 | 功能 |
 |------|------|
-| `schemas.py` | PartIR / RiskIR / TopologyIR / ScoreBreakdown 等全部 IR 数据模型 |
-| `requirement_parser.py` | 四级容错需求解析链（LLM + 规则 + 电压兜底 + 温度匹配） |
-| `ezplm_client.py` | eZ-PLM API HMAC 签名客户端 + Mock 兜底 + MPN 电压推断 |
-| `llm_client.py` | DeepSeek/OpenAI 兼容 LLM（需求解析 + 器件评分双 Prompt） |
-| `scoring.py` | 双模混合评分（rule_only / llm_enhanced）+ 去重 + Top-N |
-| `evidence.py` | 8 类字段级证据链（含置信度 + 人工复核标记） |
-| `report_generator.py` | 双层风险评估（13 条规则引擎 + LLM 叙述分离） |
-| `output_generator.py` | BOM / 风险评估 / 拓扑分析 Markdown + TopologyIR JSON |
-| `output_bom.py` | BOM 选型清单生成（独立模块） |
-| `agent_orchestrator.py` | Pipeline 主调度 + RAG 检索 + LLM 参考设计拉取 |
-| `main.py` | FastAPI 服务（5 端点） |
-| `rag.py` | ChromaDB 向量存储 + sentence-transformers 语义检索 |
-| `agent_tools.py` | 4 个 LangChain Tool（搜索/知识/替代/报告） |
-| `react_agent.py` | ReAct Agent + 多轮会话管理 + 幻觉检测 |
-| `datasheet_rag.py` | 数据手册 RAG 模块 |
-| `log_util.py` | 调试日志工具 |
+| `schemas.py` | 13 个 Pydantic v2 数据模型（含 Field(ge=0) 校验） |
+| `requirement_parser.py` | 四级容错需求解析 |
+| `constraint_checker.py` | 需求约束完整性与合理性校验 |
+| `intent_classifier.py` | 三层意图分类（选型/对话/替换） |
+| `ezplm_client.py` | eZ-PLM HMAC-SHA256 客户端 + LRU 缓存 |
+| `llm_client.py` | DeepSeek/OpenAI 兼容 LLM 客户端 |
+| `scoring.py` | **Scoring v2.0** 五层复合评分 |
+| `evidence.py` | 字段级证据链 + 数据手册本地验证 |
+| `report_generator.py` | 十维风险评估引擎 |
+| `output_generator.py` | Markdown + JSON 报告输出 |
+| `output_bom.py` | EBOM 29 列 + Excel 4-Sheet |
+| `agent_orchestrator.py` | 7 阶段 Pipeline + session 隔离 |
+| `langgraph_orchestrator.py` | LangGraph 工作流编排 |
+| `rag.py` | ChromaDB + sentence-transformers |
+| `react_agent.py` | ReAct Agent 多轮会话 |
+| `agent_tools.py` | 4 个 LangChain Tool |
+| `tool_schema.py` | Agent 工具 JSON Schema |
+| `datasheet_parser.py` | PyMuPDF 解析 + 章节检测 + 滑窗分块 |
+| `datasheet_rag.py` | 50 器件注册表 + 双重验证 |
+| `semantic_cache.py` | 选型语义缓存 |
+| `memory.py` | Agent 会话记忆 |
+| `thinking.py` | LLM 思考深度控制 |
+| `main.py` | FastAPI **13 端点** + SSE 流式 + CORS 环境变量 |
+| `log_util.py` | 结构化日志 |
 
 ### 前端 / 脚本 / 数据
 
 | 路径 | 说明 |
 |------|------|
-| `frontend/streamlit_app.py` | Streamlit 增强版 UI，竞赛三场景快捷入口 |
-| `scripts/build_knowledge_base.py` | RAG 知识库构建（`--rebuild` / `--query`） |
-| `scripts/import_parts_from_api.py` | eZ-PLM API 批量导入 |
+| `frontend/web/` | **Next.js 14 Web UI**（12 组件 + Zustand + SSE 流式 + DOMPurify + Tailwind CSS） |
+| `frontend/streamlit_app.py` | Streamlit 旧版 UI（竞赛三场景快捷入口） |
+| `scripts/build_knowledge_base.py` | RAG 工程知识库构建 |
+| `scripts/download_datasheets.py` | 批量下载 50 份数据手册 PDF（断点续传） |
+| `scripts/ingest_datasheets.py` | 全管线：下载 → 解析 → 分块 → 灌入 ChromaDB |
+| `scripts/eval_for_paper.py` | 论文评测数据采集 |
 | `scripts/llm_demo.py` | LLM 需求解析快速验证 |
-| `scripts/eval_for_paper.py` | 论文评测数据采集脚本 |
-| `data/mock_parts.json` | 67 条 Mock 器件 |
-| `data/knowledge/engineering_knowledge.json` | 29 条 RAG 工程知识 |
+| `docs/datasheets/` | 49 份数据手册 PDF（~110MB） |
+| `data/knowledge/` | 29 条 RAG 工程知识 |
 
 ### 测试 / 论文 / 文档
 
@@ -134,15 +156,23 @@ PYTHONPATH=. python3 tests/eval_runner.py
 
 ---
 
-## API 端点
+## API 端点（13 个）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/health` | 健康检查 |
-| `POST` | `/analyze` | Pipeline 选型分析，返回 SelectionReport JSON |
-| `POST` | `/replacement` | 替代器件查找，返回 ReplacementReport JSON |
-| `POST` | `/agent/chat` | ReAct Agent 对话，支持 `session_id` 多轮 |
-| `GET` | `/agent/sessions` | 查看活跃 Agent 会话 |
+| `GET` | `/health` | 健康检查（前端 30s 轮询 + 连接指示器） |
+| `POST` | `/analyze` | （同步版，已弃用；请使用流式版） |
+| `POST` | `/analyze/stream` | **SSE 流式选型**：7 阶段进度 + 实时评分 + session 隔离 |
+| `POST` | `/replacement` | 替代器件查找，前端 `/replace` 命令入口 |
+| `POST` | `/classify` | 三层意图分类 |
+| `POST` | `/agent/chat` | ReAct Agent 单轮对话 |
+| `POST` | `/agent/chat/stream` | **SSE 流式对话**：思考过程 + 正文分步推送 |
+| `GET` | `/agent/sessions` | 活跃会话列表（前后端自动同步） |
+| `POST` | `/agent/init_session` | 预注入选型上下文的会话创建 |
+| `GET` | `/schematic/{topology}` | 参数化电路图 SVG（`?Vin=12&Vout=5&Iout=3`） |
+| `GET` | `/report/{report_type}` | BOM / 风险 / 拓扑三类报告 |
+| `POST` | `/upload/parse` | 文件上传解析（PDF 30 页 + Excel 全 Sheet） |
+| `POST` | `/export/bom` | BOM Excel 导出 |
 
 ### 调用示例
 
@@ -169,7 +199,7 @@ curl -s -X POST http://localhost:8000/agent/chat \
 
 | 变量 | 必填 | 说明 |
 |------|:----:|------|
-| `EZPLM_API_KEY` | 否 | eZ-PLM API 密钥；未填则使用 mock 数据 |
+| `EZPLM_API_KEY` | **是** | eZ-PLM API 密钥；未填则无法查询器件数据 |
 | `EZPLM_BASE_URL` | 否 | eZ-PLM API 地址，默认 `https://www.ezplm.cn` |
 | `OPENAI_API_KEY` | 否 | LLM 密钥（DeepSeek/OpenAI）；未填则纯规则模式 |
 | `OPENAI_BASE_URL` | 否 | LLM 地址；DeepSeek 设为 `https://api.deepseek.com` |

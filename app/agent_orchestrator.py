@@ -1,13 +1,13 @@
 import os
 from typing import List, Optional, Dict, Any
 from .requirement_parser import parse_requirement
-from .ezplm_client import search_parts, find_replacements, fetch_reference_designs
+from .ezplm_client import search_parts, find_replacements, fetch_reference_designs, enrich_candidates_with_details
 from .scoring import score_candidates
 from .evidence import build_evidence
 from .report_generator import build_report, _assess_risks
 from .schemas import (
     SelectionReport, ReplacementReport,
-    RequirementConstraints, PartIR, ScoredPart, EvidenceIR,
+    RequirementConstraints, PartIR, ScoredPart, ScoreBreakdown, EvidenceIR,
 )
 
 
@@ -48,11 +48,37 @@ def analyze(user_input: str) -> SelectionReport:
     if cache_result is not None:
         # 缓存命中，直接返回缓存的报告
         cached_report_dict = cache_result["cached_result"]
+        # ── C2: 嵌套 Pydantic 类型反序列化 ──
+        # 确保 constraints 被还原为 RequirementConstraints 对象
+        if isinstance(cached_report_dict.get("constraints"), dict):
+            cached_report_dict["constraints"] = RequirementConstraints(
+                **cached_report_dict["constraints"]
+            )
+        # 确保 scored_parts / candidates 列表中的元素被还原
+        for key in ("scored_parts", "candidates", "recommended_parts"):
+            parts = cached_report_dict.get(key, [])
+            if parts:
+                rebuilt = []
+                for item in parts:
+                    if isinstance(item, dict):
+                        # 重建嵌套的 part 和 score
+                        part_dict = item.get("part", {})
+                        score_dict = item.get("score", {})
+                        if isinstance(part_dict, dict):
+                            item["part"] = PartIR(**part_dict)
+                        if isinstance(score_dict, dict):
+                            item["score"] = ScoreBreakdown(**score_dict)
+                    rebuilt.append(item)
+                cached_report_dict[key] = rebuilt
         return SelectionReport(**cached_report_dict)
 
     # 缓存未命中，继续处理
     req = parse_requirement(user_input)
     candidates = search_parts(req)
+
+    # ── v2：对 Top 候选进行详情富化（补充开关频率/效率/Iq/特性标签）────
+    if candidates:
+        candidates = enrich_candidates_with_details(candidates, max_enrich=8)
 
     # ── RAG 工程知识检索 ────────────────────────────────────────
     rag_results = _query_rag_knowledge(user_input, req)
@@ -60,7 +86,7 @@ def analyze(user_input: str) -> SelectionReport:
     # ── 参考设计获取（仅 EZ-PLM API 器件，LLM key 存在时）────────
     ref_designs_map = {}
     if os.getenv("OPENAI_API_KEY", "").strip():
-        api_parts = [c for c in candidates if getattr(c, "source", "mock") == "ezplm"][:10]
+        api_parts = [c for c in candidates if getattr(c, "source", "") == "ezplm"][:10]
         for p in api_parts:
             if p.ezplm_part_id:
                 designs = fetch_reference_designs(p.ezplm_part_id)

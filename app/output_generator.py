@@ -60,10 +60,10 @@ def _now() -> str:
 def _call_llm(system: str, user: str) -> str:
     """调用 LLM，失败时返回空字符串。"""
     try:
-        from .llm_client import call_openai_chat
+        from .llm_client import call_openai_chat_text
         if not os.getenv("OPENAI_API_KEY", "").strip():
             return ""
-        return call_openai_chat(
+        return call_openai_chat_text(
             [{"role": "system", "content": system}, {"role": "user", "content": user}],
             temperature=0.0,
         )
@@ -222,7 +222,7 @@ def generate_risk_report(
         "",
         "| 数据类型 | 来源 | 置信度评估 |",
         "|---------|------|-----------|",
-        "| 器件电气参数 | eZ-PLM API 实时查询 / Mock 数据 | 高（平台字段） |",
+        "| 器件电气参数 | eZ-PLM API 实时查询 | 高（平台字段） |",
         "| 库存与生命周期 | eZ-PLM API | 中（实时性依赖平台更新频率） |",
         "| 参考设计 | eZ-PLM 参考设计库 | 中（案例覆盖度因器件而异） |",
         "| 规则推理 | 本地规则引擎 | 高（确定性逻辑） |",
@@ -255,15 +255,15 @@ def generate_risk_report(
 
     lines.append("")
 
-    # ── FMEA 量化矩阵（P0新增）───────────────────────────────────
+    # ── 失效模式与影响分析（FMEA） 量化矩阵（P0新增）───────────────────────────────────
     if risk_items:
         lines += [
             "### 3.1.1 风险量化分析（FMEA）",
             "",
-            "> 依据 **IEC 60812 / SAE J1739** FMEA 方法论，对每项风险进行 RPN 评分。",
-            "> RPN = 严重度(S) × 发生概率(O) × 检测难度(D)，每维 1–5 分。",
+            "> 依据 **IEC 60812 / SAE J1739** 失效模式与影响分析（FMEA） 方法论，对每项风险进行 风险优先级数（RPN） 评分。",
+            "> 风险优先级数（RPN） = 严重度(S) × 发生概率(O) × 检测难度(D)，每维 1–5 分。",
             "",
-            "| 编号 | 风险描述 | S | O | D | RPN | 风险等级 |",
+            "| 编号 | 风险描述 | S | O | D | 风险优先级数（RPN） | 风险等级 |",
             "|------|---------|---|---|---|-----|---------|",
         ]
         for i, item in enumerate(risk_items, 1):
@@ -462,14 +462,14 @@ def _topology_mermaid_buck_converter(
     """集成式同步 Buck 转换器（Converter，MOSFET 在芯片内部）— TPS54xxx 等。"""
     return f"""```mermaid
 graph LR
-    VIN["输入电源<br/>{vin_str}"] --> CIN["输入电容 CIN<br/>10μF~22μF MLCC"]
+    VIN["输入电源<br/>{vin_str}"] --> CIN["输入电容 CIN<br/>10μF~22μF 多层陶瓷电容（MLCC）"]
     CIN --> CBOOT["自举电容 CBOOT<br/>0.1μF"]
     CBOOT --> IC["Buck 转换器 IC<br/>**{ctrl_pn}**<br/>集成 HS/LS MOSFET"]
     IC --> IND["储能电感 L<br/>~6.8μH"]
-    IND --> COUT["输出电容 COUT<br/>22μF×2 MLCC"]
+    IND --> COUT["输出电容 COUT<br/>22μF×2 多层陶瓷电容（MLCC）"]
     COUT --> VOUT["负载输出<br/>{vout_str} / {iout_str}"]
     COUT -->|"反馈 FB → Rfbt/Rfbb 分压"| IC
-    IC --> EN["使能 EN<br/>UVLO 电阻分压"]
+    IC --> EN["使能 EN<br/>欠压锁定（UVLO） 电阻分压"]
     IC --> SS["软启动 CSS"]
     PGND["功率地 PGND"] --- IC
     AGND["模拟地 AGND"] --- IC
@@ -582,7 +582,7 @@ _TOPO_STD_DESC = {
     "ldo": (
         "低压差线性稳压器（Low Dropout Regulator, LDO）通过调整串联调整管的工作点，"
         "在较小压差（通常低于 1 V）条件下实现电压稳定。相比开关电源，LDO 具有低噪声、"
-        "低 EMI 的优点，适用于对纹波敏感的模拟及射频电路供电场景。"
+        "低 电磁干扰（EMI） 的优点，适用于对纹波敏感的模拟及射频电路供电场景。"
         "其核心结构由调整管（PMOS 或 NPN 达林顿管）、误差放大器及反馈分压网络构成。"
     ),
 }
@@ -629,22 +629,22 @@ def _build_topo_modules(topology: Optional[str], ctrl_pn: str, dev_type: str) ->
     if dev_type == "converter":
         return {
             "buck": [
-                ("输入电容（CIN）", "抑制输入电压纹波，为开关电流提供低阻抗路径；选用 X7R/X5R MLCC，注意耐压降额。"),
+                ("输入电容（CIN）", "抑制输入电压纹波，为开关电流提供低阻抗路径；选用 X7R/X5R 多层陶瓷电容（MLCC），注意耐压降额。"),
                 ("自举电容（CBOOT）", f"为 {ctrl_pn} 内部上管栅极驱动提供悬浮电源，典型值 0.1μF，靠近 CBOOT-SW 引脚放置。"),
                 ("Buck 转换器 IC", f"核心器件（{ctrl_pn}），内部集成同步整流 MOSFET、栅极驱动、误差放大器、PWM 比较器及保护电路。"),
                 ("储能电感（L）", "开关周期内储存与释放磁能；选择饱和电流 > IOUT + ΔIL/2 的屏蔽式功率电感。"),
-                ("输出电容（COUT）", "滤除电感纹波电流，维持输出电压稳定；低 ESR 陶瓷电容对瞬态响应至关重要。"),
+                ("输出电容（COUT）", "滤除电感纹波电流，维持输出电压稳定；低 等效串联电阻（ESR） 陶瓷电容对瞬态响应至关重要。"),
                 ("反馈分压网络（Rfbt/Rfbb）", f"将 VOUT 分压后反馈至 {ctrl_pn} FB 引脚，与内部基准电压比较实现精确稳压。"),
             ],
         }
     else:
         return {
             "buck": [
-                ("输入滤波网络", "抑制来自输入电源的差模与共模噪声，防止开关噪声反向传导；通常包含 EMI 滤波电感、X/Y 电容及输入旁路电容（CIN）。"),
+                ("输入滤波网络", "抑制来自输入电源的差模与共模噪声，防止开关噪声反向传导；通常包含 电磁干扰（EMI） 滤波电感、X/Y 电容及输入旁路电容（CIN）。"),
                 ("控制器/稳压器 IC", f"核心控制单元（{ctrl_pn}），内置功率开关管、振荡器、误差放大器及保护电路。"),
                 ("续流二极管（D）", "在开关管关断期间为电感电流提供续流回路；需选用快恢复/肖特基二极管以降低反向恢复损耗。"),
                 ("储能电感（L）", "在开关管导通与截止期间储存和释放磁能，实现能量的连续传递，是 Buck 拓扑的核心储能元件。"),
-                ("输出滤波电容（COUT）", "滤除电感纹波电流引起的输出电压波动，维持输出电压稳定；低 ESR 特性对动态响应至关重要。"),
+                ("输出滤波电容（COUT）", "滤除电感纹波电流引起的输出电压波动，维持输出电压稳定；低 等效串联电阻（ESR） 特性对动态响应至关重要。"),
             ],
         }
 
@@ -689,7 +689,7 @@ def _build_thermal_section(
             f"|---------|---------|-------|------|",
             f"| 开关损耗 | ~40% | {p_sw:.2f} W | MOSFET 栅极充放电 + 开关交叠 |",
             f"| 导通损耗 | ~30% | {p_cond:.2f} W | HS/LS MOSFET Rds(on) 导通损耗 |",
-            f"| 电感损耗 | ~20% | {p_ind:.2f} W | DCR + 磁芯损耗 |",
+            f"| 电感损耗 | ~20% | {p_ind:.2f} W | 直流电阻（DCR） + 磁芯损耗 |",
             f"| 其他 | ~10% | {p_other:.2f} W | 控制电路 + PCB 走线损耗 |",
         ]
     else:
@@ -702,7 +702,7 @@ def _build_thermal_section(
             f"|---------|---------|-------|------|",
             f"| 开关损耗 | ~30% | {p_sw:.2f} W | 内部开关管交叠损耗 |",
             f"| 二极管损耗 | ~30% | {p_diode:.2f} W | 续流二极管正向导通 Vf × I |",
-            f"| 电感损耗 | ~25% | {p_ind:.2f} W | DCR + 磁芯损耗 |",
+            f"| 电感损耗 | ~25% | {p_ind:.2f} W | 直流电阻（DCR） + 磁芯损耗 |",
             f"| 其他 | ~15% | {p_other:.2f} W | 控制电路 + PCB 走线损耗 |",
         ]
 
@@ -764,7 +764,7 @@ def _build_layout_guidance(topology: Optional[str], dev_type: str) -> str:
             "- 功率地（PGND）和模拟地（AGND）在 IC 下方单点连接（星形接地）。\n"
             "- IC 底部 Thermal Pad 必须焊接并打过孔连接到内层地平面，兼顾散热与接地。\n\n"
             "**5. 输入/输出电容布局**：\n"
-            "- 输入电容优先使用 0603 或更小封装以降低 ESL。\n"
+            "- 输入电容优先使用 0603 或更小封装以降低 等效串联电感（ESL）。\n"
             "- 多个输出电容并联时对称布局，均流路径等长。\n\n"
             "**6. 自举电容（CBOOT）**：\n"
             "- CBOOT 紧靠 IC 的 BOOT 和 SW 引脚放置，走线 ≤ 3 mm。\n"
@@ -776,7 +776,7 @@ def _build_layout_guidance(topology: Optional[str], dev_type: str) -> str:
             "- 续流二极管靠近 IC SW 和 GND 引脚，短而粗的走线。\n\n"
             "**2. 续流二极管布局**：\n"
             "- 二极管阴极直接连 SW 节点，阳极通过大面积铜皮连 GND。\n"
-            "- 二极管的开关噪声是主要 EMI 源，建议在二极管两端并联 RC Snubber。\n\n"
+            "- 二极管的开关噪声是主要 电磁干扰（EMI） 源，建议在二极管两端并联 RC 缓冲吸收电路（Snubber）。\n\n"
             "**3. 反馈走线（FB）**：\n"
             "- FB 为高阻抗节点，远离 SW 和电感等噪声源。\n"
             "- 输出电容之后取反馈电压，而非电感之后直接取。\n\n"
@@ -784,8 +784,8 @@ def _build_layout_guidance(topology: Optional[str], dev_type: str) -> str:
             "- IC 底部 Thermal Pad / Tab 焊接到大面积 GND 铜皮。\n"
             "- 使用热过孔将热量传导至内层和底层 GND 平面。\n\n"
             "**5. 输入/输出电容**：\n"
-            "- 输入电容靠近 IC VIN 引脚，使用低 ESR 电解/陶瓷电容组合。\n"
-            "- 输出电容靠近电感输出端，多颗并联降低 ESR。\n"
+            "- 输入电容靠近 IC VIN 引脚，使用低 等效串联电阻（ESR） 电解/陶瓷电容组合。\n"
+            "- 输出电容靠近电感输出端，多颗并联降低 等效串联电阻（ESR）。\n"
         )
 
 
@@ -922,7 +922,7 @@ def generate_topology(
     lines += [
         "## 七、PCB Layout 设计要点",
         "",
-        "> 高频开关电源的性能与 EMI 特性高度依赖 PCB Layout。以下规则基于",
+        "> 高频开关电源的性能与 电磁干扰（EMI） 特性高度依赖 PCB Layout。以下规则基于",
         "> IPC-2221 / IPC-2152 以及主流制造商应用笔记总结。",
         "",
         _build_layout_guidance(topology, dev_type),
@@ -977,12 +977,12 @@ def generate_topology_ir(
             TopoNode(node_id="power_ind", node_type="passive_inductor", label="储能电感 L",
                      description="典型 6.8μH，Isat > 4.2A", connected_to=["buck_ic", "cout"]),
             TopoNode(node_id="cout", node_type="passive_capacitor", label="输出电容 COUT",
-                     description="2×22μF MLCC X7R 并联", connected_to=["power_ind", "vout", "fb_resistors"]),
+                     description="2×22μF 多层陶瓷电容（MLCC） X7R 并联", connected_to=["power_ind", "vout", "fb_resistors"]),
             TopoNode(node_id="vout", node_type="output_filter", label=f"负载输出 {vout}V/{iout}A",
                      description="稳压输出端", connected_to=["cout"]),
             TopoNode(node_id="fb_resistors", node_type="passive_resistor", label="反馈分压 Rfbt/Rfbb",
                      description="VOUT 分压至 FB 引脚", connected_to=["cout", "buck_ic"], signal_type="feedback"),
-            TopoNode(node_id="en_resistors", node_type="passive_resistor", label="使能分压 EN/UVLO",
+            TopoNode(node_id="en_resistors", node_type="passive_resistor", label="使能分压 EN/欠压锁定（UVLO）",
                      description="设定欠压锁定阈值", connected_to=["buck_ic"], signal_type="control"),
             TopoNode(node_id="css", node_type="passive_capacitor", label="软启动电容 CSS",
                      description="控制启动浪涌电流", connected_to=["buck_ic"], signal_type="control"),
@@ -992,7 +992,7 @@ def generate_topology_ir(
     else:
         nodes = [
             TopoNode(node_id="vin_cin", node_type="input_filter", label="输入滤波网络",
-                     description="EMI 滤波 + 输入旁路电容", connected_to=["ctrl_ic"]),
+                     description="电磁干扰（EMI） 滤波 + 输入旁路电容", connected_to=["ctrl_ic"]),
             TopoNode(node_id="ctrl_ic", node_type="controller_ic", label=f"Buck 控制器 {ctrl_pn}",
                      description=f"内置功率开关管（{ctrl_mfr or '未知'}）",
                      connected_to=["vin_cin", "power_ind", "fb_resistors", "pgnd"]),
@@ -1003,7 +1003,7 @@ def generate_topology_ir(
                      description="典型 6.8μH，Isat > 4.2A",
                      connected_to=["ctrl_ic", "freewheel_diode", "cout"]),
             TopoNode(node_id="cout", node_type="passive_capacitor", label="输出滤波电容 COUT",
-                     description="低 ESR MLCC + 电解组合",
+                     description="低 等效串联电阻（ESR） 多层陶瓷电容（MLCC） + 电解组合",
                      connected_to=["power_ind", "vout", "fb_resistors"]),
             TopoNode(node_id="vout", node_type="output_filter", label=f"负载输出 {vout}V/{iout}A",
                      description="稳压输出端", connected_to=["cout"]),
@@ -1020,7 +1020,7 @@ def generate_topology_ir(
 
     ext_components = [
         ExternalComponent(refdes="L1", component_type="inductor", value=f"{l_val}μH",
-                          selection_notes=f"Isat > {iout + delta_il/2:.1f}A，屏蔽式功率电感，DCR < 50mΩ"),
+                          selection_notes=f"Isat > {iout + delta_il/2:.1f}A，屏蔽式功率电感，直流电阻（DCR） < 50mΩ"),
         ExternalComponent(refdes="CIN1", component_type="capacitor_mlcc", value="10μF",
                           voltage_rating="50V", temperature_coefficient="X7R", package="1206",
                           selection_notes="靠近 IC VIN 引脚，耐压 ≥ 1.5×Vin(max)"),
@@ -1032,7 +1032,7 @@ def generate_topology_ir(
                           selection_notes="DC 偏压降额后实际约 12μF，2 颗并联"),
         ExternalComponent(refdes="COUT2", component_type="capacitor_mlcc", value="22μF",
                           voltage_rating="16V", temperature_coefficient="X7R", package="0805",
-                          selection_notes="与 COUT1 并联降低 ESR"),
+                          selection_notes="与 COUT1 并联降低 等效串联电阻（ESR）"),
         ExternalComponent(refdes="RFBT", component_type="resistor", value="依据 Vout/Vref 计算",
                           tolerance="±1%",
                           selection_notes=f"RFBT/RFBB = (Vout/Vref - 1)，查数据手册确定 Vref"),

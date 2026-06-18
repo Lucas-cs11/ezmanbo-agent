@@ -18,3 +18,5 @@ schemdraw>=0.18
 rank_bm25>=0.2.2
 # B6: BOM 导出
 openpyxl>=3.1
+# B7: 数据手册 PDF 解析
+pymupdf>=1.23
