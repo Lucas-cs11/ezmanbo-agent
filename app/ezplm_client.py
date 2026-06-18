@@ -647,6 +647,19 @@ def _parse_attrs(attrs: List[Dict]) -> Dict[str, Any]:
 # eZ-PLM 原始响应 → PartIR
 # ═══════════════════════════════════════════════════════════════════
 
+def _extract_package_name(val: Any) -> Optional[str]:
+    """Extract a string package name from a dict (eZ-PLM structured attr) or raw string."""
+    if val is None:
+        return None
+    if isinstance(val, str):
+        return val.strip() or None
+    if isinstance(val, dict):
+        # eZ-PLM returns package as {'id': '...', 'name': 'PWP0028D.step'}
+        name = val.get("name") or val.get("label") or val.get("value")
+        return (str(name).strip()) if name else None
+    return str(val).strip() or None
+
+
 def _map_api_part(api_obj: Dict) -> Optional[PartIR]:
     """
     将 eZ-PLM API 返回的单条物料 dict 映射为 PartIR。
@@ -736,7 +749,8 @@ def _map_api_part(api_obj: Dict) -> Optional[PartIR]:
             "output_current_max_a": attrs.get("output_current_max_a"),
             "temperature_min_c":    attrs.get("temperature_min_c"),
             "temperature_max_c":    attrs.get("temperature_max_c"),
-            "package":              attrs.get("package") or api_obj.get("footprint"),
+            "package":              (_extract_package_name(attrs.get("package"))
+                                     or _extract_package_name(api_obj.get("footprint"))),
             "automotive_grade":     automotive_grade,
             "lifecycle_status":  (api_obj.get("lifecycleStatus")
                                    or api_obj.get("lifecycle_status")),
