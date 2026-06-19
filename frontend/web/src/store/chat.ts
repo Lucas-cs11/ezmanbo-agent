@@ -15,6 +15,7 @@ interface ChatStore {
   activeSession: () => Session | undefined;
   healthStatus: HealthStatus;
   setHealthStatus: (status: HealthStatus) => void;
+  hydrate: () => void;
 
   createSession: () => string;
   switchSession: (id: string) => void;
@@ -55,9 +56,11 @@ function createEmptySession(): Session {
 }
 
 export const useChatStore = create<ChatStore>()((set, get) => ({
-  sessions: loadSessions(),
+  sessions: [],
   activeSessionId: null,
   healthStatus: "checking" as HealthStatus,
+
+  hydrate: () => set({ sessions: loadSessions() }),
 
   activeSession: () => {
     const { sessions, activeSessionId } = get();

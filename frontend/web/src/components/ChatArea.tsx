@@ -114,20 +114,20 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight }: {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [session?.messages]);
 
-  // ── 后端连接健康检查（30s 轮询）──────────────────
+  // ── 后端连接健康检查（10s 轮询，15s 超时）──────────────────
   useEffect(() => {
     const checkHealth = async () => {
       const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
       setHealthStatus("checking");
       try {
-        const resp = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(5000) });
+        const resp = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(15000) });
         setHealthStatus(resp.ok ? "connected" : "disconnected");
       } catch {
         setHealthStatus("disconnected");
       }
     };
     checkHealth();
-    const interval = setInterval(checkHealth, 30000);
+    const interval = setInterval(checkHealth, 10000);
     return () => clearInterval(interval);
   }, [setHealthStatus]);
 
