@@ -1,426 +1,262 @@
 <div align="center">
 
-![eZmanbo Logo](frontend/web/public/logo.svg)
+<img src="frontend/web/public/logo.svg" alt="eZmanbo Logo" width="140" />
 
-# eZmanbo — 电子元器件选型与风险评估系统
+# eZmanbo
 
-[![GitHub](https://img.shields.io/badge/GitHub-License%20MIT-blue?logo=github)](https://github.com/Lucas-cs11/ezmanbo-agent)
-[![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)](https://www.python.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-green?logo=fastapi)](https://fastapi.tiangolo.com/)
-[![License](https://img.shields.io/badge/License-MIT-green)]()
+**面向 eZ-PLM 的电子元器件智能选型与风险评估 Agent 系统**
 
-**面向 eZ-PLM 的电子元器件选型、风险评估与报告导出系统**
+把硬件工程师的自然语言选型需求，转化为**可验证、可审计、可导出**的器件推荐与供应链风险报告。
 
-[English](#english) | [中文](#chinese)
+[![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![LangChain](https://img.shields.io/badge/LangChain-1.x-1C3C3C?logo=langchain&logoColor=white)](https://www.langchain.com/)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-Local-4A6FA5?logo=chromadb&logoColor=white)](https://www.trychroma.com/)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+
+[功能特性](#功能特性) · [效果亮点](#效果亮点) · [快速开始](#快速开始) · [架构](#架构) · [项目结构](#项目结构) · [API 一览](#api-一览) · [文档](#文档)
 
 </div>
 
 ---
 
-<h2 id="chinese">中文文档</h2>
+## 这是什么
 
-### 快速开始
+电子元器件选型是硬件研发中最耗时、出错代价最高的环节之一——单颗器件选型（参数比对、规格核验、供货确认）往往需要 **2–4 小时**，复杂项目完整 BOM 选型可达 **40 小时以上**。
 
-#### 前置要求
+直接把需求丢给通用大模型看似省事，但 LLM 训练数据中的器件型号大量**不可验证、已停产或已断供**，且缺少对认证等级、温度覆盖、生命周期等**工程安全条件**的系统性检查。
+
+**eZmanbo 的核心思路：数据接地 + 硬约束门禁 + 证据可溯。**
+
+> LLM 只负责「理解需求、组织语言」，**不负责生成任何器件事实**；候选器件一律来自 eZ-PLM 真实数据库的结构化查询结果，并经过硬门禁核查与证据标注后才进入推荐列表。
+
+- 🎯 把「12V 转 5V / 3A / 车规」这类自然语言需求，解析成结构化约束并完成选型
+- 🛡️ 每一颗推荐器件都通过电气边界、温度覆盖、认证、生命周期等**硬门禁**核查
+- 📎 每条推荐参数都标注来源（平台数据 / 数据手册 / 规则推断）与置信度
+- 💬 多轮对话中服务端**持久化累积约束**，不用每轮重复交代需求
+- 📦 输出结构化报告、企业级 BOM、决策包与参数化电路图
+
+---
+
+## 功能特性
+
+### 自然语言选型
+- 意图分类（选型 / 追问 / 参数调整 / 闲聊）+ 需求解析，**LLM 语义理解 + 正则规则双层兜底**
+- 支持隐含语义（「给 STM32 供电」→ 3.3V）、单位换算、等级→温区映射（工业级 / 车规级）
+- P0/P1/P2 约束分级：必填字段缺失时主动追问，每轮最多追问 2 个缺失参数
+
+### 候选召回（数据接地）
+- 依据类别 + 拓扑自动生成多厂商 **MPN 前缀关键词**，`asyncio.Semaphore` 并发查询 eZ-PLM API
+- 异构字段统一映射到内部 **PartIR** 数据模型；HMAC-SHA256 签名 + 令牌桶限速 + 双层 LRU 缓存
+- 混合检索：向量 + BM25 + **RRF 融合**，兼顾语义知识与精确型号查询
+
+### 评分与安全决策
+- **Gate 硬门禁（一票否决）**：电气边界 / 温度覆盖 / 车规认证 / 生命周期 / 数据完整性逐条核查，任一不满足即排除
+- 推荐分 `RS = gate × 100 · F^α · (1-R/100)^β · C^γ · B^δ`（乘性聚合 + 场景化权重 + 保守缺失惩罚）
+- 证据链来源标注 E1/E2/E3 + 置信度 + 人工复核标记
+
+### 多轮会话 Agent
+- 基于 LangChain ReAct 的选型助理，四类工具：器件搜索、设计知识检索、替代料查找、完整报告生成
+- 工具空结果时**诚实降级**而非编造型号；回复中的疑似型号会被自动扫描、追加数据验证提示
+- 会话历史 DB 持久化 + MicroCompact 上下文压缩 + Token 超限降级
+
+### 输出与集成
+- SSE 流式推送选型各阶段进度；报告 / 风险 / BOM / 决策包导出
+- 认证登录、会话管理、参数化电路图（Buck / Boost / LDO）
+
+---
+
+## 效果亮点
+
+> 以下为项目内审计口径的实测结果，详细实验设计见 [`docs/experiments_design.md`](docs/experiments_design.md)，技术报告见 [`docs/paper_main.md`](docs/paper_main.md)。
+
+| 指标 | 结果 | 说明 |
+|---|---|---|
+| **MPN 可验证率** | eZmanbo **100%** vs 通用 LLM 基线 **≈8%** | 输出型号均可回溯到 eZ-PLM 真实数据库 |
+| **安全门禁漏放率** | **0%**（5 条车规需求 × 75 候选审计，精确率 / 召回率均 100%） | 认证、温度、生命周期不合规器件全部被拦截 |
+| **LLM 直接生成事实参数占比** | **0%** | 证据来源 64.1% 平台数据、10.3% 命名规则推断、2.6% 数据手册，符合「事实与生成分离」设计 |
+
+---
+
+## 快速开始
+
+### 前置要求
+
 - **Python** 3.9+
 - **Node.js** 18+
-- **macOS / Linux / WSL2**
+- macOS / Linux / WSL2
 
-#### 一键部署
+### 一键部署
 
 ```bash
-# 1. 克隆仓库
+# 1. 克隆并进入
 git clone https://github.com/Lucas-cs11/ezmanbo-agent.git
 cd ezmanbo-agent
 
-# 2. 配置 Python 环境、依赖与工程知识库
+# 2. 安装 Python 依赖并初始化工程知识库
 chmod +x setup.sh && ./setup.sh
 
-# 3. 配置 API 密钥
-# 编辑 .env，至少填写：
-# EZPLM_API_KEY=your_key_here
-# OPENAI_API_KEY=your_key_here
+# 3. 配置密钥（.env）
+#    至少填写 EZPLM_API_KEY 与一个 LLM API Key
 vim .env
 
-# 4. 启动后端
+# 4. 启动后端（SSE / HTTP）
 source .venv/bin/activate
 PYTHONPATH=. python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-# 5. 启动前端（新终端窗口）
+# 5. 启动前端（新终端）
 cd frontend/web && npm install && npm run dev
-# 访问 http://localhost:3000
+# 打开 http://localhost:3000
 ```
 
----
-
-### 核心特性
-
-#### 元器件选型
-- **多约束条件支持**：输入电压、输出电压/电流、温度范围、应用等级、封装与拓扑等
-- **流式结果反馈**：需求解析、检索、评分、风险与报告阶段通过 SSE 返回
-- **自然语言交互**：支持“12V 转 5V、3A、车规”等混合表述
-
-#### eZ-PLM 集成
-- **HMAC-SHA256 请求签名**
-- **eZ-PLM 器件信息检索与候选补全**
-- **版本化结构化需求缓存**：仅复用相同约束指纹的选型结果
-
-#### 候选评估与风险分析
-- **约束检查、候选评分与排序推荐**
-- **多维器件风险评估**：参数适配、可靠性、生命周期、供应、合规、质量、成本与数据完整性等
-- **候选、风险与证据关联展示**
-
-#### 工程知识库
-- **ChromaDB 本地向量检索**
-- **数据手册与工程设计知识检索**
-- **本地知识库可用于检索增强与报告上下文**
-
-#### 报告导出
-- **BOM 导出**
-- **器件级风险报告 Markdown**
-- **选型决策包导出**
-
-#### 多轮会话
-- **会话管理与选型上下文保存**
-- **替代方案查询、设计建议与对比分析**
-- **账号认证与管理员配置入口**
-
----
-
-### 功能矩阵
-
-| 功能 | 说明 | 接口 |
-|------|------|------|
-| **流式选型** | 解析约束并流式返回候选、风险与证据 | `POST /chat/stream` |
-| **选型分析** | 返回完整结构化选型结果 | `POST /analyze` |
-| **意图分类** | 识别选型、对话与调整类请求 | `POST /classify` |
-| **Agent 对话** | 多轮会话与工具调用 | `POST /agent/chat/stream` |
-| **替代查询** | 查询兼容替代方案 | `POST /replacement` |
-| **器件确认** | 确认当前会话的选中器件 | `POST /select-part` |
-| **报告导出** | 获取风险、BOM 或拓扑报告内容 | `GET /report/{type}` |
-| **BOM 导出** | 导出选中器件的 BOM | `POST /export/bom` |
-| **决策包导出** | 导出选型决策包 | `POST /export/decision-package` |
-| **文件解析** | 解析 PDF 或 Excel 需求文件 | `POST /upload/parse` |
-
----
-
-### 环境变量配置
-
-编辑 `.env` 文件：
+### 环境变量（`.env`）
 
 ```env
-# eZ-PLM API
+# eZ-PLM
 EZPLM_API_KEY=your_ezplm_api_key_here
 EZPLM_BASE_URL=https://www.ezplm.cn
 
-# LLM 服务，可使用 Anthropic 或 OpenAI 兼容接口
-ANTHROPIC_API_KEY=
-ANTHROPIC_BASE_URL=
+# LLM（OpenAI 兼容接口，支持 Anthropic / OpenAI / DeepSeek / Ollama 等）
 OPENAI_API_KEY=your_openai_compatible_api_key_here
 OPENAI_BASE_URL=
-OPENAI_MODEL=
+ANTHROPIC_API_KEY=
+ANTHROPIC_BASE_URL=
 
-# Web UI 配置（可选）
+# 前端跨域（可选）
 CORS_ORIGINS=http://localhost:3000,http://localhost:8000
 ```
 
----
-
-### 架构一览
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                   Web UI (Next.js 14)                    │
-│     对话、会话管理、候选器件、风险与证据属性面板          │
-└────────────────────┬────────────────────────────────────┘
-                     │ SSE Streaming / HTTP API
-┌────────────────────▼────────────────────────────────────┐
-│                    FastAPI Backend                       │
-├─────────────────────────────────────────────────────────┤
-│  意图识别 → 需求解析 → 约束检查 → 候选评分 → 风险/证据   │
-├─────────────────────────────────────────────────────────┤
-│  eZ-PLM API  │  LLM 服务  │  ChromaDB 知识库  │  缓存层  │
-└────────────────────┬────────────────────────────────────┘
-                     │
-         ┌───────────┴───────────┐
-         │                       │
-      eZ-PLM                 本地知识库
-    （器件信息）          （数据手册与工程知识）
-```
-
----
-
-### 项目结构
-
-```
-ezmanbo-agent/
-├── app/
-│   ├── main.py                   # FastAPI 应用入口与选型接口
-│   ├── auth.py                   # JWT 认证
-│   ├── constraint_checker.py     # 约束检查
-│   ├── intent_classifier.py      # 意图分类
-│   ├── scoring.py                # 候选评分
-│   ├── report_generator.py       # 风险与报告生成
-│   ├── semantic_cache.py         # 结构化需求缓存
-│   ├── ezplm_client.py           # eZ-PLM API 客户端
-│   ├── react_agent.py            # 多轮会话处理
-│   ├── rag.py                    # ChromaDB 检索
-│   └── routers/                  # 认证与管理接口
-│
-├── frontend/
-│   └── web/                      # Next.js 前端项目
-│       ├── src/app/              # 页面与认证入口
-│       ├── src/components/       # React 组件
-│       ├── src/store/            # Zustand 状态管理
-│       └── public/               # 静态资源
-│
-├── scripts/                      # 知识库、数据与维护脚本
-├── data/                         # 本地知识库与缓存数据
-├── tests/                        # 回归测试
-├── .env.example                  # 环境变量示例
-├── requirements.txt              # Python 依赖
-├── setup.sh                      # 环境搭建脚本
-└── README.md                     # 本文档
-```
-
----
-
-### 常见问题
-
-**Q: 如何离线运行？**
-
-本地知识库可用于数据手册和工程知识检索；eZ-PLM 器件检索及模型服务仍需配置对应服务。
-
-**Q: 支持哪些模型服务？**
-
-- Anthropic API
-- OpenAI 兼容 API
-- 其他可通过兼容接口配置的模型服务
-
-**Q: 如何增加自定义知识？**
+### 自定义知识库
 
 ```bash
-# 编辑 data/knowledge/ 下的内容后重建工程知识库
+# 编辑 data/knowledge/engineering_knowledge.json 后重建向量库
 PYTHONPATH=. python3 scripts/build_knowledge_base.py
 ```
 
-**Q: 如何启动多个后端进程？**
+---
 
-```bash
-PYTHONPATH=. python3 -m uvicorn app.main:app --workers 4 --host 0.0.0.0 --port 8000
+## 架构
+
+```mermaid
+flowchart TD
+    UI["🖥️ Web UI（Next.js 14 + React + Zustand）<br/>对话 · 参数表单 · 结果面板 · SSE 进度"]
+    subgraph API["FastAPI 后端（:8000）"]
+        R1["意图分类 / 需求解析<br/>LLM 语义 + 正则兜底"]
+        R2["候选召回<br/>MPN 关键词 → eZ-PLM API 并发查询 → PartIR 映射 → 预过滤"]
+        R3["评分与安全决策<br/>Gate 硬门禁 → F·R·C·B → RS 推荐分 → 证据链"]
+        R4["ReAct Agent<br/>search / knowledge / replacement / report"]
+    end
+    UI -->|HTTP + SSE| R1
+    R1 --> R2 --> R3 --> UI
+    R4 --> R2
+    R3 -->|证据标注| R4
+    EZ[("eZ-PLM 器件库<br/>HMAC-SHA256")]
+    KB[("本地 ChromaDB<br/>工程知识 + 语义缓存")]
+    R2 <--> EZ
+    R4 <--> KB
 ```
 
----
+两条主路径：
+1. **确定性选型流水线**（`/analyze`、`/chat/stream`）：解析 → 召回 → 评分 → 门禁 → 证据 → 报告，适合标准选型，快且稳；
+2. **多轮 ReAct Agent**（`/agent/chat/stream`）：交互式澄清、替代料、设计追问，适合探索式选型。
 
-### 许可证
-
-MIT License — 可自由使用、修改、商业化
-
----
-
-### 贡献指南
-
-欢迎 Pull Request。请确保：
-1. 代码遵循现有风格
-2. 新功能添加相应测试
-3. 同步更新相关文档
-4. Commit 消息清晰明确
+> 更完整的四层架构、状态机与评分流程说明见 [`docs/architecture_diagrams.md`](docs/architecture_diagrams.md)。
 
 ---
 
-<h2 id="english">English Documentation</h2>
-
-### Quick Start
-
-#### Prerequisites
-- **Python** 3.9+
-- **Node.js** 18+
-- **macOS / Linux / WSL2**
-
-#### Setup
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/Lucas-cs11/ezmanbo-agent.git
-cd ezmanbo-agent
-
-# 2. Configure the Python environment, dependencies, and engineering knowledge base
-chmod +x setup.sh && ./setup.sh
-
-# 3. Configure API keys in .env
-# At minimum set EZPLM_API_KEY and OPENAI_API_KEY
-vim .env
-
-# 4. Start the backend
-source .venv/bin/activate
-PYTHONPATH=. python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-# 5. Start the frontend in another terminal
-cd frontend/web && npm install && npm run dev
-# Visit http://localhost:3000
-```
-
----
-
-### Key Features
-
-#### Component Selection
-- Multi-constraint requirements for voltage, current, temperature, grade, package, and topology
-- SSE streaming for parsing, retrieval, scoring, risk analysis, and reporting stages
-- Natural-language component-selection requests
-
-#### eZ-PLM Integration
-- HMAC-SHA256 request signing
-- eZ-PLM component retrieval and candidate enrichment
-- Versioned structured-constraint cache for exact requirement reuse
-
-#### Candidate Evaluation and Risk Analysis
-- Constraint checking, candidate scoring, ranking, and recommendation
-- Multi-dimensional risk analysis covering parameter fit, reliability, lifecycle, supply, compliance, quality, cost, and data integrity
-- Linked candidates, risks, and evidence in the result panel
-
-#### Engineering Knowledge Base
-- Local ChromaDB vector retrieval
-- Datasheet and engineering-knowledge retrieval
-- Knowledge context for retrieval and reports
-
-#### Report Export
-- BOM export
-- Part-level Markdown risk report
-- Selection decision package export
-
-#### Multi-turn Sessions
-- Session management and selection context
-- Replacement lookup, design suggestions, and comparison analysis
-- Account authentication and administrator configuration
-
----
-
-### Feature Matrix
-
-| Feature | Description | API Endpoint |
-|------|------|------|
-| **Streaming Selection** | Streams candidates, risks, and evidence after requirement parsing | `POST /chat/stream` |
-| **Selection Analysis** | Returns a complete structured selection result | `POST /analyze` |
-| **Intent Classification** | Classifies selection, chat, and adjustment requests | `POST /classify` |
-| **Agent Chat** | Multi-turn chat and tool calls | `POST /agent/chat/stream` |
-| **Replacement Lookup** | Finds compatible alternatives | `POST /replacement` |
-| **Part Selection** | Confirms a selected part in the current session | `POST /select-part` |
-| **Report Export** | Gets risk, BOM, or topology report content | `GET /report/{type}` |
-| **BOM Export** | Exports the BOM for the selected part | `POST /export/bom` |
-| **Decision Package Export** | Exports a selection decision package | `POST /export/decision-package` |
-| **File Parsing** | Parses PDF or Excel requirement files | `POST /upload/parse` |
-
----
-
-### Environment Configuration
-
-Edit `.env`:
-
-```env
-EZPLM_API_KEY=your_ezplm_api_key_here
-EZPLM_BASE_URL=https://www.ezplm.cn
-
-ANTHROPIC_API_KEY=
-ANTHROPIC_BASE_URL=
-OPENAI_API_KEY=your_openai_compatible_api_key_here
-OPENAI_BASE_URL=
-OPENAI_MODEL=
-
-CORS_ORIGINS=http://localhost:3000,http://localhost:8000
-```
-
----
-
-### Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                   Web UI (Next.js 14)                    │
-│  Chat, session management, candidates, risk, and evidence│
-└────────────────────┬────────────────────────────────────┘
-                     │ SSE Streaming / HTTP API
-┌────────────────────▼────────────────────────────────────┐
-│                    FastAPI Backend                       │
-├─────────────────────────────────────────────────────────┤
-│ Intent → requirement parsing → checks → scoring → report │
-├─────────────────────────────────────────────────────────┤
-│  eZ-PLM API  │  LLM Service  │  ChromaDB KB  │  Cache    │
-└────────────────────┬────────────────────────────────────┘
-                     │
-         ┌───────────┴───────────┐
-         │                       │
-       eZ-PLM            Local Knowledge Base
-   (component data)   (datasheets and engineering knowledge)
-```
-
----
-
-### Project Structure
+## 项目结构
 
 ```
 ezmanbo-agent/
-├── app/                         # Backend modules
-│   ├── main.py                  # FastAPI entry point and selection APIs
-│   ├── auth.py                  # JWT authentication
-│   ├── constraint_checker.py    # Constraint checking
-│   ├── intent_classifier.py     # Intent classification
-│   ├── scoring.py               # Candidate scoring
-│   ├── report_generator.py      # Risk and report generation
-│   ├── semantic_cache.py        # Structured requirement cache
-│   ├── ezplm_client.py          # eZ-PLM API client
-│   ├── react_agent.py           # Multi-turn session handling
-│   ├── rag.py                   # ChromaDB retrieval
-│   └── routers/                 # Authentication and administration APIs
-├── frontend/web/                # Next.js frontend
-├── scripts/                     # Knowledge-base, data, and maintenance scripts
-├── data/                        # Local knowledge-base and cache data
-├── tests/                       # Regression tests
-├── .env.example                 # Environment-variable template
-├── requirements.txt             # Python dependencies
-├── setup.sh                     # Environment setup script
-└── README.md                    # This document
+├── app/                        # FastAPI 后端
+│   ├── main.py                 # 路由入口（HTTP + SSE）
+│   ├── agent_orchestrator.py   # 确定性选型流水线
+│   ├── react_agent.py          # ReAct 多轮会话 Agent（LangChain）
+│   ├── agent_tools.py          # Agent 工具（search / knowledge / replacement / report）
+│   ├── intent_classifier.py    # 意图分类
+│   ├── requirement_parser.py   # 需求解析（Function Calling + 正则兜底）
+│   ├── constraint_checker.py   # 约束完整性 / P0-P2 / 多轮累积状态机
+│   ├── ezplm_client.py         # eZ-PLM API 客户端（HMAC + 缓存 + 限速）
+│   ├── scoring.py              # Gate 硬门禁 + 多维评分（F/R/C/B → RS）
+│   ├── evidence.py             # 证据链与来源标注（E1/E2/E3）
+│   ├── rag.py                  # 工程知识库向量检索
+│   ├── hybrid_retrieval.py     # BM25 + 向量 + RRF 混合检索
+│   ├── datasheet_parser.py     # 数据手册 PDF 解析与分块
+│   ├── semantic_cache.py       # 语义缓存（相似需求复用）
+│   ├── report_generator.py     # 风险报告生成
+│   ├── output_*.py             # BOM / 决策包 / 报告导出
+│   ├── schematic_generator.py  # 参数化电路图（schemdraw）
+│   ├── auth.py / database.py / models_db.py   # 认证与会话持久化
+│   └── routers/                # auth / admin 路由
+├── frontend/web/               # Next.js 14 前端（src/components · src/store · public）
+├── scripts/                    # 知识库构建、数据导入、评估脚本
+├── tests/                      # pytest + 端到端评测
+│   ├── cases/                  # 选型评测用例（dc_dc / ldo）
+│   └── eval_runner.py          # 评测运行器（生成 md + json 报告）
+├── docs/                       # 技术文档
+│   ├── architecture_diagrams.md
+│   ├── experiments_design.md
+│   └── paper_main.md
+├── data/                       # 知识库源数据与 mock 器件库
+├── .env.example
+├── requirements.txt
+├── setup.sh
+└── README.md
 ```
 
 ---
 
-### FAQ
+## API 一览
 
-**Q: Can it run offline?**
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/analyze` | 完整结构化选型分析 |
+| POST | `/analyze/stream` | 选型分析（SSE 流式） |
+| POST | `/chat/stream` | 对话式选型（含约束累积，SSE） |
+| POST | `/classify` | 意图分类 |
+| POST | `/agent/chat` | 多轮 ReAct Agent 对话 |
+| POST | `/agent/chat/stream` | Agent 对话（SSE 流式） |
+| POST | `/replacement` | 替代料查询 |
+| POST | `/select-part` | 会话内确认选中器件 |
+| GET | `/report/{type}` | 获取风险 / BOM / 拓扑报告 |
+| POST | `/export/bom` | 导出 BOM |
+| POST | `/export/decision-package` | 导出选型决策包 |
+| GET | `/schematic/{topology}` | 参数化电路图（SVG） |
+| POST | `/upload/parse` | 解析 PDF / Excel 需求文件 |
+| POST | `/bom/validate` | BOM 校验 |
+| POST | `/recalculate` | 重新计算评分 |
+| POST | `/workflow/generate` | 生成选型工作流 |
+| POST | `/api/models/switch` | 运行时切换模型 |
+| POST | `/auth/login` / `/auth/guest` | 认证（`routers/`）。`/auth/register` 已永久关闭，账号由管理员创建 |
 
-The local knowledge base can support datasheet and engineering-knowledge retrieval. eZ-PLM retrieval and model services still require their respective services to be configured.
+---
 
-**Q: Which model services are supported?**
-
-- Anthropic API
-- OpenAI-compatible APIs
-- Other model services exposed through a compatible API
-
-**Q: How do I add custom knowledge?**
+## 测试
 
 ```bash
-PYTHONPATH=. python3 scripts/build_knowledge_base.py
+PYTHONPATH=. python -m pytest tests/ -x -q          # 回归测试
+PYTHONPATH=. python -m tests.eval_runner            # 端到端选型评测（输出 docs/eval_results/）
 ```
 
-**Q: How do I start multiple backend workers?**
+## 文档
 
-```bash
-PYTHONPATH=. python3 -m uvicorn app.main:app --workers 4 --host 0.0.0.0 --port 8000
-```
+- [`docs/architecture_diagrams.md`](docs/architecture_diagrams.md) — 四层架构 / 状态机 / 评分流程说明
+- [`docs/experiments_design.md`](docs/experiments_design.md) — 实验设计与评测指标
+- [`docs/paper_main.md`](docs/paper_main.md) — 系统技术报告（含设计动机与相关工作）
 
----
+## Roadmap
 
-### License
+- [x] 需求解析 / 意图分类（LLM + 规则双层兜底）
+- [x] 数据接地候选召回 + PartIR 规范化
+- [x] 多维评分 + Gate 硬门禁 + 证据链标注
+- [x] 多轮约束累积 + ReAct Agent + 语义缓存
+- [x] 报告 / BOM / 决策包导出 + 参数化电路图
+- [ ] 更多器件品类（运放、接口、MCU）与参考设计覆盖
+- [ ] 供应链实时数据接入（交期 / 库存 / 价格）
+- [ ] 边界场景约束提取优化与大规模评测集
+- [ ] Docker 化部署与多实例会话亲和
 
-MIT License — Free to use, modify, and commercialize
+## License
 
----
-
-### Contributing
-
-Pull Requests are welcome. Please ensure:
-1. Code follows existing conventions
-2. New features include relevant tests
-3. Related documentation is updated
-4. Commit messages are clear
+[MIT](LICENSE)

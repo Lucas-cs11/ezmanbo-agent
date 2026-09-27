@@ -12,6 +12,11 @@ sentence-transformers>=2.2
 langchain>=1.0
 langchain-openai>=0.1
 langchain-core>=0.3
+# create_agent 的运行时底座与 token 计数：langchain/lib 的传递依赖，
+# 但线上 venv 曾因逐包安装而缺失，导致整个 ReAct 通路 import 失败，故显式声明。
+langgraph>=1.0
+openai>=1.0
+tiktoken>=0.7
 # B2: schemdraw 电路图生成
 schemdraw>=0.18
 # B3/B4: 检索和缓存

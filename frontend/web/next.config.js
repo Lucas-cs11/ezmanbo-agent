@@ -38,22 +38,35 @@ const nextConfig = {
   ],
   async rewrites() {
     const backend = 'http://127.0.0.1:8000';
+    // 前端用相对路径直接调用后端接口，经由 Next.js 转发。
+    // 每个后端根级路径前缀都必须登记在这里，漏登记的前缀会被 Next.js 自身
+    // 处理并返回 404（此前 /analyze、/agent/*、/report/* 等即因此不可达）。
     const routes = [
-      '/api/:path*',
+      '/api/:path*',        // models / setup / health/full / permissions
       '/auth/:path*',
       '/admin/:path*',
-      '/chat/:path*',
-      '/health',
+      '/agent/:path*',      // chat · chat/stream · sessions · init_session
+      '/chat/:path*',       // 统一流式对话入口
+      '/analyze/:path*',    // /analyze 与 /analyze/stream
+      '/classify',
+      '/replacement',
+      '/select-part',
+      '/interpret-selection',
+      '/report/:path*',
+      '/upload/:path*',
+      '/bom/:path*',
       '/export/:path*',
+      '/recalculate',
+      '/workflow/:path*',
+      '/schematic/:path*',
+      '/health',
       '/models/:path*',
       '/sessions/:path*',
       '/mpn/:path*',
     ];
     return routes.map(source => ({
       source,
-      destination: source.endsWith(':path*')
-        ? `${backend}${source}`
-        : `${backend}${source}`,
+      destination: `${backend}${source}`,
     }));
   },
 };

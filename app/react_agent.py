@@ -204,30 +204,50 @@ _MICROCOMPACT_TOKEN_LIMIT = 40000  # 约 DeepSeek V4 上下文窗口的 60%
 _MICROCOMPACT_KEEP_RECENT = 8      # 始终保留最近 N 轮
 
 
-def get_or_create_session(session_id: str) -> List[Any]:
-    """获取或创建会话历史。首次访问时自动从 DB 恢复最近 20 条记录。"""
-    if session_id not in _sessions:
-        _sessions[session_id] = []
+def _cache_key(sid: str, owner_scope: Optional[str]) -> str:
+    """内存会话的键。带归属前缀，避免不同用户提交同一 session_id 时共用历史。"""
+    return f"{owner_scope}::{sid}" if owner_scope else sid
+
+
+def get_or_create_session(
+    session_id: str,
+    owner_id: Optional[int] = None,
+    owner_scope: Optional[str] = None,
+) -> List[Any]:
+    """获取或创建会话历史。首次访问时自动从 DB 恢复最近 20 条记录。
+
+    session_id 由客户端自选，因此不能直接当作归属凭据：DB 恢复必须带上
+    owner_id（ChatMessage 无 user_id，经 ChatSession 关联判定），内存缓存必须
+    带上 owner_scope。两者任一缺失都会让提交别人 session_id 的请求读到其历史。
+    """
+    key = _cache_key(session_id, owner_scope)
+    if key not in _sessions:
+        _sessions[key] = []
+        if owner_id is None:
+            return _sessions[key]
         try:
             from .database import SessionLocal
-            from .models_db import ChatMessage as _ChatMsg
+            from .models_db import ChatMessage as _ChatMsg, ChatSession as _ChatSess
             from langchain_core.messages import HumanMessage as _HM, AIMessage as _AM
             _db = SessionLocal()
-            msgs = (
-                _db.query(_ChatMsg)
-                .filter(_ChatMsg.session_id == session_id)
-                .order_by(_ChatMsg.created_at)
-                .all()
-            )
-            _db.close()
+            try:
+                msgs = (
+                    _db.query(_ChatMsg)
+                    .join(_ChatSess, _ChatSess.id == _ChatMsg.session_id)
+                    .filter(_ChatMsg.session_id == session_id, _ChatSess.user_id == owner_id)
+                    .order_by(_ChatMsg.created_at)
+                    .all()
+                )
+            finally:
+                _db.close()
             for m in msgs[-20:]:  # 仅恢复最近 20 条，避免 token 超限
                 if m.role == "user":
-                    _sessions[session_id].append(_HM(content=m.content))
+                    _sessions[key].append(_HM(content=m.content))
                 elif m.role == "assistant":
-                    _sessions[session_id].append(_AM(content=m.content))
+                    _sessions[key].append(_AM(content=m.content))
         except Exception:
             pass  # DB 加载失败不阻断功能
-    return _sessions[session_id]
+    return _sessions[key]
 
 
 def _estimate_tokens(messages: list) -> int:
@@ -365,12 +385,17 @@ def run_agent(
     session_id: Optional[str] = None,
     thinking_depth: str = "default",
     context_note: str = "",
+    owner_id: Optional[int] = None,
+    owner_scope: Optional[str] = None,
 ) -> Dict[str, Any]:
     """运行 Agent 处理用户输入。
 
+    owner_id / owner_scope 用于会话归属隔离，由调用方从已认证用户传入；
+    不传时行为与旧版一致（无归属校验），仅限内部无用户的调用场景。
     """
     sid = session_id or os.urandom(8).hex()
-    history = get_or_create_session(sid)
+    key = _cache_key(sid, owner_scope)
+    history = get_or_create_session(sid, owner_id=owner_id, owner_scope=owner_scope)
 
     # 如果启用了开发模拟模式，返回一个 Mock 响应，避免调用外部 LLM
     if os.getenv("DEV_MOCK_LLM", "").strip().lower() in ("1", "true", "yes"):
@@ -378,7 +403,7 @@ def run_agent(
         from .memory import get_user_context
         ai_text = f"[MOCK] 模拟回复：收到用户输入: {user_input[:200]}"
         new_history = list(history) + [HumanMessage(content=user_input), AIMessage(content=ai_text)]
-        _sessions[sid] = new_history
+        _sessions[key] = new_history
         return {
             "response": ai_text,
             "messages": [str(m) for m in new_history[-2:]],
@@ -445,13 +470,14 @@ def run_agent(
     # ── 保存到会话历史 ──────────────────────────────
     history.append(AIMessage(content=final_response))
 
-    _sessions[sid] = history
+    _sessions[key] = history
 
-    # 持久化会话到 JSONL
+    # 持久化会话到 JSONL（文件名带归属前缀，避免不同用户同 sid 互相覆盖）
     try:
         import json as _json
+        safe_key = "".join(c if c.isalnum() or c in "-_." else "_" for c in key)[:120]
         log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                '.sessions', f'{sid}.jsonl')
+                                '.sessions', f'{safe_key}.jsonl')
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         with open(log_path, 'w') as f:
             for msg in history:

@@ -31,18 +31,7 @@ const SLASH_COMMANDS: Record<string, { desc: string; action: (ctx: CmdCtx) => vo
   },
   export: {
     desc: "下载 BOM Excel",
-    action: () => {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
-      fetch(`${API_BASE}/export/bom`, { method: "POST", headers: getAuthBearer() })
-        .then(r => r.blob())
-        .then(blob => {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url; a.download = "BOM.xlsx"; a.click();
-          URL.revokeObjectURL(url);
-        })
-        .catch(() => {});
-    },
+    action: ({ exportBom }) => exportBom(),
   },
   risk: {
     desc: "查看风险评估报告",
@@ -70,6 +59,7 @@ type CmdCtx = {
   toggleSchematic: () => void;
   exportChat: () => void;
   replacePart: () => void;
+  exportBom: () => void;
 };
 
 /* ── 阶段映射（含百分比估算）────────────────────── */
@@ -192,6 +182,34 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight, onT
       },
       showReport: (t) => setActiveReport(t),
       toggleSchematic: () => setActiveReport(null),
+      // 必须带上 session_id：后端按会话取报告，不带则落到 __default__ 会话而 404。
+      // 同时先判 resp.ok，否则错误 JSON 会被当成 xlsx 存盘，用户拿到的是坏文件。
+      exportBom: async () => {
+        if (!session) return;
+        const API = process.env.NEXT_PUBLIC_API_BASE || "";
+        const aid = generateId();
+        try {
+          const resp = await fetch(`${API}/export/bom?session_id=${session.id}`, {
+            method: "POST",
+            headers: getAuthBearer(),
+          });
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            addMessage({ id: aid, role: "assistant",
+              content: `> BOM 导出失败：${err.detail || resp.statusText}`, timestamp: Date.now() });
+            return;
+          }
+          const blob = await resp.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = "BOM.xlsx"; a.click();
+          URL.revokeObjectURL(url);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "Unknown";
+          addMessage({ id: aid, role: "assistant",
+            content: `> BOM 导出失败：${msg}`, timestamp: Date.now() });
+        }
+      },
       replacePart: async () => {
         const fullCmd = inputTextRef.current.trim();
         const mpn = fullCmd.replace(/^\/replace\s+/i, "").trim();
@@ -742,7 +760,7 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight, onT
     if (!text || loading) return;
     // Guest quota check
     if (!canSendAsGuest()) {
-      addMessage({ id: generateId(), role: "assistant", content: "游客试用已达到 5 次上限，请注册账号（待开放）或联系管理员获取访问权限。", timestamp: Date.now() });
+      addMessage({ id: generateId(), role: "assistant", content: "游客试用已达到 5 次上限。平台的账号由管理员统一创建，请联系管理员开通后重新登录。", timestamp: Date.now() });
       return;
     }
     if (authUser?.is_guest) incrementGuestCount();

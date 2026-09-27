@@ -1,10 +1,21 @@
-"""启动配置、诊断、权限管理 API 路由。"""
+"""启动配置、诊断、权限管理 API 路由。
+
+安全说明：本模块的每个路由都会改写生产 `.env` 或进程环境（`_save_env` 写的是仓库根目录下
+真实生效的 `.env`），因此**全部**收在管理员依赖之后。此前它们完全没有鉴权，任何人都能
+把 LLM 的 API Key 与 base_url 换成自己的，从而把全体用户的对话劫持到攻击者控制的端点，
+并能持久化改写 eZ-PLM 数据源。这是本仓库最严重的一处暴露。
+
+前端没有任何地方调用这些路由（LLM 配置走的是 `admin_router` 里基于数据库的 `/admin/config`），
+它们目前是死代码；保留而不是删除，是为了不擅自移除可能仍被外部脚本使用的运维入口。
+"""
 import os
 import json
 import subprocess
 from typing import Optional
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Depends
 from fastapi.responses import JSONResponse
+
+from .auth import get_current_admin
 
 router = APIRouter(tags=["setup"])
 
@@ -104,7 +115,7 @@ def _mask_key(key: str) -> str:
 
 # ── 1. 设置状态 ──────────────────────────────────────
 @router.get("/api/setup/status")
-async def setup_status():
+async def setup_status(admin=Depends(get_current_admin)):
     """返回当前配置状态，指示哪些已完成、哪些缺失。"""
     env = _load_env()
     llm_key = env.get("OPENAI_API_KEY") or env.get("ANTHROPIC_API_KEY") or ""
@@ -135,7 +146,7 @@ async def setup_status():
 
 # ── 2. 配置 LLM 提供商 ───────────────────────────────
 @router.post("/api/setup/provider")
-async def set_provider(body: dict = Body(...)):
+async def set_provider(body: dict = Body(...), admin=Depends(get_current_admin)):
     """配置 LLM 提供商。body: { provider: str, api_key: str, base_url?: str, model?: str }"""
     provider = body.get("provider", "custom")
     api_key = body.get("api_key", "").strip()
@@ -166,7 +177,7 @@ async def set_provider(body: dict = Body(...)):
 
 # ── 3. 测试 LLM 连接 ────────────────────────────────
 @router.post("/api/setup/test-llm")
-async def test_llm(body: dict = Body(...)):
+async def test_llm(body: dict = Body(...), admin=Depends(get_current_admin)):
     """测试 LLM API 连通性。"""
     api_key = body.get("api_key", os.environ.get("OPENAI_API_KEY", "")).strip()
     base_url = body.get("base_url", os.environ.get("OPENAI_BASE_URL", "")).strip()
@@ -204,7 +215,7 @@ async def test_llm(body: dict = Body(...)):
 
 # ── 4. 配置 eZ-PLM ──────────────────────────────────
 @router.post("/api/setup/ezplm")
-async def set_ezplm(body: dict = Body(...)):
+async def set_ezplm(body: dict = Body(...), admin=Depends(get_current_admin)):
     """配置 eZ-PLM 连接。body: { api_key: str, base_url?: str }"""
     api_key = body.get("api_key", "").strip()
     base_url = body.get("base_url", "https://www.ezplm.cn").strip()
@@ -216,7 +227,7 @@ async def set_ezplm(body: dict = Body(...)):
 
 # ── 5. 保存用户角色信息 ─────────────────────────────
 @router.post("/api/setup/user-profile")
-async def save_user_profile(body: dict = Body(...)):
+async def save_user_profile(body: dict = Body(...), admin=Depends(get_current_admin)):
     """保存用户角色信息到 USER.md。body: { name: str, role: str, background?: str }"""
     name = body.get("name", "").strip()
     role = body.get("role", "").strip()
@@ -245,7 +256,7 @@ async def save_user_profile(body: dict = Body(...)):
 
 # ── 6. 完整健康诊断 ──────────────────────────────────
 @router.get("/api/health/full")
-async def full_health():
+async def full_health(admin=Depends(get_current_admin)):
     """全面的环境诊断，适合启动时调用。"""
     env = _load_env()
     checks = {}
@@ -302,7 +313,7 @@ async def full_health():
 
 # ── 7. 权限管理 ──────────────────────────────────────
 @router.get("/api/permissions")
-async def get_permissions():
+async def get_permissions(admin=Depends(get_current_admin)):
     """获取当前权限级别和定义。"""
     return {
         "current": _current_permission,
@@ -311,7 +322,7 @@ async def get_permissions():
 
 
 @router.post("/api/permissions")
-async def set_permissions(body: dict = Body(...)):
+async def set_permissions(body: dict = Body(...), admin=Depends(get_current_admin)):
     """设置权限级别。body: { level: str }"""
     global _current_permission
     level = body.get("level", "")

@@ -26,7 +26,7 @@ from .agent_orchestrator import analyze, replacement_report
 from .setup_api import router as setup_router
 from sqlalchemy.orm import Session as DBSession
 from .database import get_db, init_db
-from .auth import get_current_user, get_optional_user
+from .auth import get_current_user, get_optional_user, get_current_admin
 from .models_db import ChatSession as ChatSessionDB, ChatMessage as ChatMessageDB
 from .routers.auth_router import router as auth_router
 from .routers.admin_router import router as admin_router, _apply_config_to_env
@@ -52,6 +52,33 @@ def _evict_session_stores() -> None:
                     d.pop(next(iter(d)))
                 except StopIteration:
                     break
+
+def _owner_scope(user) -> str:
+    """会话归属标识：真实用户取其 id，游客取令牌内的唯一 scope，两者互不可见。"""
+    scope = getattr(user, "session_scope", None)
+    return str(scope) if scope else str(getattr(user, "id", "anon"))
+
+
+def _sid(user, raw_sid: Optional[str]) -> str:
+    """把客户端提交的会话 ID 绑定到当前用户，返回内部存储键。
+
+    客户端可自选 session_id，若直接拿它当缓存键，任意登录用户只要提交
+    别人的 ID 就能读到对方的选型报告、BOM 与累积约束。所有会话态都必须经过这里。
+    """
+    return f"{_owner_scope(user)}::{raw_sid or _DEFAULT_SESSION_ID}"
+
+
+def _owner_id(user) -> Optional[int]:
+    """真实用户在 DB 中的 id；游客无 DB 归属，返回 None 表示跳过 DB 读写。"""
+    if getattr(user, "is_guest", False):
+        return None
+    return getattr(user, "id", None)
+
+
+def _agent_owner_kwargs(user) -> dict:
+    """ReAct Agent 的归属参数：内存缓存按 scope 隔离，DB 恢复按 id 判定。"""
+    return {"owner_id": _owner_id(user), "owner_scope": _owner_scope(user)}
+
 
 # ── 运行时模型管理（支持 API 动态切换，覆盖环境变量）───────────
 _runtime_model: Optional[str] = None  # None 表示使用环境变量默认值
@@ -81,7 +108,16 @@ def get_active_model() -> str:
         pass
     return "claude-sonnet-5"
 
-app = FastAPI()
+# 生产默认关闭交互式文档：/docs、/redoc、/openapi.json 会把包含 /admin/* 在内的完整
+# 路由表整份吐出来。后端只监听回环、公网已经取不到（实测 404），所以这是纵深防御而非
+# 补救。需要调试时设 EZMANBO_ENABLE_DOCS=1 再重启。
+_DOCS_ON = os.getenv("EZMANBO_ENABLE_DOCS", "").strip().lower() in ("1", "true", "yes", "on")
+app = FastAPI(
+    title="eZmanbo API",
+    docs_url="/docs" if _DOCS_ON else None,
+    redoc_url="/redoc" if _DOCS_ON else None,
+    openapi_url="/openapi.json" if _DOCS_ON else None,
+)
 app.include_router(setup_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -177,8 +213,8 @@ async def list_models(current_user=Depends(get_current_user), db: DBSession = De
     return {"models": models, "active": active, "provider": provider_id}
 
 @app.post("/api/models/switch")
-async def switch_model(body: dict = Body(...), current_user=Depends(get_current_user), db: DBSession = Depends(get_db)):
-    """切换运行时模型并持久化到 DB。"""
+async def switch_model(body: dict = Body(...), current_user=Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """切换运行时模型并持久化到 DB。仅管理员：该操作影响所有用户的全局配置。"""
     model_id = body.get("model")
     if not model_id:
         return JSONResponse(status_code=400, content={"detail": "缺少 model 字段"})
@@ -208,7 +244,7 @@ async def analyze_endpoint(
     - 响应头 X-Cache: MISS 表示未命中缓存
     """
     try:
-        session_id = body.session_id or _DEFAULT_SESSION_ID
+        session_id = _sid(current_user, body.session_id)
         # The non-streaming path always executes the pipeline. Raw-text
         # semantic matches are not valid selection-report cache hits.
         cache_header = "MISS"
@@ -267,7 +303,8 @@ async def agent_chat_endpoint(
     try:
         from .react_agent import run_agent
         result = run_agent(body.user_input, session_id=body.session_id,
-                          thinking_depth=body.thinking_depth)
+                          thinking_depth=body.thinking_depth,
+                          **_agent_owner_kwargs(current_user))
 
         # ── DB 会话持久化（游客跳过）────────────────────────
         try:
@@ -356,19 +393,26 @@ async def agent_init_session_endpoint(
       - payload: 上下文文本（context 的别名）
       - context_type: 上下文类型标签（如 selection_context, general）
     """
-    from .react_agent import get_or_create_session, _sessions
+    from .react_agent import get_or_create_session, _sessions, _cache_key
     from langchain_core.messages import AIMessage
     import os as _os
 
     session_id = body.get("session_id") or _os.urandom(8).hex()
-    context = body.get("context") or body.get("payload", "").strip() if isinstance(body, dict) else ""
-    ctx_type = body.get("context_type", "general") if isinstance(body, dict) else "general"
+    # context/payload 的类型不受约束，直接 .strip() 会在传数字或数组时抛 AttributeError
+    # 变成 500。这里统一收敛成字符串。
+    raw_context = body.get("context") or body.get("payload") or ""
+    context = raw_context.strip() if isinstance(raw_context, str) else ""
+    ctx_type = body.get("context_type") or "general"
+    if not isinstance(ctx_type, str):
+        ctx_type = "general"
 
     if context:
-        history = get_or_create_session(session_id)
+        owner_id = _owner_id(current_user)
+        owner_scope = _owner_scope(current_user)
+        history = get_or_create_session(session_id, owner_id=owner_id, owner_scope=owner_scope)
         prefix = f"[{ctx_type}]" if ctx_type != "general" else "[选型上下文已同步]"
         history.append(AIMessage(content=f"{prefix}\n{context}"))
-        _sessions[session_id] = history
+        _sessions[_cache_key(session_id, owner_scope)] = history
 
     return {"session_id": session_id, "injected": bool(context), "context_type": ctx_type}
 
@@ -399,7 +443,7 @@ async def classify_endpoint(
         import re as _re
         if _re.match(r'^\d{1,2}$', body.user_input.strip()):
             try:
-                _report = _session_reports.get(body.session_id)
+                _report = _session_reports.get(_sid(current_user, body.session_id))
                 if _report:
                     _scored = _report_parts(_report)
                     _idx = int(body.user_input.strip()) - 1
@@ -453,7 +497,8 @@ async def agent_chat_stream_endpoint(
                     pass  # 推理展示失败不影响主流程
 
             result = run_agent(body.user_input, session_id=body.session_id,
-                              thinking_depth=body.thinking_depth)
+                              thinking_depth=body.thinking_depth,
+                              **_agent_owner_kwargs(current_user))
 
             # ── 思考流：暴露 ReAct 工具调用链 ────────────────────
             if body.thinking_depth != "off":
@@ -570,7 +615,7 @@ async def _with_heartbeat(gen: AsyncGenerator[str, None], interval: float = 15.0
             pass
 
 
-async def _stream_agent_chat(body: AgentRequest) -> AsyncGenerator[str, None]:
+async def _stream_agent_chat(body: AgentRequest, user) -> AsyncGenerator[str, None]:
     """模块级 Agent 对话流式生成器（供 _stream_unified 复用）。"""
     import time as _time, json as _json
     t0 = _time.time()
@@ -580,7 +625,7 @@ async def _stream_agent_chat(body: AgentRequest) -> AsyncGenerator[str, None]:
         yield f"event: start\ndata: {_json.dumps({'status': 'agent_thinking'})}\n\n"
 
         # 注入已累积的选型参数作为上下文（避免 LLM 重复追问已给出的参数）
-        sid = body.session_id or _DEFAULT_SESSION_ID
+        sid = _sid(user, body.session_id)
         accumulated_c = constraint_store.get(sid)
         context_note = ""
         if accumulated_c:
@@ -611,6 +656,7 @@ async def _stream_agent_chat(body: AgentRequest) -> AsyncGenerator[str, None]:
             session_id=body.session_id,
             thinking_depth=body.thinking_depth,
             context_note=context_note,
+            **_agent_owner_kwargs(user),
         )
 
         # Stream thinking content returned from the single LLM call
@@ -703,7 +749,7 @@ def _build_constraints_text(constraints: dict, original_input: str) -> str:
     return original_input
 
 
-async def _stream_unified(body: AgentRequest, dual_model_enabled: bool = False) -> AsyncGenerator[str, None]:
+async def _stream_unified(body: AgentRequest, user, dual_model_enabled: bool = False) -> AsyncGenerator[str, None]:
     """统一流式入口：在流内部完成意图分类，再路由到相应处理链路。
 
     事件顺序：
@@ -722,17 +768,24 @@ async def _stream_unified(body: AgentRequest, dual_model_enabled: bool = False) 
         from .intent_classifier import _is_fast_chat, _is_fast_adjustment, classify, extract_adjustment
         import re as _re
 
-        sid = body.session_id or _DEFAULT_SESSION_ID
+        raw_sid = body.session_id or _DEFAULT_SESSION_ID
+        sid = _sid(user, body.session_id)
+        # 会话态一律用归属隔离后的 sid；DB 行仍以客户端原始 id 为主键，
+        # 但每次查询都必须带上 user_id，否则提交别人的 id 即可读到其约束。
+        user_id = getattr(user, "id", None)
+        db_ok = not getattr(user, "is_guest", False) and user_id is not None
 
         # 从 DB 恢复（服务器重启后内存清零时使用）
-        if not constraint_store.contains(sid) and body.session_id:
+        if not constraint_store.contains(sid) and body.session_id and db_ok:
             try:
                 import json as _jc
                 from .database import SessionLocal as _SLc
                 from .models_db import ChatSession as _CSc
                 _dbc = _SLc()
                 try:
-                    _cs = _dbc.query(_CSc).filter(_CSc.id == sid).first()
+                    _cs = _dbc.query(_CSc).filter(
+                        _CSc.id == raw_sid, _CSc.user_id == user_id
+                    ).first()
                     if _cs and getattr(_cs, 'accumulated_constraints', None):
                         constraint_store.set(sid, _jc.loads(_cs.accumulated_constraints))
                 finally:
@@ -746,14 +799,16 @@ async def _stream_unified(body: AgentRequest, dual_model_enabled: bool = False) 
         # Always persist merged state — even if no new params extracted this turn
         constraint_store.set(sid, merged_c)
         # 持久化到 DB（重启后不丢失）
-        if body.session_id:
+        if body.session_id and db_ok:
             try:
                 import json as _jp
                 from .database import SessionLocal as _SLp
                 from .models_db import ChatSession as _CSp
                 _dbp = _SLp()
                 try:
-                    _csp = _dbp.query(_CSp).filter(_CSp.id == sid).first()
+                    _csp = _dbp.query(_CSp).filter(
+                        _CSp.id == raw_sid, _CSp.user_id == user_id
+                    ).first()
                     if _csp:
                         _csp.accumulated_constraints = _jp.dumps(merged_c, ensure_ascii=False)
                         _dbp.commit()
@@ -861,7 +916,6 @@ async def _stream_unified(body: AgentRequest, dual_model_enabled: bool = False) 
         # ── 数字选择：器件确认 ─────────────────────────────────────
         if intent == "selection_choice" and cls.get("selected_part"):
             pn = cls["selected_part"]
-            sid = body.session_id or _DEFAULT_SESSION_ID
             _session_selected_part[sid] = pn
             yield _yield_sse("done", {
                 "elapsed_s": round(_t.time() - t0, 2),
@@ -905,7 +959,7 @@ async def _stream_unified(body: AgentRequest, dual_model_enabled: bool = False) 
                 pre_constraints=merged_c if intent == "selection" and merged_c else None,
                 skip_cache=(intent == "adjustment"),
             )
-            async for ev in _stream_analyze(analyze_body, dual_model_enabled=dual_model_enabled):
+            async for ev in _stream_analyze(analyze_body, user, dual_model_enabled=dual_model_enabled):
                 yield ev
 
             # P1-2: 选型完成后，如果有缺失的 P1 字段，追问以优化后续结果
@@ -927,7 +981,7 @@ async def _stream_unified(body: AgentRequest, dual_model_enabled: bool = False) 
             return
 
         # ── 其他（chat / replacement / general）: Agent 对话 ──────
-        async for ev in _stream_agent_chat(body):
+        async for ev in _stream_agent_chat(body, user):
             yield ev
 
     except Exception as e:
@@ -947,12 +1001,17 @@ async def chat_stream_endpoint(
 ):
     """统一流式对话端点：意图分类 + 路由均在服务端完成，前端单连接处理所有场景。"""
     async def _gen():
-        async for ev in _stream_unified(body, dual_model_enabled=bool(getattr(current_user, 'dual_model_enabled', False))):
+        async for ev in _stream_unified(
+            body,
+            current_user,
+            dual_model_enabled=bool(getattr(current_user, 'dual_model_enabled', False)),
+        ):
             yield ev
         # DB 持久化（游客跳过）
         if not getattr(current_user, "is_guest", False):
             try:
                 sid = body.session_id or _DEFAULT_SESSION_ID
+                scoped_sid = _sid(current_user, body.session_id)
                 session_db = db.query(ChatSessionDB).filter(
                     ChatSessionDB.id == sid, ChatSessionDB.user_id == current_user.id
                 ).first()
@@ -962,10 +1021,10 @@ async def chat_stream_endpoint(
                 db.add(ChatMessageDB(session_id=sid, role="user", content=body.user_input[:10000]))
                 db.commit()
                 # P0-3: first message — session just created, persist any already-accumulated constraints
-                if constraint_store.contains(sid) and not getattr(session_db, "accumulated_constraints", None):
+                if constraint_store.contains(scoped_sid) and not getattr(session_db, "accumulated_constraints", None):
                     import json as _jfix
                     session_db.accumulated_constraints = _jfix.dumps(
-                        constraint_store.get(sid), ensure_ascii=False
+                        constraint_store.get(scoped_sid), ensure_ascii=False
                     )
                     db.commit()
             except Exception:
@@ -1288,13 +1347,13 @@ async def _stream_stage5_risk(req: AnalyzeRequest, requirement, scored, loop) ->
 
 
 async def _stream_stage6_report(req: AnalyzeRequest, requirement, scored, evidence, risks,
-                                 t_start: float, loop, dual_model_enabled: bool = False) -> tuple:
+                                 t_start: float, loop, user, dual_model_enabled: bool = False) -> tuple:
     """Stage 6+7：报告生成 + 完成事件 → (events, report)"""
     events: list = []
     events.append(_yield_sse("stage", {"stage": "report", "status": "started"}))
     from .report_generator import build_report
     report = await loop.run_in_executor(None, build_report, requirement, scored, evidence)
-    sid = req.session_id or _DEFAULT_SESSION_ID
+    sid = _sid(user, req.session_id)
     _evict_session_stores()  # P0-4: prevent unbounded growth
     _session_reports[sid] = report
     _session_constraints[sid] = requirement
@@ -1408,7 +1467,7 @@ async def _stream_stage6_report(req: AnalyzeRequest, requirement, scored, eviden
     return events, report
 
 
-async def _stream_analyze(req: AnalyzeRequest, dual_model_enabled: bool = False) -> AsyncGenerator[str, None]:
+async def _stream_analyze(req: AnalyzeRequest, user, dual_model_enabled: bool = False) -> AsyncGenerator[str, None]:
     """异步生成器：按阶段推送 SSE 事件（含 B4 语义缓存集成）。
 
     各阶段已拆分为独立子函数：parse → search → score → evidence → risk → report。
@@ -1440,7 +1499,7 @@ async def _stream_analyze(req: AnalyzeRequest, dual_model_enabled: bool = False)
         if cache_result is not None and restored_report is not None:
             elapsed = round(time.time() - t_start, 2)
             yield _yield_sse("cache_hit", {"hit": True, "similarity": cache_result.get("similarity", 0)})
-            sid = req.session_id or _DEFAULT_SESSION_ID
+            sid = _sid(user, req.session_id)
             _evict_session_stores()
             _session_reports[sid] = restored_report
             _session_constraints[sid] = restored_report.constraints
@@ -1613,7 +1672,7 @@ async def _stream_analyze(req: AnalyzeRequest, dual_model_enabled: bool = False)
 
         # ── Stage 6：报告生成 + 完成 ───────────────────────────
         _model_ver = get_active_model()
-        events, report = await _stream_stage6_report(req, requirement, scored, evidence, risks, t_start, loop, dual_model_enabled=dual_model_enabled)
+        events, report = await _stream_stage6_report(req, requirement, scored, evidence, risks, t_start, loop, user, dual_model_enabled=dual_model_enabled)
         # P2-7: bind model version and timestamp for reproducibility
         try:
             import datetime as _dt
@@ -1681,7 +1740,7 @@ async def analyze_stream_endpoint(
     cache_header = "DEFERRED"
 
     return StreamingResponse(
-        _stream_analyze(body, dual_model_enabled=bool(getattr(current_user, 'dual_model_enabled', False))),
+        _stream_analyze(body, current_user, dual_model_enabled=bool(getattr(current_user, 'dual_model_enabled', False))),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -1732,7 +1791,8 @@ class SelectPartRequest(BaseModel):
 @app.post("/select-part")
 async def select_part_endpoint(body: SelectPartRequest, current_user=Depends(get_current_user)):
     """用户选择具体器件后，记录选定器件并生成其专属报告。"""
-    report = _session_reports.get(body.session_id)
+    sid = _sid(current_user, body.session_id)
+    report = _session_reports.get(sid)
     if not report:
         return JSONResponse(status_code=404, content={"detail": "未找到该会话的选型报告"})
 
@@ -1742,7 +1802,7 @@ async def select_part_endpoint(body: SelectPartRequest, current_user=Depends(get
     if body.part_number not in all_part_numbers:
         return JSONResponse(status_code=400, content={"detail": f"器件 {body.part_number} 不在本次选型结果中"})
 
-    _session_selected_part[body.session_id] = body.part_number
+    _session_selected_part[sid] = body.part_number
     return {"status": "ok", "part_number": body.part_number}
 
 
@@ -1753,7 +1813,7 @@ class InterpretSelectionRequest(BaseModel):
 @app.post("/interpret-selection")
 async def interpret_selection_endpoint(body: InterpretSelectionRequest, current_user=Depends(get_current_user)):
     """用 LLM 理解用户输入是否在选取器件，若是则返回对应型号。"""
-    report = _session_reports.get(body.session_id)
+    report = _session_reports.get(_sid(current_user, body.session_id))
     if not report:
         return {"selected": None}
 
@@ -1812,7 +1872,7 @@ async def get_report(report_type: str, session_id: Optional[str] = None, current
     Returns:
         {"content": "Markdown文本", "type": "bom|risk|topology"}
     """
-    sid = session_id or _DEFAULT_SESSION_ID
+    sid = _sid(current_user, session_id)
     selected_pn = _session_selected_part.get(sid)
     if not selected_pn:
         return JSONResponse(status_code=400, content={"detail": "请先选择具体器件（回复编号如 1、2 等）后再查看报告"})
@@ -2060,7 +2120,7 @@ async def export_bom_endpoint(session_id: Optional[str] = None, current_user=Dep
     Returns:
         .xlsx binary (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)
     """
-    sid = session_id or _DEFAULT_SESSION_ID
+    sid = _sid(current_user, session_id)
     _latest_report = _session_reports.get(sid)
     if _latest_report is None:
         return JSONResponse(status_code=404, content={"detail": "暂无分析报告，请先执行一次选型分析"})
@@ -2082,7 +2142,7 @@ async def export_bom_endpoint(session_id: Optional[str] = None, current_user=Dep
 @app.post("/export/decision-package")
 async def export_decision_package_endpoint(session_id: Optional[str] = None, current_user=Depends(get_current_user)):
     """导出选型决策包（IEC/IATF 格式，含国产化分析，7 Sheet Excel）。"""
-    sid = session_id or _DEFAULT_SESSION_ID
+    sid = _sid(current_user, session_id)
     report = _session_reports.get(sid)
     if report is None:
         return JSONResponse(status_code=404, content={"detail": "暂无分析报告，请先执行一次选型分析"})
@@ -2123,7 +2183,7 @@ class RecalculateRequest(BaseModel):
 @app.post("/recalculate")
 async def recalculate_endpoint(body: RecalculateRequest, current_user=Depends(get_current_user)):
     """根据用户启用的评分维度重新计算推荐分数。"""
-    report = _session_reports.get(body.session_id)
+    report = _session_reports.get(_sid(current_user, body.session_id))
     if not report:
         return JSONResponse(status_code=404, content={"detail": "未找到该会话的报告"})
 
