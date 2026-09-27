@@ -8,7 +8,7 @@
 
 把硬件工程师的自然语言选型需求，转化为**可验证、可审计、可导出**的器件推荐与供应链风险报告。
 
-[![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
 [![LangChain](https://img.shields.io/badge/LangChain-1.x-1C3C3C?logo=langchain&logoColor=white)](https://www.langchain.com/)
@@ -83,7 +83,7 @@
 
 ### 前置要求
 
-- **Python** 3.9+
+- **Python** 3.14（本项目 CI 与生产环境的实测版本；更低版本未经验证）
 - **Node.js** 18+
 - macOS / Linux / WSL2
 

@@ -13,7 +13,7 @@ echo "=========================================="
 echo "[1/5] 检查 Python 环境..."
 PYTHON=$(which python3 2>/dev/null || which python 2>/dev/null)
 if [ -z "$PYTHON" ]; then
-    echo "❌ 未找到 Python，请安装 Python 3.9+"
+    echo "❌ 未找到 Python，请安装 Python 3.14（本项目 CI 与生产环境实测于 3.14）"
     exit 1
 fi
 echo "  ✓ Python: $($PYTHON --version)"
