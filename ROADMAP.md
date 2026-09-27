@@ -34,7 +34,9 @@
 | 首个管理员 | ✅ 已创建并端到端验证（用户名见阻塞项 B2，密码已不在此记录） |
 | 生产数据库（RDS） | `users` 1 行（管理员）；`chat_sessions` / `chat_messages` 全为 0 行 |
 | 版本控制 | ✅ 已初始化 git，有基线提交 |
-| 远程仓库 | ⏳ 本地历史与 GitHub `Lucas-cs11/ezmanbo-agent` **互相独立**，合并方式待定 ← 见 B7 |
+| 远程仓库 | ✅ 已同步为分支 `sync/ec2-phase1.6`（合并提交 `a5b42a2`，零删除），待你评审后合入 `main`；`main` 未被改动 |
+| 测试套件 | ⚠️ 没有可用的回归网：venv 未装 pytest，CI 只跑 `eval_runner`；`tests/test_api_stability.py`（895 行）已过期（见 B7 详情「既有问题」第 2 条） |
+| 已知功能缺陷 | ⚠️ `/schematic/{topology}` 生产必然 500（环境缺 `schemdraw`）← 见 B9 |
 
 ---
 
@@ -243,10 +245,11 @@ curl -s https://ezmanbo.online/login | grep -o '/_next/static/chunks/[^"]*\.js' 
 | B4 | 确认 ACME 联系邮箱（现为 `admin@ezmanbo.online`） | 证书到期告警发往该地址，我不清楚你的真实邮箱 | ⏳ 待确认 |
 | B5 | 轮换 RDS 弱口令、收紧公网可达性 | 生产数据库凭据 | ⏳ 待办 |
 | ~~B6~~ | ~~确认 git 提交身份~~ | — | ✅ 已改为 `Lucas-cs11 <200692816+Lucas-cs11@users.noreply.github.com>` |
-| B7 | **决定本地历史与 GitHub 仓库如何合并** | 涉及你仓库的 122 个提交与 6 条分支，只能你定 | ⏳ **待决策（见下）** |
+| ~~B7~~ | ~~决定本地历史与 GitHub 仓库如何合并~~ | — | ✅ 已按你选的方案 1 完成，推为分支待你评审（见下） |
 | B8 | 轮换已在本会话记录里出现过的管理员密码 | 该密码已落进对话记录与日志 | ⏳ 待办 |
+| B9 | 是否修复 `/schematic` 生产 500（见下「既有问题」第 1 条） | 需要往生产 venv 装包并重启后端，属于改动生产运行环境 | ⏳ 待你点头 |
 
-### B7 详情：本地历史与 GitHub 仓库互相独立
+### B7 详情（已解决）：本地历史与 GitHub 仓库互相独立
 
 情况与直觉相反，值得看清楚再说：
 
@@ -268,6 +271,23 @@ curl -s https://ezmanbo.online/login | grep -o '/_next/static/chunks/[^"]*\.js' 
 3. **你来告诉我远端哪些内容已经废弃**（例如 Streamlit 前端是否早已被 Next.js 取代）。如果确认那些文件已无价值，就可以直接用本地这棵树覆盖 `main`，历史也一并重置。
 
 补充说明：远端仓库是 **public**。已检查过其中的 `frontend/.streamlit/secrets.toml`，内容仅为 `api_url = http://localhost:8000`，**不是密钥**，无泄露。
+
+**结果（2026-09-27）**：按方案 1 执行。新分支 `sync/ec2-phase1.6` 以 `origin/main` 的 `97fde1a` 为基底，把本地工作整体叠加上去，合并提交 `a5b42a2`（双父提交）。**`main` 未被动过。**
+
+与当初预估的一处出入：方案 1 不能只叠「本阶段改动的文件」。远端缺 `app/rate_limit.py`（被 `auth_router` 导入）与 `scripts/manage_users.py`，只叠改动会得到一棵跑不起来的树。所以实际执行的是**完整合并**：远端 72 个独有文件全部保留且逐字节未变，另补入 14 个本地独有文件、覆盖 19 个双方都改过的文件。
+
+**19 个双方都改过的文件逐个人工审计的结论**（`-X theirs` 会把远端那一侧整份丢弃，所以每个都要看）：远端的版本在 4 处其实**更旧或本身有错**——`app/models_db.py` 在 `ChatSession` 内把 `id`/`user_id`/`title`/`created_at` **各定义了两遍**（SQLAlchemy 必抛 `'id' already defined`，即远端 `main` 当前是导入即坏的）、`next.config.js` 代理前缀不全、`database.py` 不支持 `DATABASE_URL`、`README.md` 写有 `uvicorn --workers 4`（与进程内限流器相悖）。唯一一处**真实功能移除**是远端 `GET /admin/setup-required`，而这是我们有意砍掉的（见 1.6.3），且远端 `AuthGuard` 的对应调用已随前端更新一并消失，前后端成对。
+
+### 本次同步过程中发现的既有问题（均非本次合并引入）
+
+1. **`/schematic/{topology}` 在生产必然 500（中）** —— `requirements.txt` 声明了 `schemdraw>=0.18`，但生产 venv 里**没装**。该依赖是懒加载（`app/main.py:1770` 在路由内 `from .schematic_generator import`），启动不受影响、故一直没暴露，一被调用就被通用 `except` 吞成 500「电路图生成错误: No module named 'schemdraw'」。已验证：把 schemdraw 装进临时目录后 `tests/test_b2_schematic.py` 的 2 条用例全过——即代码本身是好的，纯粹是环境缺包。修法：`venv/bin/pip install 'schemdraw>=0.18'` + 重启后端。
+2. **`tests/test_api_stability.py` 895 行测试从未被执行过，且已过期（中）** —— CI（`.github/workflows/ci-python-3.11.yml`）只跑 `tests/eval_runner`，从不跑 pytest；而 venv 里也没装 pytest。实测该文件 32 条用例全失败，**全部**因为它是照「加鉴权之前」的接口写的：`/analyze`、`/replacement` 现在返回 401，`/health` 响应体多了 `started_at`/`uptime_s` 两个字段而断言仍是 `== {"status": "ok"}`。其余 15 条（b2/b4/hybrid/selection）在干净状态下**全通过**。这是「没人跑的测试会烂掉」的典型，需要专门一个模块来重写，不要塞进本次同步。
+3. **`tests/test_b4_semantic_cache.py` 不可重复运行（低）** —— 它用相对路径 `test_cache`，且无清理夹具，第二次运行必然因缓存非空而在第一条断言失败。干净检出下通过。
+4. **远端 `main` 自身有一批「导入了不存在的函数」的死代码（低）** —— `app/kb_updater.py`、`app/workflow_executor.py`、`scripts/enrich_mock_from_api.py`、`scripts/rebuild_mock_from_api_v2.py` 各自局部 import 了 `rag.get_rag_index`、`search_components_by_constraints`、`build_evidence_for_candidates`、`build_risk_assessment`、`_map_api_part_to_partir` 等并不存在的名字。调用方与被调用方都与远端逐字节相同，确系远端既有问题，且都是函数内 import、只在被调用时炸。建议单开 issue，别在这个评审分支里顺手改。
+5. **首个管理员的引导路径变更（需知情，非缺陷）** —— 远端 `/auth/register` 允许「零管理员时自助创建首个管理员」作为引导；现在恒返 403，**新环境只能靠 `scripts/manage_users.py` 建号**（见上文「建首个管理员」）。前后端自洽，但全新部署若没跑 CLI 就进不去系统，部署文档需要写明这一步。
+6. **`app/setup_api.py` 的 `.env` 改写能力并未删除** —— 收口方式是给它套上 `Depends(get_current_admin)`（8/8 路由），不是移除 `_save_env`。对商用产品而言这是合理的：管理员通过 `/setup` 页面配置密钥本就是产品功能，关键是**只有管理员能写**。
+
+**一处操作教训（记下来）**：这个仓库目录**同时是生产运行目录**（systemd 服务就跑在它上面）。我在目录里直接 `git switch` 切分支的那一刻，`app/rate_limit.py` 曾从磁盘消失、远端那份会报错的 `models_db.py` 曾短暂落盘——服务当时未重启（backend 05:19:10 / frontend 05:41:54 未变）才没出事。**此后凡是切分支、合并、检出这类会改动工作树的操作，一律改用隔离 worktree 执行，绝不在生产目录里做。**
 
 ### 建首个管理员（复制即可）
 
@@ -300,3 +320,5 @@ curl -s https://ezmanbo.online/login | grep -o '/_next/static/chunks/[^"]*\.js' 
   **第 5 轮采信的关键证据**：用 804 种故障形状做差分扫描，比对"含新增行"与"去掉新增行"的对照版，终态存储/内存/异常差异均为 **0 处**（只有操作日志多一次 `remove`），据此证明那行对当前行为是可证同终态；又用真实字节预算模型扫描 1764 次，从未出现会话被清空。
 
   最终：`frontend/web/src/store/authStore.ts` sha256 前 16 位 `7d81c38f30ec0431`、`frontend/web/src/app/login/page.tsx` `c0be964b21820b3e`，**121 条断言 + 2 组扫描全绿**。
+
+- **2026-09-27** — Phase 1.7 与远端仓库同步。按你选的方案 1，把本地工作叠到 `origin/main` 上，建成评审分支 `sync/ec2-phase1.6`（合并提交 `a5b42a2`，双父提交，**零删除**，`main` 未动）。构建者的两处取舍已确认：README 保留本地版、个人简历文件保留在仓库中。验证交由独立子 agent：零删除用 `--diff-filter` 与 `git archive` 逐字节比对双重确认，16 个代码文件做双向符号差，`compileall` exit 0，隔离环境 `import app.main` 成功且 openapi 产出 47 条路径（等于两棵树的路由并集），`tsc --noEmit` exit 0，密钥扫描 0 命中。另把 pytest 装进临时目录（**不碰生产 venv**）跑了回归：15/15 非过期用例通过。**过程中连带查出 6 项既有问题**（见 B7 详情末节），其中 `/schematic` 生产 500 与「895 行测试从未被执行且已过期」两项需要单独立项。
