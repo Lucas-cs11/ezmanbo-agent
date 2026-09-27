@@ -36,7 +36,7 @@
 | 版本控制 | ✅ 已初始化 git，有基线提交 |
 | 远程仓库 | ✅ 已同步为分支 `sync/ec2-phase1.6`（合并提交 `a5b42a2`，零删除），待你评审后合入 `main`；`main` 未被改动 |
 | 测试套件 | ⚠️ 没有可用的回归网：venv 未装 pytest，CI 只跑 `eval_runner`；`tests/test_api_stability.py`（895 行）已过期（见 B7 详情「既有问题」第 2 条） |
-| 已知功能缺陷 | ⚠️ `/schematic/{topology}` 生产必然 500（环境缺 `schemdraw`）← 见 B9 |
+| 已知功能缺陷 | ⚠️ `/schematic` 后端已修好（三种拓扑 200）；但前端是空壳，用户仍看不到电路图 ← 见 B9 |
 
 ---
 
@@ -247,7 +247,7 @@ curl -s https://ezmanbo.online/login | grep -o '/_next/static/chunks/[^"]*\.js' 
 | ~~B6~~ | ~~确认 git 提交身份~~ | — | ✅ 已改为 `Lucas-cs11 <200692816+Lucas-cs11@users.noreply.github.com>` |
 | ~~B7~~ | ~~决定本地历史与 GitHub 仓库如何合并~~ | — | ✅ 已按你选的方案 1 完成，推为分支待你评审（见下） |
 | B8 | 轮换已在本会话记录里出现过的管理员密码 | 该密码已落进对话记录与日志 | ⏳ 待办 |
-| B9 | 是否修复 `/schematic` 生产 500（见下「既有问题」第 1 条） | 需要往生产 venv 装包并重启后端，属于改动生产运行环境 | ⏳ 待你点头 |
+| B9 | `/schematic` 的**用户可见**部分（后端已修好，前端是空壳，见下「既有问题」第 1 条） | 需要接前端组件并重建前端，会造成十几秒中断 | ⏳ 待你决定何时做 |
 
 ### B7 详情（已解决）：本地历史与 GitHub 仓库互相独立
 
@@ -280,7 +280,10 @@ curl -s https://ezmanbo.online/login | grep -o '/_next/static/chunks/[^"]*\.js' 
 
 ### 本次同步过程中发现的既有问题（均非本次合并引入）
 
-1. **`/schematic/{topology}` 在生产必然 500（中）** —— `requirements.txt` 声明了 `schemdraw>=0.18`，但生产 venv 里**没装**。该依赖是懒加载（`app/main.py:1770` 在路由内 `from .schematic_generator import`），启动不受影响、故一直没暴露，一被调用就被通用 `except` 吞成 500「电路图生成错误: No module named 'schemdraw'」。已验证：把 schemdraw 装进临时目录后 `tests/test_b2_schematic.py` 的 2 条用例全过——即代码本身是好的，纯粹是环境缺包。修法：`venv/bin/pip install 'schemdraw>=0.18'` + 重启后端。
+1. **`/schematic/{topology}` 生产 500（中）—— 后端已修，但功能对用户仍不可用** —— 两层原因叠在一起：
+   - **依赖缺失（已修，2026-09-27）**：`requirements.txt` 声明了 `schemdraw>=0.18`，生产 venv 里却**没装**。该依赖是懒加载（`app/main.py:1770` 在路由内 `from .schematic_generator import`），启动不受影响、故一直没暴露；一被调用就被通用 `except` 吞成 500。已装 `schemdraw 0.23`（`pip` 只装这一个包，不动 numpy/matplotlib，不会顶掉 torch 那条依赖链），**且无需重启**——失败的导入不会被缓存，装完即刻生效。实测三种拓扑全部 200 并返回真实 SVG（buck 6576 B / boost 6608 B / ldo 4703 B），非法拓扑正确返回 400 并附带可选值。
+   - **前端根本没接上（未修）**：`SchematicPanel.tsx` 是**孤儿组件**（全树零引用），且它请求的是 `/api/schematic/...`——后端只提供 `/schematic/...`，实测经 Next 代理返回 **404**；而聊天里的 `/schematic` 命令（提示语写着「显示应用电路图」）处理函数是个空壳 `toggleSchematic: () => setActiveReport(null)`，`activeReport` 的类型里根本没有 `schematic` 这个值。也就是说：**用户看得到命令、看不到电路图**。
+   - 要真正交付这个功能，需接上 `SchematicPanel` 并把它的 URL 改成 `/schematic/...`（约二十行），前端重建会造成十几秒中断 ← 见 B9。
 2. **`tests/test_api_stability.py` 895 行测试从未被执行过，且已过期（中）** —— CI（`.github/workflows/ci-python-3.11.yml`）只跑 `tests/eval_runner`，从不跑 pytest；而 venv 里也没装 pytest。实测该文件 32 条用例全失败，**全部**因为它是照「加鉴权之前」的接口写的：`/analyze`、`/replacement` 现在返回 401，`/health` 响应体多了 `started_at`/`uptime_s` 两个字段而断言仍是 `== {"status": "ok"}`。其余 15 条（b2/b4/hybrid/selection）在干净状态下**全通过**。这是「没人跑的测试会烂掉」的典型，需要专门一个模块来重写，不要塞进本次同步。
 3. **`tests/test_b4_semantic_cache.py` 不可重复运行（低）** —— 它用相对路径 `test_cache`，且无清理夹具，第二次运行必然因缓存非空而在第一条断言失败。干净检出下通过。
 4. **远端 `main` 自身有一批「导入了不存在的函数」的死代码（低）** —— `app/kb_updater.py`、`app/workflow_executor.py`、`scripts/enrich_mock_from_api.py`、`scripts/rebuild_mock_from_api_v2.py` 各自局部 import 了 `rag.get_rag_index`、`search_components_by_constraints`、`build_evidence_for_candidates`、`build_risk_assessment`、`_map_api_part_to_partir` 等并不存在的名字。调用方与被调用方都与远端逐字节相同，确系远端既有问题，且都是函数内 import、只在被调用时炸。建议单开 issue，别在这个评审分支里顺手改。
@@ -322,3 +325,5 @@ curl -s https://ezmanbo.online/login | grep -o '/_next/static/chunks/[^"]*\.js' 
   最终：`frontend/web/src/store/authStore.ts` sha256 前 16 位 `7d81c38f30ec0431`、`frontend/web/src/app/login/page.tsx` `c0be964b21820b3e`，**121 条断言 + 2 组扫描全绿**。
 
 - **2026-09-27** — Phase 1.7 与远端仓库同步。按你选的方案 1，把本地工作叠到 `origin/main` 上，建成评审分支 `sync/ec2-phase1.6`（合并提交 `a5b42a2`，双父提交，**零删除**，`main` 未动）。构建者的两处取舍已确认：README 保留本地版、个人简历文件保留在仓库中。验证交由独立子 agent：零删除用 `--diff-filter` 与 `git archive` 逐字节比对双重确认，16 个代码文件做双向符号差，`compileall` exit 0，隔离环境 `import app.main` 成功且 openapi 产出 47 条路径（等于两棵树的路由并集），`tsc --noEmit` exit 0，密钥扫描 0 命中。另把 pytest 装进临时目录（**不碰生产 venv**）跑了回归：15/15 非过期用例通过。**过程中连带查出 6 项既有问题**（见 B7 详情末节），其中 `/schematic` 生产 500 与「895 行测试从未被执行且已过期」两项需要单独立项。
+
+- **2026-09-27** — `/schematic` 后端 500 已修（B9 的后端半边）。按你的授权往生产 venv 装了 `schemdraw 0.23`——`pip` 计划里只有这一个包，不动 numpy/matplotlib，无顶掉 torch 依赖链的风险；**且无需重启后端**（失败导入不缓存，装完即刻生效），三种拓扑实测 200 + 真实 SVG。**但排查中发现功能对用户仍不可用**：前端 `SchematicPanel.tsx` 是零引用的孤儿组件、请求路径 `/api/schematic/...` 与后端不符（经代理 404），聊天里的 `/schematic` 命令处理函数是空壳。要交付需接前端组件并重建前端（十几秒中断），已记入 B9 待你决定何时做。
