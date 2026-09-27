@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models_db import User
 from ..auth import (
-    hash_password, verify_password,
+    verify_password,
     create_access_token, create_refresh_token, decode_refresh_token,
     get_current_user, GUEST_TOKEN_EXPIRE_MINUTES,
 )
@@ -44,32 +44,12 @@ def _user_out(u) -> dict:
 
 
 @router.post("/register")
-def register(body: RegisterBody, db: Session = Depends(get_db), _rl=Depends(_register_limit)):
-    # 内测阶段，注册通道关闭（仅允许首个管理员账号初始化）
-    existing_admin = db.query(User).filter(User.is_admin == True).first()
-    if existing_admin:
-        raise HTTPException(403, "内测阶段，注册通道尚未开通，请联系管理员获取访问权限")
-    if len(body.username) < 2 or len(body.username) > 30:
-        raise HTTPException(400, "用户名长度须在 2–30 字符之间")
-    if len(body.password) < 6:
-        raise HTTPException(400, "密码至少 6 位")
-    if db.query(User).filter(User.username == body.username).first():
-        raise HTTPException(400, "用户名已存在")
+def register(body: RegisterBody, _rl=Depends(_register_limit)):
+    """公开注册已永久关闭：账号一律由管理员在后台创建。
 
-    is_admin = db.query(User).count() == 0
-    user = User(
-        username=body.username,
-        hashed_password=hash_password(body.password),
-        is_admin=is_admin,
-        is_active=True,
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    token = create_access_token({"sub": str(user.id), "username": user.username, "is_admin": user.is_admin})
-    refresh = create_refresh_token({"sub": str(user.id), "username": user.username, "is_admin": user.is_admin})
-    return {"token": token, "refresh_token": refresh, "user": _user_out(user)}
+    保留该路由而非删除，是为了让老前端的调用拿到明确原因，而不是一个费解的 404。
+    """
+    raise HTTPException(403, "注册通道已关闭，账号由管理员在后台创建，请联系管理员获取访问权限")
 
 
 @router.post("/login")
@@ -92,11 +72,17 @@ def refresh_token(body: dict, db: Session = Depends(get_db)):
     if not rt:
         raise HTTPException(400, "缺少 refresh_token")
     payload = decode_refresh_token(rt)
+    if payload.get("is_guest"):
+        # 游客令牌短时效且不持久化，本就不该续期
+        raise HTTPException(401, "游客会话不支持续期，请重新进入")
     user_id = payload.get("sub")
-    if not user_id or user_id == "guest":
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        # 非数字 sub（历史游客令牌等）走 401 而不是让 int() 抛 500
         raise HTTPException(401, "刷新令牌无效")
     from ..models_db import User as _User
-    user = db.query(_User).filter(_User.id == int(user_id), _User.is_active == True).first()
+    user = db.query(_User).filter(_User.id == uid, _User.is_active == True).first()
     if not user:
         raise HTTPException(401, "用户不存在或已被禁用")
     token = create_access_token({"sub": str(user.id), "username": user.username, "is_admin": user.is_admin})
@@ -105,14 +91,12 @@ def refresh_token(body: dict, db: Session = Depends(get_db)):
 
 
 @router.post("/guest")
-def guest_login(db: Session = Depends(get_db), _rl=Depends(_guest_limit)):
-    """游客演示登录：无需注册，管理员配置好后才可使用。对话不会保存。
+def guest_login(_rl=Depends(_guest_limit)):
+    """游客进入：无需账号，任何人可进。对话不会保存到数据库。
 
+    不依赖系统是否已初始化管理员，否则全新部署时谁都进不来。
     签发短时效令牌（默认 2 小时），避免被脚本批量铸造后长期白嫖配额。
     """
-    has_admin = db.query(User).filter(User.is_admin == True).first()
-    if not has_admin:
-        raise HTTPException(403, "系统尚未初始化，请先完成管理员注册和配置")
     # sub 每次唯一：游客之间的会话态据此隔离
     guest_scope = f"guest-{uuid.uuid4().hex[:12]}"
     token = create_access_token(

@@ -760,7 +760,7 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight, onT
     if (!text || loading) return;
     // Guest quota check
     if (!canSendAsGuest()) {
-      addMessage({ id: generateId(), role: "assistant", content: "游客试用已达到 5 次上限，请注册账号（待开放）或联系管理员获取访问权限。", timestamp: Date.now() });
+      addMessage({ id: generateId(), role: "assistant", content: "游客试用已达到 5 次上限。平台的账号由管理员统一创建，请联系管理员开通后重新登录。", timestamp: Date.now() });
       return;
     }
     if (authUser?.is_guest) incrementGuestCount();

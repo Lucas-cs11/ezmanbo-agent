@@ -91,12 +91,6 @@ def verifier_status(db: Session = Depends(get_db), user=Depends(get_current_user
     return {"configured": configured}
 
 
-@router.get("/setup-required")
-def setup_required(db: Session = Depends(get_db)):
-    """无需认证：检查是否需要首次初始化（无用户时返回 true）。"""
-    return {"setup_required": db.query(User).count() == 0}
-
-
 @router.get("/providers")
 def get_providers():
     return {"providers": PROVIDERS}
@@ -157,6 +151,62 @@ def list_users(admin=Depends(get_current_admin), db: Session = Depends(get_db)):
          "created_at": u.created_at.isoformat() if u.created_at else None}
         for u in users
     ]}
+
+
+MIN_PASSWORD_LEN = 8
+
+
+class CreateUserBody(BaseModel):
+    username: str
+    password: str
+    email: str = ""
+    is_admin: bool = False
+
+
+class ResetPasswordBody(BaseModel):
+    password: str
+
+
+@router.post("/users")
+def create_user(body: CreateUserBody, admin=Depends(get_current_admin), db: Session = Depends(get_db)):
+    """管理员建号。公开注册已关闭，这是唯一的账号创建入口。"""
+    username = body.username.strip()
+    if len(username) < 2 or len(username) > 30:
+        raise HTTPException(400, "用户名长度须在 2–30 字符之间")
+    if len(body.password) < MIN_PASSWORD_LEN:
+        raise HTTPException(400, f"密码至少 {MIN_PASSWORD_LEN} 位")
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(400, "用户名已存在")
+
+    user = User(
+        username=username,
+        email=(body.email or "").strip(),
+        hashed_password=hash_password(body.password),
+        is_admin=body.is_admin,
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"id": user.id, "username": user.username, "email": user.email,
+            "is_admin": user.is_admin, "is_active": user.is_active}
+
+
+@router.post("/users/{user_id}/reset-password")
+def reset_password(
+    user_id: int,
+    body: ResetPasswordBody,
+    admin=Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    if len(body.password) < MIN_PASSWORD_LEN:
+        raise HTTPException(400, f"密码至少 {MIN_PASSWORD_LEN} 位")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "用户不存在")
+    user.hashed_password = hash_password(body.password)
+    db.commit()
+    return {"id": user.id, "status": "ok"}
 
 
 @router.post("/users/{user_id}/toggle")

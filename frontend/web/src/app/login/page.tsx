@@ -25,6 +25,19 @@ export default function LoginPage() {
       });
       const data = await resp.json();
       if (!resp.ok) { setError(data.detail || "认证失败，请检查账号密码"); return; }
+      login(data.token, data.user, data.refresh_token);
+      router.replace("/");
+    } catch { setError("连接失败，请检查网络"); }
+    finally { setLoading(false); }
+  };
+
+  const handleGuest = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const resp = await fetch("/auth/guest", { method: "POST" });
+      const data = await resp.json();
+      if (!resp.ok) { setError(data.detail || "游客进入失败，请稍后再试"); return; }
       login(data.token, data.user);
       router.replace("/");
     } catch { setError("连接失败，请检查网络"); }
@@ -112,18 +125,33 @@ export default function LoginPage() {
               )}
             </button>
 
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-xs text-slate-400">暂无账号？</span>
-              <a href="/register" className="text-xs font-bold text-teal-600 hover:text-teal-700 transition-colors flex items-center gap-1">
-                申请内测资格 <ArrowRight className="w-3 h-3" />
-              </a>
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-white px-3 text-2xs font-medium text-slate-400 tracking-wide">或</span>
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={handleGuest}
+              disabled={loading}
+              className="w-full h-11 bg-white border border-slate-200 hover:border-teal-400 hover:bg-teal-50/40 text-slate-700 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-60"
+            >
+              以游客身份进入 <ArrowRight className="w-4 h-4" />
+            </button>
+
+            <p className="text-2xs text-slate-400 text-center leading-relaxed">
+              游客可直接体验，对话不会保存；账号由管理员统一创建
+            </p>
           </form>
         </div>
 
         <div className="flex items-center justify-center gap-2 mt-6">
           <Shield className="w-3 h-3 text-white/20" />
-          <p className="text-white/20 text-xs font-medium">eZmanbo v2.5 · 内测阶段 · 仅限授权用户访问</p>
+          <p className="text-white/20 text-xs font-medium">eZmanbo v2.5 · 账号由管理员统一分配</p>
         </div>
       </div>
     </div>

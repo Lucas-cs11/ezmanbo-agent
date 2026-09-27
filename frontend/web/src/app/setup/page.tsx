@@ -35,6 +35,10 @@ export default function SetupPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [newUser, setNewUser] = useState({ username: "", password: "", email: "", is_admin: false });
+  const [creating, setCreating] = useState(false);
+  const [resetFor, setResetFor] = useState<number | null>(null);
+  const [resetPw, setResetPw] = useState("");
 
   // RAG 知识库 state
   const [ragCount, setRagCount] = useState<number | null>(null);
@@ -105,6 +109,37 @@ export default function SetupPage() {
     });
     flash(r.ok ? "ok" : "err", r.ok ? "eZ-PLM 配置已保存" : "保存失败");
     setSaving(false);
+  };
+
+  const reloadUsers = () =>
+    fetch("/admin/users", { headers: getAuthHeaders() })
+      .then((r) => r.json())
+      .then((d) => setUsers(d.users || []))
+      .catch(() => {});
+
+  const createUser = async () => {
+    if (!newUser.username.trim() || !newUser.password) return;
+    setCreating(true);
+    try {
+      const r = await fetch("/admin/users", { method: "POST", headers, body: JSON.stringify(newUser) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { flash("err", d.detail || "创建失败"); return; }
+      flash("ok", `已创建用户 ${d.username}`);
+      setNewUser({ username: "", password: "", email: "", is_admin: false });
+      reloadUsers();
+    } finally { setCreating(false); }
+  };
+
+  const resetPassword = async (uid: number) => {
+    if (resetPw.length < 8) { flash("err", "密码至少 8 位"); return; }
+    const r = await fetch(`/admin/users/${uid}/reset-password`, {
+      method: "POST", headers, body: JSON.stringify({ password: resetPw }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { flash("err", d.detail || "重置失败"); return; }
+    flash("ok", "密码已重置");
+    setResetFor(null);
+    setResetPw("");
   };
 
   const toggleUser = async (uid: number) => {
@@ -249,28 +284,86 @@ export default function SetupPage() {
           )}
 
           {tab === "users" && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-4">已注册用户（{users.length}）</h3>
-              <div className="space-y-2">
-                {users.map((u) => (
-                  <div key={u.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-semibold text-blue-600">
-                      {u.username[0].toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{u.username}</p>
-                      <p className="text-xs text-gray-400 truncate">{u.email} {u.is_admin && "· 管理员"}</p>
-                    </div>
-                    <button onClick={() => toggleUser(u.id)} disabled={u.is_admin}
-                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                        u.is_active
-                          ? "bg-red-50 text-red-600 hover:bg-red-100"
-                          : "bg-green-50 text-green-600 hover:bg-green-100"
-                      } disabled:opacity-40`}>
-                      {u.is_active ? "禁用" : "启用"}
+            <div className="space-y-6">
+              <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/60">
+                <h3 className="text-sm font-medium text-gray-700 mb-1">新建账号</h3>
+                <p className="text-xs text-gray-400 mb-3">平台不开放自助注册，所有账号在此创建</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <input value={newUser.username}
+                    onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                    placeholder="用户名（2–30 字符）"
+                    className="h-10 px-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400" />
+                  <input value={newUser.password} type="password"
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                    placeholder="初始密码（至少 8 位）"
+                    className="h-10 px-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400" />
+                  <input value={newUser.email}
+                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                    placeholder="邮箱（可选）"
+                    className="h-10 px-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400" />
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                      <input type="checkbox" checked={newUser.is_admin}
+                        onChange={(e) => setNewUser({ ...newUser, is_admin: e.target.checked })}
+                        className="w-4 h-4 accent-blue-600" />
+                      设为管理员
+                    </label>
+                    <button onClick={createUser} disabled={creating || !newUser.username.trim() || !newUser.password}
+                      className="ml-auto px-4 h-10 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40">
+                      {creating ? "创建中…" : "创建账号"}
                     </button>
                   </div>
-                ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-3">已有账号（{users.length}）</h3>
+                <div className="space-y-2">
+                  {users.map((u) => (
+                    <div key={u.id} className="bg-gray-50 rounded-xl">
+                      <div className="flex items-center gap-3 p-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-semibold text-blue-600">
+                          {u.username[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{u.username}</p>
+                          <p className="text-xs text-gray-400 truncate">
+                            {u.email} {u.is_admin && "· 管理员"} {!u.is_active && "· 已禁用"}
+                          </p>
+                        </div>
+                        <button onClick={() => { setResetFor(resetFor === u.id ? null : u.id); setResetPw(""); }}
+                          className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
+                          重置密码
+                        </button>
+                        <button onClick={() => toggleUser(u.id)} disabled={u.is_admin}
+                          className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                            u.is_active
+                              ? "bg-red-50 text-red-600 hover:bg-red-100"
+                              : "bg-green-50 text-green-600 hover:bg-green-100"
+                          } disabled:opacity-40`}>
+                          {u.is_active ? "禁用" : "启用"}
+                        </button>
+                      </div>
+                      {resetFor === u.id && (
+                        <div className="flex items-center gap-2 px-3 pb-3">
+                          <input value={resetPw} type="password" autoFocus
+                            onChange={(e) => setResetPw(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") resetPassword(u.id); }}
+                            placeholder={`${u.username} 的新密码（至少 8 位）`}
+                            className="flex-1 h-9 px-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400" />
+                          <button onClick={() => resetPassword(u.id)}
+                            className="px-3 h-9 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors">
+                            确认重置
+                          </button>
+                          <button onClick={() => { setResetFor(null); setResetPw(""); }}
+                            className="px-3 h-9 text-xs text-gray-500 hover:text-gray-700">
+                            取消
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
