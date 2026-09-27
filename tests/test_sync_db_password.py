@@ -13,6 +13,7 @@ import stat
 
 import pytest
 import sqlalchemy
+from dotenv import dotenv_values
 from sqlalchemy.engine import make_url
 from urllib.parse import quote
 
@@ -96,6 +97,28 @@ def test_write_replaces_only_database_url_line(tmp_path, monkeypatch):
     assert "JWT_SECRET_KEY=abc" in text
     assert "HF_HOME=/mnt/data/.cache/huggingface" in text
     assert make_url(_value_of(env)).password == NEW_PW
+
+
+def test_edits_the_line_dotenv_actually_uses(tmp_path, monkeypatch, capsys):
+    """`.env` 里有两行 `DATABASE_URL` 时，dotenv 是「后者胜」——所以必须改**最后一行**。
+
+    改错行的后果很坏：脚本打印「新凭据实连成功」并返回 0，而生产读到的仍是旧口令，
+    于是「脚本说成功了、服务却连不上库」，且重跑永远不自愈。
+    """
+    stale = "postgresql://app_user:StalePw@db.example.com:5432/ezmanbo"
+    path = tmp_path / ".env"
+    path.write_text(f"{mod.KEY}={stale}\nJWT_SECRET_KEY=abc\n{mod.KEY}={OLD_URL}\n")
+    os.chmod(path, 0o600)
+
+    assert _run(tmp_path, monkeypatch, path) == 0
+
+    lines = path.read_text().splitlines()
+    assert "StalePw" in lines[0], "前面那行不许被动"
+    assert make_url(lines[2].split("=", 1)[1]).password == NEW_PW
+    assert make_url(dotenv_values(path)[mod.KEY]).password == NEW_PW, (
+        "dotenv 实际读回来的必须就是新口令"
+    )
+    assert "2 行" in capsys.readouterr().out, "重复这件事必须说出来，不能默默改一行了事"
 
 
 @pytest.mark.parametrize("quote_char", ["", '"', "'"])
@@ -185,7 +208,11 @@ def test_verify_detects_wrong_user(tmp_path, monkeypatch):
 
 
 def test_leaking_exception_is_scrubbed(monkeypatch):
-    """`create_engine` 的报错会把整条 URL 带出来（含口令），必须擦掉再打印。"""
+    """`_scrub` 是防御层：这里用构造出来的「会带出口令的异常」钉住它的契约。
+
+    注意：在当前 SQLAlchemy 上，真实的失败路径（解析失败 / 驱动不存在 / 端口非法 /
+    连接被拒）**都没有**回显口令，所以这条用例是**防回归**，不是对一个已知泄漏的复现。
+    """
     url = mod._compose(NEW_PW, OLD_URL)
 
     def explode(*a, **k):
@@ -213,18 +240,23 @@ def test_dry_run_touches_nothing(tmp_path, monkeypatch):
 
 
 def test_password_is_never_printed(tmp_path, monkeypatch, capsys):
+    """stdout/stderr 与备份文件名里都不许出现口令——**编码形态同样算口令**
+    （`N3w%2Fpw%40ss...` 是能直接拿去连库的凭据，不是「已脱敏」）。"""
     env = _write_env(tmp_path)
     _run(tmp_path, monkeypatch, env)
     out = capsys.readouterr()
-    assert NEW_PW not in out.out and NEW_PW not in out.err
+    for form in (NEW_PW, quote(NEW_PW, safe="")):
+        assert form not in out.out, f"stdout 泄漏了口令：{form}"
+        assert form not in out.err, f"stderr 泄漏了口令：{form}"
     for p in tmp_path.iterdir():
         assert NEW_PW not in p.name, "备份文件名里也不能带口令"
 
 
-def test_masked_url_hides_password():
+def test_masked_url_hides_password_and_keeps_port():
     masked = mod._mask(mod._compose(NEW_PW, OLD_URL))
-    assert NEW_PW not in masked
+    assert NEW_PW not in masked and quote(NEW_PW, safe="") not in masked
     assert "***" in masked and "app_user" in masked
+    assert "db.example.com:5432" in masked, "掩码后的展示信息不该丢掉端口"
 
 
 # ── 该拒绝的输入 ──────────────────────────────────────────────────────
@@ -244,6 +276,63 @@ def test_refuses_missing_key(tmp_path, monkeypatch):
     path.write_text("JWT_SECRET_KEY=abc\n")
     with pytest.raises(SystemExit):
         _run(tmp_path, monkeypatch, path)
+
+
+def test_refuses_non_numeric_port(tmp_path, monkeypatch):
+    """端口非法要给一句人能看懂的话，而不是 `urlsplit` 的裸 ValueError traceback。"""
+    env = _write_env(tmp_path, value="postgresql://app_user:pw@db.example.com:notaport/ezmanbo")
+    before = env.read_bytes()
+    with pytest.raises(SystemExit) as err:
+        _run(tmp_path, monkeypatch, env)
+    assert "端口" in str(err.value)
+    assert env.read_bytes() == before
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root 无视目录权限，这条测不出来")
+def test_write_failure_is_reported_and_leaves_nothing_behind(tmp_path, monkeypatch):
+    """磁盘满/目录只读这类写失败：.env 必须原样，且不许留下临时文件或半截备份。"""
+    env = _write_env(tmp_path)
+    before = env.read_bytes()
+    os.chmod(tmp_path, 0o500)
+    try:
+        with pytest.raises(SystemExit) as err:
+            _run(tmp_path, monkeypatch, env)
+    finally:
+        os.chmod(tmp_path, 0o700)
+
+    assert "写" in str(err.value), "要说清是写盘失败"
+    assert env.read_bytes() == before
+    leftovers = [p.name for p in tmp_path.iterdir() if p.name.startswith(".env.tmp.")]
+    assert not leftovers, f"留下了临时文件：{leftovers}"
+    backups = [p.name for p in tmp_path.iterdir() if p.name.startswith(".env.bak.")]
+    assert not backups, f"留下了做不到回滚的半截备份：{backups}"
+
+
+class _FrozenDatetime:
+    """把备份时间戳钉死在同一秒，用来验证「同秒两次运行」的行为。"""
+
+    @staticmethod
+    def now(tz=None):
+        from datetime import datetime as _dt
+        from datetime import timezone as _tz
+
+        return _dt(2026, 9, 27, 12, 0, 0, tzinfo=_tz.utc)
+
+
+def test_backup_names_do_not_collide_within_one_second(tmp_path, monkeypatch):
+    """备份名精确到秒，同一秒内跑两次**不许静默覆盖**——否则最初的状态就丢了。"""
+    monkeypatch.setattr(mod, "datetime", _FrozenDatetime)
+    env = _write_env(tmp_path)
+    original = env.read_text()
+
+    _run(tmp_path, monkeypatch, env)
+    after_first = env.read_text()
+    _run(tmp_path, monkeypatch, env)
+
+    names = sorted(p.name for p in tmp_path.iterdir() if p.name.startswith(".env.bak."))
+    assert len(names) == 2, f"两次运行必须留两份备份，实际只有：{names}"
+    assert (tmp_path / names[0]).read_text() == original, "最早那份备份必须还是最初的内容"
+    assert (tmp_path / names[1]).read_text() == after_first
 
 
 def test_refuses_short_password(tmp_path):

@@ -21,6 +21,9 @@
 **安全约定**：口令全程不回显、不写日志、不进 shell 历史；**写盘前先用新凭据实连
 一次**，连得上才替换 `.env`；替换是原子的（同目录临时文件 + `os.replace`），旧文件
 留备份（`.env.bak.<UTC 时间戳>`），文件权限保持不变。
+
+`.env` 里若出现**多行** `DATABASE_URL`，python-dotenv 是「后者胜」，所以本脚本改的是
+**最后一行**——也就是应用真正会读到的那行——并就把前面几行的行号报警给你。
 """
 
 import argparse
@@ -47,12 +50,25 @@ def _split_value(raw: str) -> tuple[str, str]:
     return raw, ""
 
 
-def _find_key_line(lines: list[str], key: str = KEY) -> int:
+def _key_lines(lines: list[str], key: str = KEY) -> list[int]:
+    """所有生效的 `key=` 行号（跳过注释行），按出现顺序。"""
+    found = []
     for i, line in enumerate(lines):
         stripped = line.strip()
         if stripped and not stripped.startswith("#") and stripped.split("=", 1)[0].strip() == key:
-            return i
-    raise SystemExit(f"❌ .env 里找不到 {key}= 这一行，无法同步。")
+            found.append(i)
+    return found
+
+
+def _port_of(parts) -> int | None:
+    """取端口；`urlsplit` 遇到非数字端口才抛错，这里换成能看懂的提示。"""
+    try:
+        return parts.port
+    except ValueError:
+        raise SystemExit(
+            "❌ DATABASE_URL 里的端口不是数字。请在 .env 里先手工修好再跑本脚本"
+            "（未改动任何文件）。"
+        ) from None
 
 
 def _compose(new_password: str, old_url: str) -> str:
@@ -62,8 +78,9 @@ def _compose(new_password: str, old_url: str) -> str:
         raise SystemExit("❌ 当前 DATABASE_URL 里没有口令字段，无法同步（是否用了 IAM 认证？）。")
     user = unquote(parts.username or "")
     netloc = f"{quote(user, safe='')}:{quote(new_password, safe='')}@{parts.hostname or ''}"
-    if parts.port:
-        netloc += f":{parts.port}"
+    port = _port_of(parts)
+    if port:
+        netloc += f":{port}"
     return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
 
 
@@ -97,10 +114,11 @@ def _mask(url: str) -> str:
     parts = urlsplit(url)
     if parts.password is None:
         return url
-    masked = urlunsplit(
-        (parts.scheme, f"{parts.username}:***@{parts.hostname}", parts.path, parts.query, parts.fragment)
-    )
-    return masked
+    netloc = f"{parts.username}:***@{parts.hostname or ''}"
+    port = _port_of(parts)
+    if port:
+        netloc += f":{port}"
+    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
 
 
 def _prompt_password() -> str:
@@ -113,10 +131,12 @@ def _prompt_password() -> str:
 
 
 def _scrub(text: str, secret: str) -> str:
-    """把可能夹在异常文本里的口令擦掉。
+    """把可能夹在异常文本里的口令擦掉（原文与百分号编码两种形态）。
 
-    这是必需的：`create_engine` 的参数错误等信息**会把整条 URL 原样带出来**，
-    直接打印就等于把口令写进了终端和日志。
+    这是**防御性**的一层，不是已证实的必需品：在本项目的 SQLAlchemy 版本上，我试过的
+    失败路径（URL 解析失败、驱动不存在、端口非法、连接被拒）都不回显口令，SQLAlchemy
+    自己的 URL 表示也已把口令显示成 `***`。留着它是因为异常文本来自第三方库、版本会变，
+    万一哪天真带上口令，代价就是生产口令进了终端与日志。
     """
     for variant in {secret, quote(secret, safe="")}:
         if variant:
@@ -151,24 +171,58 @@ def _verify_connection(url: str, secret: str) -> None:
         )
 
 
+def _unlink(path) -> None:
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+
+def _stage(directory: Path, mode: int, fill) -> str:
+    """把内容写进同目录临时文件；失败时自己清理，绝不留半成品。"""
+    fd, tmp = tempfile.mkstemp(dir=str(directory), prefix=".env.tmp.")
+    try:
+        fill(fd, tmp)
+        os.chmod(tmp, mode)
+    except BaseException:
+        _unlink(tmp)
+        raise
+    return tmp
+
+
 def _write_env(env_path: Path, lines: list[str]) -> Path:
-    """原子替换并留备份，文件权限保持不变。"""
-    mode = stat.S_IMODE(env_path.stat().st_mode)
+    """原子替换并留备份：两者都先落临时文件再 rename，失败不留半成品。"""
+    try:
+        mode = stat.S_IMODE(env_path.stat().st_mode)
+    except OSError as exc:
+        raise SystemExit(f"❌ 读不到 {env_path} 的状态：{exc.strerror or exc}") from None
+
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     backup = env_path.with_name(f"{env_path.name}.bak.{stamp}")
-    shutil.copy2(env_path, backup)
-    os.chmod(backup, mode)
+    seq = 1
+    while backup.exists():  # 同一秒内跑两次不许互相覆盖：后面那次加序号
+        seq += 1
+        backup = env_path.with_name(f"{env_path.name}.bak.{stamp}.{seq}")
 
-    fd, tmp = tempfile.mkstemp(dir=str(env_path.parent), prefix=".env.tmp.")
-    try:
+    def _copy(fd, tmp):
+        os.close(fd)
+        shutil.copyfile(env_path, tmp)
+
+    def _write(fd, tmp):
         with os.fdopen(fd, "w") as f:
             f.writelines(lines)
-        os.chmod(tmp, mode)
-        os.replace(tmp, env_path)
-    except BaseException:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-        raise
+
+    made_backup = False
+    try:
+        os.replace(_stage(env_path.parent, mode, _copy), backup)
+        made_backup = True
+        os.replace(_stage(env_path.parent, mode, _write), env_path)
+    except OSError as exc:
+        raise SystemExit(
+            f"❌ 写 {env_path} 失败：{exc.strerror or exc}\n"
+            "   .env 原样未动；"
+            + (f"备份 {backup.name} 已留在原处。" if made_backup else "备份也没生成。")
+        ) from None
     return backup
 
 
@@ -187,7 +241,17 @@ def main(argv: list[str] | None = None) -> int:
     # 那条「保留该行原有行尾」的逻辑会形同虚设。
     with env_path.open(encoding="utf-8", newline="") as f:
         lines = f.readlines()
-    idx = _find_key_line(lines)
+    found = _key_lines(lines)
+    if not found:
+        raise SystemExit(f"❌ {env_path} 里找不到 {KEY}= 这一行，无法同步。")
+    # python-dotenv 是「后者胜」：应用读到的是**最后一行**，所以必须改它，
+    # 否则实连验证会证明「库里确实有这个口令」，而生产用的仍是旧口令。
+    idx = found[-1]
+    if len(found) > 1:
+        earlier = "、".join(str(i + 1) for i in found[:-1])
+        print(f"⚠️  {env_path} 里有 {len(found)} 行 {KEY}=（第 {earlier}、{idx + 1} 行）。")
+        print(f"    dotenv 取最后一行，本脚本改的就是第 {idx + 1} 行；"
+              f"第 {earlier} 行仍是旧口令，建议你顺手删掉。")
     lhs, rhs = lines[idx].split("=", 1)
     ending = rhs[len(rhs.rstrip("\r\n")) :]  # 保留该行原本的行尾（LF/CRLF/无）
     old_value, quote_char = _split_value(rhs.strip())
