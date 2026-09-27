@@ -22,8 +22,11 @@ __pycache__/
 *.pids
 
 # ---- Frontend build artifacts ----
-node_modules/
-frontend/web/node_modules/
+# 不带斜杠：`node_modules/`（带尾斜杠）只匹配**目录**，而 worktree 里常把
+# node_modules 做成指向主仓库的**软链**——git 把软链当文件看，于是那份软链在
+# `git status` 里是未跟踪状态，`git add -A` 会把它提交进仓库。
+node_modules
+frontend/web/node_modules
 .next/
 frontend/web/.next/
 out/
