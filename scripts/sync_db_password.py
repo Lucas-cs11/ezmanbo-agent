@@ -206,16 +206,20 @@ def _mask(url: str, *also_secrets: str) -> str:
     只换 userinfo 是不够的：口令可能同时被写在 path/query 里（少见但合法），而
     `_compose` 对 query 是逐字保留的——那里留着的往往是**上一个**口令，所以调用方必须
     把旧口令也交进来，否则它会被原样打到终端。
+
+    擦除是**无条件**的：这个 URL 就算没有 userinfo 口令，传进来的 secret 也照样要擦。
+    否则「传了 secret 却没被擦」会成为一个静默的坑。
     """
     parts = urlsplit(url)
-    if parts.password is None:
-        return url
-    netloc = f"{parts.username}:***@{parts.hostname or ''}"
-    port = _port_of(parts)
-    if port:
-        netloc += f":{port}"
-    masked = urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
-    return _scrub(masked, _password_of(url), *also_secrets)
+    secrets = list(also_secrets)
+    if parts.password is not None:
+        secrets.append(_password_of(url))
+        netloc = f"{parts.username}:***@{parts.hostname or ''}"
+        port = _port_of(parts)
+        if port:
+            netloc += f":{port}"
+        url = urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+    return _scrub(url, *secrets)
 
 
 def _prompt_password() -> str:
@@ -236,9 +240,19 @@ def _variants(secret: str) -> set[str]:
     除原文外还有百分号编码后的样子；`%3A`（大写十六进制）与 `%3a`（小写）不同库各用
     一种，两种都要认。这里只把 `%XY` 里的大写十六进制降成小写——`quote` 已经把口令中的
     `%` 编码成 `%25`，所以匹配到的 `%XY` 一定是本函数生成的转义，不会误伤别的内容。
+
+    另加一个整串 `.lower()`：它是**非重叠**匹配的补充——口令自身含 `%` 时（`abc%2Fdef`
+    编码成 `abc%252Fdef`），`%25` 会先被吃掉，紧跟的 `2F` 不再被当作转义，只做十六进制
+    降级产不出 `abc%252fdef` 这个形态。多列一个可能不存在的全小写形态只会**过度擦除**，
+    不会漏擦。
     """
     encoded = quote(secret, safe="")
-    return {secret, encoded, _LOWER_HEX_ESCAPE.sub(lambda m: "%" + m.group(1).lower(), encoded)}
+    return {
+        secret,
+        encoded,
+        _LOWER_HEX_ESCAPE.sub(lambda m: "%" + m.group(1).lower(), encoded),
+        encoded.lower(),
+    }
 
 
 def _scrub(text: str, *secrets: str) -> str:

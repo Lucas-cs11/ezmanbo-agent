@@ -419,10 +419,16 @@ def test_masked_url_hides_password_and_keeps_port():
     assert "db.example.com:5432" in masked, "掩码后的展示信息不该丢掉端口"
 
 
-# 口令被同时写在 query 里：`_compose` 对 query 是**逐字保留**的，所以那里留下的是旧口令
+# 口令被同时写在 query 里：`_compose` 对 query 是**逐字保留**的，所以那里留下的是旧口令。
+# 两种写法各钉一条：query 里是**编码形态**、以及 query 里是**原文**（userinfo 里反而是编码）。
+# 后者是第五轮验收的变异 M3 暴露出来的——`_variants` 少列「原文」这一格时，只有它变红。
 PASSWORD_IN_QUERY_URL = (
     "postgresql+psycopg2://app_user:OldPw%40x@db.example.com:5432/ezmanbo?password=OldPw%40x"
 )
+RAW_PW_IN_QUERY_URL = (
+    "postgresql+psycopg2://app_user:OldPw%40x@db.example.com:5432/ezmanbo?password=OldPw@x"
+)
+OLD_PW_FORMS = ("OldPw@x", "OldPw%40x")
 
 
 def test_masked_url_scrubs_password_repeated_in_query():
@@ -431,10 +437,9 @@ def test_masked_url_scrubs_password_repeated_in_query():
     这里 query 里的是**旧**口令——`_compose` 逐字保留 query——所以调用方必须把旧口令
     交给 `_mask`，它才知道要擦什么。
     """
-    old_pw_raw, old_pw_enc = "OldPw@x", "OldPw%40x"
     new = mod._compose(NEW_PW, PASSWORD_IN_QUERY_URL)
     masked = mod._mask(new, mod._password_of(PASSWORD_IN_QUERY_URL))
-    for form in (old_pw_raw, old_pw_enc, NEW_PW, quote(NEW_PW, safe="")):
+    for form in (*OLD_PW_FORMS, NEW_PW, quote(NEW_PW, safe="")):
         assert form not in masked, f"掩码后仍泄漏：{form}"
     assert "***" in masked and "app_user" in masked
 
@@ -444,9 +449,47 @@ def test_old_password_repeated_in_query_is_never_printed(tmp_path, monkeypatch, 
     env = _write_env(tmp_path, value=PASSWORD_IN_QUERY_URL)
     assert _run(tmp_path, monkeypatch, env) == 0
     out = capsys.readouterr()
-    for form in ("OldPw@x", "OldPw%40x", NEW_PW, quote(NEW_PW, safe="")):
+    for form in (*OLD_PW_FORMS, NEW_PW, quote(NEW_PW, safe="")):
         assert form not in out.out, f"stdout 泄漏了口令：{form}"
         assert form not in out.err, f"stderr 泄漏了口令：{form}"
+
+
+def test_raw_old_password_in_query_is_never_printed(tmp_path, monkeypatch, capsys):
+    """query 里写的是旧口令的**原文**——只认编码形态的实现会在这里漏。"""
+    env = _write_env(tmp_path, value=RAW_PW_IN_QUERY_URL)
+    assert _run(tmp_path, monkeypatch, env) == 0
+    out = capsys.readouterr()
+    for form in (*OLD_PW_FORMS, NEW_PW):
+        assert form not in out.out, f"stdout 泄漏了口令：{form}"
+        assert form not in out.err, f"stderr 泄漏了口令：{form}"
+
+
+def test_main_hands_the_old_password_to_verify_so_errors_are_scrubbed(tmp_path, monkeypatch):
+    """真用 `_verify_connection`，让第三方异常回显整条 URL。
+
+    这条钉的是「`main` 必须把旧口令交给 `_verify_connection`」：少传一个参数，报错里
+    就会重新出现 query 里的旧口令（第五轮验收的变异 M6 就是靠这个存活的）。
+    """
+    env = _write_env(tmp_path, value=RAW_PW_IN_QUERY_URL)
+    before = env.read_bytes()
+    new_url = mod._compose(NEW_PW, RAW_PW_IN_QUERY_URL)
+
+    def explode(*a, **k):
+        from sqlalchemy.exc import ArgumentError
+
+        raise ArgumentError(f"Could not parse SQLAlchemy URL from string '{new_url}'")
+
+    monkeypatch.setattr(mod, "_prompt_password", lambda: NEW_PW)
+    monkeypatch.setattr(sqlalchemy, "create_engine", explode)
+
+    with pytest.raises(SystemExit) as err:
+        mod.main(["--env", str(env)])
+
+    message = str(err.value)
+    for form in (*OLD_PW_FORMS, NEW_PW, quote(NEW_PW, safe="")):
+        assert form not in message, f"报错里泄漏了口令：{form}"
+    assert "未改动" in message, "必须告诉使用者 .env 没被动过"
+    assert env.read_bytes() == before, "验证失败时 .env 一个字节都不许改"
 
 
 def test_scrub_covers_lowercase_hex_escapes():
@@ -456,6 +499,34 @@ def test_scrub_covers_lowercase_hex_escapes():
     scrubbed = mod._scrub(textured, secret)
     assert quote(secret, safe="").lower() not in scrubbed
     assert "***" in scrubbed, "应当留下擦除痕迹，而不是把整行删掉"
+
+
+def test_variants_covers_password_that_itself_contains_a_percent():
+    """口令自身含 `%` 时，`%25` 会先被非重叠匹配吃掉，十六进制降级产不出小写形态。
+
+    也就是第五轮验收查出的「`%25` 盲区」：`abc%2Fdef` 编码成 `abc%252Fdef`，缺的是
+    `abc%252fdef`。`_variants` 里那个整串 `.lower()` 就是补这一格。
+    """
+    secret = "abc%2Fdef"
+    assert "abc%252fdef" in mod._variants(secret), "小写十六进制形态必须在列"
+    scrubbed = mod._scrub("boom abc%252fdef", secret)
+    assert "abc%252fdef" not in scrubbed
+    assert "***" in scrubbed
+
+
+def test_mask_scrubs_the_secrets_it_is_given_even_without_a_userinfo_password():
+    """没有 userinfo 口令时也不许静默跳过擦除——「传了 secret 却没擦」是个静默的坑。"""
+    masked = mod._mask("postgresql://db.internal:5432/ezmanbo?password=OldPw@x", "OldPw@x")
+    assert "OldPw@x" not in masked
+
+
+def test_scrub_ignores_an_empty_secret():
+    """空串不是口令：`text.replace("", …)` 会在每个字符之间插 `***`，把信息毁掉。
+
+    `_password_of` 在 URL 没有口令字段时返回 `""`，而 `_mask` 现在无条件把 secret 交给
+    `_scrub`——所以这层守卫是活的，不是摆设。
+    """
+    assert mod._scrub("boom", "") == "boom"
 
 
 # ── 该拒绝的输入 ──────────────────────────────────────────────────────
