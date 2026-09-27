@@ -1,0 +1,27 @@
+# CODEOWNERS — 自动指定 PR 审阅人
+# 格式：<路径模式> <GitHub 用户名（@开头）>
+# 修改前请将下方占位符替换为真实 GitHub 用户名
+
+# ── 全局兜底（所有文件默认由队长审阅）──────────────────────────
+*                               @LEAD_GITHUB_USERNAME
+
+# ── 队长负责：核心 AI 模块 ───────────────────────────────────────
+/app/schemas.py                 @LEAD_GITHUB_USERNAME
+/app/requirement_parser.py      @LEAD_GITHUB_USERNAME
+/app/scoring.py                 @LEAD_GITHUB_USERNAME
+/app/evidence.py                @LEAD_GITHUB_USERNAME
+/app/agent_orchestrator.py      @LEAD_GITHUB_USERNAME
+/app/report_generator.py        @LEAD_GITHUB_USERNAME
+/app/llm_client.py              @LEAD_GITHUB_USERNAME
+
+# ── 队员 B 负责：数据 / 后端 / CI ───────────────────────────────
+/data/                          @MEMBER_B_GITHUB_USERNAME
+/app/ezplm_client.py            @MEMBER_B_GITHUB_USERNAME
+/app/main.py                    @MEMBER_B_GITHUB_USERNAME
+/.github/workflows/             @MEMBER_B_GITHUB_USERNAME
+
+# ── 队员 A 负责：前端 / 测试 / 文档 ─────────────────────────────
+/frontend/                      @MEMBER_A_GITHUB_USERNAME
+/tests/                         @MEMBER_A_GITHUB_USERNAME
+/docs/                          @MEMBER_A_GITHUB_USERNAME
+/README.md                      @MEMBER_A_GITHUB_USERNAME

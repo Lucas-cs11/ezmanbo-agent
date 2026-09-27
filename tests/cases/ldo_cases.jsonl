@@ -1,0 +1,10 @@
+{"case_id": "ldo_001", "input": "5V转3.3V的LDO芯片，输出500mA，工业级，-40到85度。", "expected": {"category": "ldo", "topology": "ldo", "output_voltage_v": 3.3, "output_current_a": 0.5, "temperature_min_c": -40, "temperature_max_c": 85}}
+{"case_id": "ldo_002", "input": "需要一个12V转5V的LDO，输出电流1A，工作温度-40到85度。", "expected": {"category": "ldo", "topology": "ldo", "output_voltage_v": 5, "output_current_a": 1, "temperature_min_c": -40, "temperature_max_c": 85}}
+{"case_id": "ldo_003", "input": "3.3V转1.8V LDO，300mA输出，工业温度范围。", "expected": {"category": "ldo", "topology": "ldo", "output_voltage_v": 1.8, "output_current_a": 0.3, "temperature_min_c": -40, "temperature_max_c": 85}}
+{"case_id": "ldo_004", "input": "帮我找一个5V转3.3V的线性稳压器，输出1A以上，国产优先。", "expected": {"category": "ldo", "topology": "ldo", "output_voltage_v": 3.3, "output_current_a": 1, "preferences": ["domestic_alternative"]}}
+{"case_id": "ldo_005", "input": "需要5V转3.3V LDO，200mA输出，车规级AEC-Q100，-40到125度。", "expected": {"category": "ldo", "topology": "ldo", "output_voltage_v": 3.3, "output_current_a": 0.2, "temperature_min_c": -40, "temperature_max_c": 125, "grade": "automotive"}}
+{"case_id": "ldo_006", "input": "低压差稳压器，3.3V转1.2V，300mA，工业级应用。", "expected": {"category": "ldo", "topology": "ldo", "output_voltage_v": 1.2, "output_current_a": 0.3}}
+{"case_id": "ldo_007", "input": "5V转3.3V的LDO芯片，800mA输出，不要车规的，普通工业级就行。", "expected": {"category": "ldo", "topology": "ldo", "output_voltage_v": 3.3, "output_current_a": 0.8}}
+{"case_id": "ldo_008", "input": "我需要一个5V输入、3.3V输出的低功耗LDO，输出100mA就够了，要国产品牌。", "expected": {"category": "ldo", "topology": "ldo", "output_voltage_v": 3.3, "output_current_a": 0.1, "preferences": ["domestic_alternative"]}}
+{"case_id": "ldo_009", "input": "12V转5V LDO稳压器，500mA输出，车规级，工作温度-40到125度。", "expected": {"category": "ldo", "topology": "ldo", "output_voltage_v": 5, "output_current_a": 0.5, "temperature_min_c": -40, "temperature_max_c": 125, "grade": "automotive"}}
+{"case_id": "ldo_010", "input": "3.3V转1.8V低压差线性稳压器，300mA输出，国产替代方案。", "expected": {"category": "ldo", "topology": "ldo", "output_voltage_v": 1.8, "output_current_a": 0.3, "preferences": ["domestic_alternative"]}}

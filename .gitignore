@@ -1,0 +1,61 @@
+# ---- Secrets / local config ----
+.env
+.env.*
+!.env.example
+
+# ---- macOS ----
+.DS_Store
+
+# ---- Python ----
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# ---- IDE / tooling (local only) ----
+.idea/
+.claude/
+.omc/
+.sessions/
+.pids/
+*.pids
+
+# ---- Frontend build artifacts ----
+node_modules/
+frontend/web/node_modules/
+.next/
+frontend/web/.next/
+out/
+dist/
+build/
+
+# ---- Runtime data (regenerable) ----
+data/chroma_db/
+data/chroma_cache/
+test_cache/
+docs/reports/
+docs/eval_results/
+memory/
+docs/_private/
+
+# ---- Scripts output / archives ----
+scripts/archive/
+data/mock_parts.json.backup*
+*.log
+
+# ---- 本地人工备份（git 已提供历史，不再入库）----
+*.bak
+*.bak-*
+*.orig
+*.rej
+
+# ---- 本地运行时数据库 ----
+data/*.db
+data/*.db-journal
+
+# ---- Personal material (not part of the public repo) ----
+/Intruduction.tex
+
+# ---- Docs build artifacts ----
+latex-paper/*.pdf

@@ -1,0 +1,57 @@
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: ["./src/**/*.{ts,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        ez: {
+          bg:             "#ffffff",
+          "bg-panel":     "#f8f9fa",
+          "bg-header":    "#ffffff",
+          "bg-surface":   "#f1f5f9",
+          "bg-input":     "#ffffff",
+          "bg-hover":     "#f3f4f6",
+          "bg-select":    "#eff6ff",
+          border:         "#e5e7eb",
+          "border-hi":    "#d1d5db",
+          "border-focus": "#3b82f6",
+          text:           "#111827",
+          "text-muted":   "#6b7280",
+          "text-label":   "#9ca3af",
+          "text-dim":     "#d1d5db",
+          accent:         "#2563eb",
+          "accent-hi":    "#1d4ed8",
+          "accent-dk":    "#1e40af",
+          green:          "#16a34a",
+          "green-hi":     "#15803d",
+          amber:          "#d97706",
+          "amber-hi":     "#b45309",
+          red:            "#dc2626",
+          "red-hi":       "#b91c1c",
+          purple:         "#7c3aed",
+          cyan:           "#0891b2",
+        },
+        brand:   { 50:"#eff6ff",100:"#dbeafe",200:"#bfdbfe",300:"#93c5fd",400:"#60a5fa",500:"#3b82f6",600:"#2563eb",700:"#1d4ed8",800:"#1e40af",900:"#1e3a8a" },
+        warm:    { 500:"#d97706", 600:"#b45309" },
+        surface: { DEFAULT:"#ffffff", card:"#ffffff", sidebar:"#f8f9fa" },
+        risk:    { high:"#dc2626", medium:"#d97706", low:"#16a34a", critical:"#991b1b" },
+      },
+      fontFamily: {
+        sans: ['"Inter"','"PingFang SC"','"Microsoft YaHei"',"system-ui","sans-serif"],
+        mono: ['"JetBrains Mono"','"Fira Code"','"Consolas"',"monospace"],
+      },
+      fontSize: { "2xs": ["0.625rem",{lineHeight:"0.875rem"}] },
+      animation: {
+        "fade-in":   "fadeIn 0.15s ease-out",
+        "pulse-dot": "pulseDot 1.4s infinite ease-in-out",
+        "slide-up":  "slideUp 0.2s ease-out",
+      },
+      keyframes: {
+        fadeIn:   {"0%":{opacity:"0"},"100%":{opacity:"1"}},
+        pulseDot: {"0%, 100%":{opacity:"0.2"},"50%":{opacity:"1"}},
+        slideUp:  {"0%":{opacity:"0",transform:"translateY(8px)"},"100%":{opacity:"1",transform:"translateY(0)"}},
+      },
+    },
+  },
+  plugins: [],
+};

@@ -1,0 +1,33 @@
+pydantic>=2.9
+fastapi>=0.115
+uvicorn[standard]>=0.30
+streamlit>=1.24
+typing-extensions>=4.7
+requests>=2.31
+python-dotenv>=1.0
+# RAG
+chromadb>=0.4
+sentence-transformers>=2.2
+# LangChain Agent
+langchain>=1.0
+langchain-openai>=0.1
+langchain-core>=0.3
+# create_agent 的运行时底座与 token 计数：langchain/lib 的传递依赖，
+# 但线上 venv 曾因逐包安装而缺失，导致整个 ReAct 通路 import 失败，故显式声明。
+langgraph>=1.0
+openai>=1.0
+tiktoken>=0.7
+# B2: schemdraw 电路图生成
+schemdraw>=0.18
+# B3/B4: 检索和缓存
+rank_bm25>=0.2.2
+# B6: BOM 导出
+openpyxl>=3.1
+# B7: 数据手册 PDF 解析
+pymupdf>=1.23
+# Session store (Redis for multi-worker; falls back to in-memory)
+redis>=5.0
+# Auth + Database
+sqlalchemy>=2.0
+python-jose[cryptography]>=3.3
+passlib[bcrypt]>=1.7
