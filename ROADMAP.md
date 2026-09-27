@@ -405,9 +405,9 @@ bcrypt 5.x 对**超过 72 字节**的口令直接抛 `ValueError`（4.x 是静�
 - **探针自己的落点会在防护失效时永久残留**：三条探针用的 `/tmp/ezmanbo-{redirect,exact,rag}-probe` 不在 TMP_ROOT 之下，`atexit` 与陈旧清扫都管不到（前缀不匹配）。防护**正常**时它们会被改道进 TMP_ROOT，无害；防护**失效**时它们会被真的建出来并一直留着——第三轮验收与主 Agent 的破坏性实验都实测留下过（已各自清理）。属「哨兵开火时产生的残骸」，可接受，但要知道它们不会被自动回收。
 - **`__pycache__` 属第三轮验收新列出的面**：跑一次 pytest 就往仓库树写 `tests/__pycache__/conftest.cpython-314.pyc`。已 ignore、不进 git，但与「生产目录即工作目录」是同一个隐患的另一个出口；想彻底免掉可在跑测试时加 `PYTHONDONTWRITEBYTECODE=1`（注意：它是解释器启动期读的环境变量，写在 conftest 里已经太晚）。未在本模块处理。
 
-### ⚠️ 评审分支的基底选错了（2026-09-27 PM 审阅查出，**阻塞发布路径**）
+### ✅ 评审分支的基底问题（2026-09-27 PM 审阅查出 → 已重建修复）
 
-**事实**（只读命令复核过）：
+**当初的事实**（只读命令复核过，描述的是**重建之前**的 `b6957a2`）：
 
 - `git merge-base --is-ancestor origin/main sync/ec2-phase1.8-testnet` → **NO**（不含 `origin/main` 祖先）
 - `git diff --diff-filter=D --name-only origin/main b6957a2` → **75 个文件**，含 44 份 `docs/datasheets/*.pdf`、`docs/ezplm_api_manual/`（eZ-PLM 手册）、`ezmanbo_cli/`、`build_app.py`、`docs/datasheet_metadata.json`
@@ -415,13 +415,32 @@ bcrypt 5.x 对**超过 72 字节**的口令直接抛 `ValueError`（4.x 是静�
 - `git log master -- docs/datasheets` → **0**：那批数据手册**从未**存在于 EC2 这条线上（不是被删过，是本来就没有），它们只存在于 GitHub 的 `main`
 - 作为对照，`sync/ec2-phase1.6` 含 `origin/main` 祖先，相对 `main` **零删除** —— 它才是正确的集成点
 
-**后果**：`sync/ec2-phase1.8-testnet` **不能**直接开 PR 合入 `main`。一旦合入，GitHub 上的 `main` 会丢掉上面那 75 个文件（正是 Phase 1.7 明确要保住的那批）。
+**当时的后果**：`sync/ec2-phase1.8-testnet` **不能**直接开 PR 合入 `main`。一旦合入，GitHub 上的 `main` 会丢掉上面那 75 个文件（正是 Phase 1.7 明确要保住的那批）。
 
-**正确做法**：把 Phase 1.8 的两个提交（`8cbec86`、`b6957a2`）叠到 `sync/ec2-phase1.6` 之上，得到一棵相对 `main` **零删除**的分支再推。**我没有擅自改远端**，先交给你拍板（见「需要用户拍板」）。
+**正确做法**（已执行）：把 Phase 1.8 的三个提交（`8cbec86`、`b6957a2`、`133c0bf`）叠到 `sync/ec2-phase1.6` 之上，得到一棵含 `origin/main` 祖先的分支再推。
 
-**教训（这是本模块最该记住的一条）**：Phase 1.7 我已经把规矩写在总纲里了——「必须叠在 `origin/main` 上、判据是**零删除**」。Phase 1.8 却因为「工作树恰好就是 `master`」而顺手从 `master` 拉了分支，看到 `git push` 成功、CI 变绿，就当成通过了。**「推上去了」和「能合进去」是两件事，而我只验证了前者。**更难堪的是：我在本模块的变更日志里**亲手写过**「本地与远端是两套独立历史」这句话——却没想到它的直接含义正是「从 `master` 拉出来的分支，不能开 PR 到 `main`」。**知道一句话，和让这句话约束自己的下一步动作，是两回事。**
+**✅ 现状（2026-09-27 复核，重建之后）**：
+
+| 判据 | 重建前 `b6957a2` | 重建后 `b7bded7` |
+|---|---|---|
+| 含 `origin/main` 祖先 | NO | **YES** |
+| `git rev-list --left-right --count origin/main...<分支>` | — | **0 / 11**（main 上**没有**任何提交不在分支里） |
+| 相对 `main` 的删除 | 75 个 | **3 个**，且是**有意替代**（见下） |
+
+**那 3 个删除不是遗漏，是重建提交 `dcf539c` 主动替换的**，必须让未来的合并者知道：
+
+| 被删（main 侧） | 替代者（分支侧） |
+|---|---|
+| `.github/workflows/ci-python-3.11.yml` | `.github/workflows/ci.yml`（Python **3.14**）+ `e2e-eval.yml` |
+| `tests/test_b2_api.py`、`tests/test_b2_schematic.py` | `tests/test_schematic.py` |
+
+⚠️ **这是一个需要你拍板的合并决策，不是我能替你决定的**：`main` 上**只有** `ci-python-3.11.yml` 这一个 workflow，合入分支会把它换掉。新 `ci.yml` 测的是 **Python 3.14**（与生产 venv 一致），所以我判断这更像**订正**而非覆盖丢失；但如果项目对外仍声称支持 3.11，那就是**静默丢掉 3.11 的验证**。同理，两个 `test_b2_*` 文件被 `test_schematic.py` 替代，覆盖是否等价需要你确认（我未逐条比对）。
+
+**教训（这是本模块最该记住的一条，仍然成立）**：Phase 1.7 我已经把规矩写在总纲里了——「必须叠在 `origin/main` 上、判据是**零删除**」。Phase 1.8 却因为「工作树恰好就是 `master`」而顺手从 `master` 拉了分支，看到 `git push` 成功、CI 变绿，就当成通过了。**「推上去了」和「能合进去」是两件事，而我只验证了前者。**更难堪的是：我在本模块的变更日志里**亲手写过**「本地与远端是两套独立历史」这句话——却没想到它的直接含义正是「从 `master` 拉出来的分支，不能开 PR 到 `main`」。**知道一句话，和让这句话约束自己的下一步动作，是两回事。**
 
 这与本模块前两次事故是同一个根因：拿一个容易观测的信号（push 成功 / 测试没报错 / 单例路径在临时目录）去代替真正要成立的那件事。
+
+**另注**：本地 `master` 与 `origin/main` 仍是两套独立历史（现为 `122 / 10`）。这意味着**从生产树直接拉分支再推**这条老路依然会重犯同一个错——发布路径只走 `sync/ec2-phase1.6` 之上的分支，判据是「含 main 祖先」+「删除数只有那 3 个已知项」。
 
 ### 完成标准（验收由子 agent 独立执行）
 
