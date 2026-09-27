@@ -13,7 +13,7 @@ if _anthropic_key:
         os.environ.setdefault("OPENAI_MODEL", os.getenv("ANTHROPIC_MODEL"))
 
 from typing import Optional, Dict, Any, AsyncGenerator
-from fastapi import FastAPI, Request, Body, UploadFile, File, Form, Depends
+from fastapi import FastAPI, Request, Body, UploadFile, File, Form, Depends, Query
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +21,10 @@ from pydantic import BaseModel
 import json
 import time
 import asyncio
+import threading
 import traceback
+from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 from .agent_orchestrator import analyze, replacement_report
 from .setup_api import router as setup_router
 from sqlalchemy.orm import Session as DBSession
@@ -1753,32 +1756,116 @@ async def analyze_stream_endpoint(
 
 # ── 电路图生成端点（B2 任务）────────────────────────────────────────
 
+# 这张图是**公开且无鉴权**的（前端以不带令牌的 fetch 取用，不能改成要登录），所以它的
+# 资源消耗必须自带上限。2026-09-27 在本机（2 vCPU）实测：暖态一次渲染 9–11 ms，进程内
+# 首次 ~11 ms；另有一次性的导入开销，由最先到达的那个请求承担——独占进程实测约
+# 170 ms，进程里已因别的模块载入过 matplotlib 时只有 30–50 ms。危害不在"单次贵"，
+# 而在这一段是**同步** CPU 工作：留在 async 路由里就压在 uvicorn 唯一的事件循环上，
+# 一个攻击者刷它，全站（含 Agent 对话）一起卡住。三件事缺一不可：
+#   1. 挪出事件循环，且**不用默认线程池**——默认池正是 Agent 主流程（multi_agent /
+#      workflow_executor 的 asyncio.to_thread）在用的同一个池，公开端点不该抢占它；
+#   2. 线程数有上限，取实例核数的一半（2 vCPU → 1），可用环境变量覆盖：这个小玩具
+#      不该把宿主的核吃光、殃及同机的后端与前端；
+#   3. **排队也要有上限**。ThreadPoolExecutor 的任务队列是无界的，只限并发等于把
+#      "无界并发"换成"无界排队"——唯一参数洪水仍能积压成持续 CPU 燃烧。所以再加一道
+#      在途名额，占不到就当场 503，让攻击者收到拒绝，而不是让服务器替他排队。
+def _default_schematic_workers() -> int:
+    return max(1, (os.cpu_count() or 2) // 2)
+
+
+try:
+    SCHEMATIC_MAX_WORKERS = max(1, int(os.environ["EZMANBO_SCHEMATIC_WORKERS"]))
+except (KeyError, ValueError):
+    SCHEMATIC_MAX_WORKERS = _default_schematic_workers()
+
+# 留一点排队余量：正常用户偶尔撞在一起不该立刻被拒；再多就拒。
+SCHEMATIC_MAX_INFLIGHT = SCHEMATIC_MAX_WORKERS + 4
+SCHEMATIC_CACHE_SIZE = 256
+
+# 参数窗口。只写 `gt=0` 挡不住**溢出**：Vin=1e-308 会让 D=Vout/Vin 溢出成 inf，图照画
+# 出来，标尺上写着 "L=-infuH" 这种垃圾。这个窗口宽到不可能误伤真实选型（微伏/微安 到
+# 兆伏/兆安），却把派生量（比值、乘积）的量级压回浮点范围内。
+SCHEMATIC_PARAM_MIN = 1e-6
+SCHEMATIC_PARAM_MAX = 1e6
+
+_SCHEMATIC_POOL = ThreadPoolExecutor(
+    max_workers=SCHEMATIC_MAX_WORKERS, thread_name_prefix="schematic"
+)
+# 用 threading 的信号量而不是 asyncio 的：非阻塞获取、不绑定事件循环——测试里每个
+# TestClient 各自一个循环，asyncio 版会串味。
+_SCHEMATIC_INFLIGHT = threading.BoundedSemaphore(SCHEMATIC_MAX_INFLIGHT)
+
+
+@lru_cache(maxsize=SCHEMATIC_CACHE_SIZE)
+def _render_schematic_cached(topology: str, vin: float, vout: float, iout: float) -> str:
+    """按**精确参数**缓存渲染结果。
+
+    同一组参数的输出完全确定，缓存不改变任何一个字节的输出（`test_schematic.py`
+    里「端点输出 == 纯函数输出」那条断言仍然成立）。异常不会被 lru_cache 记住，
+    所以非法拓扑每次都会重新走到 400，不会把失败也缓存住。
+    """
+    from .schematic_generator import generate_schematic
+    return generate_schematic(topology, vin, vout, iout)
+
+
 @app.get("/schematic/{topology}")
-async def get_schematic(topology: str, Vin: float, Vout: float, Iout: float):
+async def get_schematic(
+    topology: str,
+    Vin: float = Query(
+        ..., ge=SCHEMATIC_PARAM_MIN, le=SCHEMATIC_PARAM_MAX, allow_inf_nan=False
+    ),
+    Vout: float = Query(
+        ..., ge=SCHEMATIC_PARAM_MIN, le=SCHEMATIC_PARAM_MAX, allow_inf_nan=False
+    ),
+    Iout: float = Query(
+        ..., ge=SCHEMATIC_PARAM_MIN, le=SCHEMATIC_PARAM_MAX, allow_inf_nan=False
+    ),
+):
     """生成参数化应用电路 SVG
 
     Args:
         topology: 拓扑类型 ('buck', 'boost', 'ldo')
-        Vin: 输入电压 (V)
-        Vout: 输出电压 (V)
-        Iout: 输出电流 (A)
+        Vin: 输入电压 (V)，有限数，位于 [1e-6, 1e6]
+        Vout: 输出电压 (V)，有限数，位于 [1e-6, 1e6]
+        Iout: 输出电流 (A)，有限数，位于 [1e-6, 1e6]
 
     Returns:
         SVG 格式的电路图
     """
     try:
-        from .schematic_generator import generate_schematic
-        svg = generate_schematic(topology, Vin, Vout, Iout)
-        return Response(content=svg, media_type="image/svg+xml")
+        loop = asyncio.get_running_loop()
+        # 先占在途名额再提交：占不到就当场拒绝。这样"刷"得到的是 503，而不是让服务器
+        # 替他无限排队。命中缓存时名额只被占用微秒级，正常用户察觉不到。
+        if not _SCHEMATIC_INFLIGHT.acquire(blocking=False):
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "服务繁忙，请稍后重试"},
+                headers={"Cache-Control": "no-store", "Retry-After": "1"},
+            )
+        try:
+            svg = await loop.run_in_executor(
+                _SCHEMATIC_POOL, _render_schematic_cached, topology, Vin, Vout, Iout
+            )
+        finally:
+            _SCHEMATIC_INFLIGHT.release()
+        return Response(
+            content=svg,
+            media_type="image/svg+xml",
+            # 输出只由查询参数决定，可以放心让浏览器/CDN 缓存。
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
     except ValueError as e:
         return JSONResponse(
             status_code=400,
             content={"detail": str(e)},
         )
-    except Exception as e:
+    except Exception:
+        # 不回显原始异常文本：这是公网无鉴权端点，`str(e)` 可能带实现细节。
+        import logging
+        logging.getLogger(__name__).exception("电路图生成失败: topology=%s", topology)
         return JSONResponse(
             status_code=500,
-            content={"detail": f"电路图生成错误: {str(e)}"},
+            content={"detail": "电路图生成失败"},
         )
 
 
