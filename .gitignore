@@ -29,6 +29,12 @@ node_modules
 frontend/web/node_modules
 .next/
 frontend/web/.next/
+# 部署时的暂存/回滚目录：同盘两次 mv 换 .next 时用，名字不是 `.next` 本身，
+# 所以上面带尾斜杠的两条（只匹配同名目录）盖不住它们——会以未跟踪形式露出上百 MB。
+.next.old-*
+.next.new-*
+frontend/web/.next.old-*
+frontend/web/.next.new-*
 out/
 dist/
 build/
