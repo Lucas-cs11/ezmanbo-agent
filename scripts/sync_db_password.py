@@ -169,9 +169,13 @@ def main(argv: list[str] | None = None) -> int:
     if not env_path.exists():
         raise SystemExit(f"❌ 找不到 {env_path}")
 
-    lines = env_path.read_text().splitlines(keepends=True)
+    # newline="" —— 不做通用换行转换，否则 \r\n 在读取时就被规范化成 \n，
+    # 那条「保留该行原有行尾」的逻辑会形同虚设。
+    with env_path.open(encoding="utf-8", newline="") as f:
+        lines = f.readlines()
     idx = _find_key_line(lines)
     lhs, rhs = lines[idx].split("=", 1)
+    ending = rhs[len(rhs.rstrip("\r\n")) :]  # 保留该行原本的行尾（LF/CRLF/无）
     old_value, quote_char = _split_value(rhs.strip())
 
     new_password = _prompt_password()
@@ -191,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
         _verify_connection(new_url)
         print("  ✅ 新凭据实连成功")
 
-    lines[idx] = f"{lhs}={quote_char}{new_url}{quote_char}\n"
+    lines[idx] = f"{lhs}={quote_char}{new_url}{quote_char}{ending}"
     backup = _write_env(env_path, lines)
     print(f"✅ 已写入 {env_path}（备份：{backup.name}）。权限保持不变。")
     print("下一步：sudo systemctl restart ezmanbo-backend")

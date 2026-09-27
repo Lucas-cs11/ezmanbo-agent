@@ -106,6 +106,18 @@ def test_quote_style_is_preserved(tmp_path, monkeypatch, quote_char):
     assert raw.startswith(f"{quote_char}postgresql") and raw.endswith(quote_char)
 
 
+def test_line_ending_is_preserved(tmp_path, monkeypatch):
+    """该行的行尾（CRLF / 无换行）原样保留，不要把文件写成混合行尾。"""
+    path = tmp_path / ".env"
+    path.write_bytes(f"JWT_SECRET_KEY=abc\r\n{mod.KEY}={OLD_URL}".encode())
+    os.chmod(path, 0o600)
+    _run(tmp_path, monkeypatch, path)
+    raw = path.read_bytes()
+    assert raw.startswith(b"JWT_SECRET_KEY=abc\r\n"), "其它行的行尾不许被动"
+    assert raw.split(b"\r\n", 1)[1].count(b"\n") == 0, "该行不该被换成裸 LF"
+    assert not raw.endswith(b"\n"), "原本结尾无换行，改完也不该凭空加一个"
+
+
 def test_backup_holds_old_content_and_mode(tmp_path, monkeypatch):
     env = _write_env(tmp_path)
     before = env.read_text()
