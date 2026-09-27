@@ -108,7 +108,11 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight, onT
   const [progress, setProgress] = useState({ current: 0, total: 0, pct: 0 });
   const [showCmdMenu, setShowCmdMenu] = useState(false);
   const [compactResult, setCompactResult] = useState<string | null>(null);
-  const [activeReport, setActiveReport] = useState<"bom" | "risk" | null>(null);
+  // 报告卡片对应的**是哪个会话的**报告，与类型存在一起。原先只存类型、另用一个 effect
+  // 在切会话时清空——那样有个空窗：切过去的当帧 `session.id` 已经变了、清空还没跑，
+  // 卡片会拿新会话的 id 白要一次报告，并且闪一下。把会话 id 跟类型绑在一个 state 里，
+  // 渲染条件自己就能判「这份报告不属于当前会话」，不需要 effect。
+  const [activeReport, setActiveReport] = useState<{ type: "bom" | "risk"; sessionId: string } | null>(null);
   const [currentIntent, setCurrentIntent] = useState<"selection" | "chat" | "adjustment" | "clarify" | null>(null);
   const [showThinking, setShowThinking] = useState(false);
   // 默认展开：这一块的意义就是让人**看见**那张图，藏在一个要点的箭头上等于没接通。
@@ -201,7 +205,9 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight, onT
           updateMessage(aid, { content: "压缩失败" });
         }
       },
-      showReport: (t) => setActiveReport(t),
+      // 没有活动会话时不置状态：下面挂卡片的地方本来就在 `session?.messages` 里，
+      // 存一个没有归属的报告只会留下一个永远不会被渲染、却也不会被清掉的状态。
+      showReport: (t) => { if (session) setActiveReport({ type: t, sessionId: session.id }); },
       // `/schematic` 对应报告下方那张电路图卡片。以前这里是 `setActiveReport(null)`——
       // 一个只会把右侧面板关掉、什么也不显示的空动作。没有可画的东西时，明说原因。
       toggleSchematic: () => {
@@ -955,6 +961,17 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight, onT
                     {schematicOpen && (
                       <SchematicPanel topology={sch.topology} vin={sch.vin} vout={sch.vout} iout={sch.iout} />
                     )}
+                  </div>
+                )}
+                {/* 风险评估报告：`/risk` 命令把 activeReport 置成 {type, sessionId}，卡片就挂在这里。
+                    这一行是 2026-08-15 的重构删掉的（import 却留着），导致 `/risk`
+                    能敲、状态也变了，就是什么都不显示。恢复时补上了 sessionId——
+                    原来没传，后端会退回「默认会话」，显示的不是当前会话的报告。
+                    渲染条件带上 sessionId 比对：切到别的会话后这份报告自然不再挂出，
+                    也不需要 effect 去清（见 state 声明处的注释）。 */}
+                {activeReport && activeReport.sessionId === session?.id && (
+                  <div className="mb-2">
+                    <PdfReportViewer reportType={activeReport.type} sessionId={activeReport.sessionId} />
                   </div>
                 )}
                 {isSelected && (
