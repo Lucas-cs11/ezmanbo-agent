@@ -293,27 +293,117 @@ bcrypt 5.x 对**超过 72 字节**的口令直接抛 `ValueError`（4.x 是静�
 按「低危问题也要避免」的原则记录在此，不在本模块顺手改——因为它们都需要重新走一遍验收，而本模块的验收刚刚通过。
 
 > **2026-09-27 订正（PM 审阅后改判）**：原来这个标题写的是「全部非阻塞」。审阅后**第 1 条改判**——它不该留到以后，见该条末尾的改判理由。其余第 2~5 条维持低危。
+>
+> **2026-09-27 收尾（同日晚）**：**第 1 条与第 2 条已修完并单独验收**，见下面「收尾项模块」一节。第 3/4/5 条仍未动。
 
-1. **隔离仍有一个盲区（🔴 已改判为「下个模块动手前必修的收尾项」，不再是「非阻塞」）**：chroma 改道只拦「经 chromadb 落盘」的写入。
+1. ✅ **已修（收尾项模块）** —— 原：**隔离仍有一个盲区**：chroma 改道只拦「经 chromadb 落盘」的写入。
    而 `SemanticCache.set_exact()` 是**直接写普通文件**到 `<persist_dir>/selection-v2/` 的，
    `SemanticCache.__init__` 也对原始路径 `mkdir` —— 全程不碰 chromadb，**不受改道保护**。
    实测：裸构造 `SemanticCache(persist_dir=<仓库内路径>)` 确实会建出该目录及 `selection-v2`。
-   **当前不会写生产**（单例由第 3 层提前钉死、测试用 `isolated_semantic_cache` 显式传临时目录），
+   **当时不会写生产**（单例由第 3 层提前钉死、测试用 `isolated_semantic_cache` 显式传临时目录），
    属潜伏风险；但 `data/chroma_cache/selection-v2/` 恰恰是**现在在用**的精确缓存路径。
-   修法：把同样的改道施加到 `SemanticCache.__init__` 的 `persist_dir`。conftest 里原先那句
-   「任何模块、任何路径都不可能写到生产」已订正为实话。
    **改判理由（2026-09-27 PM 审阅）**：落点 `data/chroma_cache/selection-v2/` 是**正在服务**的精确缓存，
    且 `app/main.py:1692` 走的正是这条活路径——`get_exact` 命中即返回 `similarity=1.0`，只校验 protocol 版本、
    **不做内容校验**。也就是说，一旦有内容被灌进去，它会被当作命中**直接呈现给用户**。
-   这恰是本模块所售「隔离能力」的已知缺口，不该留到以后。修法约 3 行代码 + 一条探针，
-   与下面第 2 条（`atexit` 清理）合并做一次小修即可，不必单独立项。
-2. **`pytest --collect-only` 会泄漏 `/tmp` 临时目录**（复现 5 次）：`--collect-only` 不执行 fixture，
-   所以第 4 层的清理跑不到，而 TMP_ROOT 是在 conftest **导入时**就创建的。偏偏上面「维护冻结清单」
-   的说明就叫大家跑这条命令。修法：清理改用 `atexit` 注册，而不是只挂在 fixture teardown 上。
+   这恰是本模块所售「隔离能力」的已知缺口，不该留到以后。
+2. ✅ **已修（收尾项模块）** —— 原：**`pytest --collect-only` 会泄漏 `/tmp` 临时目录**（复现 5 次）：
+   `--collect-only` 不执行 fixture，所以第 4 层的清理跑不到，而 TMP_ROOT 是在 conftest
+   **导入时**就创建的。偏偏上面「维护冻结清单」的说明就叫大家跑这条命令。
 3. **Test4/Test7 的断言目前是名义覆盖**：它们断言正确（契约级、与模型无关），但当前每次都走
    miss 分支，所以断言体实际从未被执行。要真正覆盖命中分支，需要构造一个相似度确定过阈值的输入。
 4. `requirements.txt:4` 的 `streamlit>=1.24` 仍在（venv 未装），同上第 1 条的死依赖，留给独立清理。
 5. **测试工具链用的是浮动版本**（低）：`requirements-dev.txt` 写的是 `pytest>=7.4` 等，没有上限也没有钉版本。今天本地与 CI 都解析到 `pytest 9.1.1`，一致；但将来 pytest 10 发布后，**在代码一行没改的情况下** CI 也可能因行为变化变红，且本地与 CI 会各自随时间漂移。建议改成 `~=9.1` 之类的兼容范围。
+
+### 收尾项模块（2026-09-27）：隔离层三个缺口与 `/tmp` 泄漏
+
+只动 `tests/conftest.py`（`app/` 零改动）。修的内容：
+
+| # | 缺口 | 修法 |
+|---|---|---|
+| 1 | `SemanticCache.__init__` 的 `persist_dir` 不走 chromadb，改道拦不住 | 新增第 **2b** 处改道：包 `SemanticCache.__init__`，默认值取原函数 `__defaults__[0]` |
+| 2 | `--collect-only` 不跑 fixture → `/tmp` 泄漏 | `atexit` 注册清理（对已删目录幂等） |
+| 3 | `RAGStore.__init__` 在**建 chroma 客户端之前**先 `mkdir`，2a 拦不到它 | 新增第 **2c** 处改道：包 `RAGStore.__init__` |
+| 4 | 改道落点编码**不是单射**：`/tmp/coll_a/b` 与 `/tmp/coll_a_b` 撞同一目录，用例互相看到对方缓存 | 落点目录名加内容哈希后缀（前缀保留可读性） |
+| 5 | `atexit` 只覆盖正常退出；被 pytest-timeout（内部 `os._exit`）掐断的会话仍留整个 TMP_ROOT | 会话开始做**陈旧清扫**：只删自己前缀、>6 小时没动过、**且主人进程已不在**的目录 |
+| 6 | 落点名按**字符**截断 80：路径含中文/emoji 时字节数超文件系统 255 上限，改道抛 `OSError: Errno 36` 而不是隔离（验收实测） | 改按**字节**截到 60，丢掉被切断的半个字符；总长 ≤73 字节 |
+
+**第 5 条一开始是错的（自我订正，2026-09-27 验收查出）**：我原先只按目录 mtime 判陈旧，并在注释里断言「绝不会碰到并发运行中的会话」——**这是过度声称**。真相是：**正在跑的会话不会更新 TMP_ROOT 自己的 mtime**（新文件都落在它下面的 `redirected/` 里），所以一个跑够 6 小时的会话，它的临时目录会被并发的下一次运行当成垃圾清掉。验收子 agent 用一个「mtime 7 小时前的模拟并发会话」实测复现了删除。修法：加一道「主人 pid 还活着吗」的双判据（会话创建 TMP_ROOT 后写入 `pid` 文件）。**教训仍是同一句**：我把「目录 6 小时没动」当成了「会话已经死了」，前者是观测，后者是我要成立的那件事。
+
+**第三处改道（2c）的连带收获**：`import app.rag` 一旦发生，`tests/test_auth_contract.py::test_rag_store_is_confined_when_imported` 就不再被 skip。默认集因此从 `123 passed / 1 skipped` 变成 **`124 passed / 0 skipped`** —— 那条一直靠 skip 通过的「假绿」变成了真断言。
+
+**2c 不是理论加固，实测证据（2026-09-27）**：在**没有 `data/chroma_db` 的隔离 worktree** 里跑 `-m integration tests/test_b4_integration.py tests/test_b1_sse.py`：
+
+| conftest | 结果 | 仓库树里是否出现 `data/chroma_db` |
+|---|---|---|
+| 已提交的 HEAD 版（2a 已经是修好的「替换模块属性」写法） | 4 passed | **会创建** |
+| 本收尾项版（含 2c） | 4 passed | 不会 |
+
+机制：`RAGStore.__init__` 先 `mkdir(self._persist_dir)`、**然后**才调 `chromadb.PersistentClient`；2a 拦得到后者，拦不到那个 mkdir，于是它在**仓库树里**凭空建出一个目录。**这同时订正了上一轮验收的适用范围**：那一轮的「全树 `find -newer` 零写入」是在**生产形状克隆**上测的，而生产里 `data/chroma_db` 本来就在，mkdir 成了 no-op、mtime 不变——所以那个结论在它自己的条件下没错，却**恰好测不到这个 mkdir**。少了 2c，这处写入会一直存在而所有指纹比对都看不见它。
+
+⚠️ **触发条件要写全（2026-09-27 第三轮验收订正）**：上表「本收尾项版（含 2c）」那一行的反事实对照，**不能只把 2c 包装改成直通**——那样测出来是 `4 passed` 且 `data/` 干净（第三轮变异 M1 实测）。原因是 2c 那个 `try` 块里的 `from app.rag import RAGStore` 本身就让 `sys.modules["app.rag"]` 存在，`_hermetic_guard` 随后把 `_rag_store` 单例钉在 `TMP_ROOT/chroma_db`，与包装是否直通无关。**必须把整个 2c 块删掉**（连带那次提前导入、`RAG_REDIRECT_APPLIED` 断言、2c 探针一起失效）才复现：第三轮变异实测此时仓库树里**凭空出现** `data/chroma_db/`（空目录，2a 仍拦住了 chroma 客户端，只漏掉客户端**之前**那次 mkdir），与机制描述吻合。结论「2c 不是理论加固」成立，但失效需要**两个**东西同时不在。
+
+**三处改道现在各有一条探针**（`_hermetic_guard` 里拿生产形状的路径真构造对象，看有没有被拦下），外加一条**编码单射性实测**。缺任何一条，对应机制坏掉时都会静默放行。
+
+⚠️ **但三条探针的承重程度不一样（2026-09-27 第三轮验收实测）**：2a、2b 的第一条 count 断言各自承重；**2c 探针的第一条 count 断言不承重**——`RAGStore.__init__` 内部会调 `chromadb.PersistentClient`，2a 的改道让 `REDIRECTED_PATHS` 必然增长，所以把 2c 包装改直通（保留探针）时它照样通过，真正拦住失效的是**第二条** `_persist_dir.startswith(TMP_ROOT)`。留着它是无损的纵深防御，但**别把它当成 2c 的哨兵**。
+
+**主 Agent 自测又查出两条「看着像防护的死代码」，都已修（2026-09-27）**：
+
+- **Unicode 断言根本执行不到**：那条断言原先调的是 `_redirect_into_tmp`，而它内部要先 `mkdir`——名字一旦超长，`mkdir` 先抛 `Errno 36`，断言永远轮不到跑。变异验证时看到的报错是 `Errno 36 File name too long` 而不是断言消息，才暴露出来。修法：把落点名计算抽成**纯函数 `_redirect_target_name(resolved)`**，`_redirect_into_tmp` 与断言都调它；纯函数不碰文件系统，回归时断言必然先失败。变异复测：把字节截断改回按字符截断 → 报错变成断言消息「改道落点名过长（**321 字节** > 255）」，断言确实可达。
+- **陈旧清扫的「死主人」一侧我一度以为坏了**：实测出现「pid=999999（`/proc` 里确认不存在）的 7 小时目录没被删」。查下去发现**是我自己的测试写错了顺序**——`touch -d '7 hours ago'` 之后才往目录里写 `pid` 文件，而**在目录里新建文件会把该目录 mtime 刷成现在**，「陈旧」这个前提当场不成立，不删才是对的。顺带说明：上一轮那条「主人存活 → 未删 ✓」也是被 mtime 新鲜挡下的，并非 pid 判据的功劳，**那条证据无效**。按正确顺序（先写 pid 再 touch）重测三条：死主人 7h → 删 ✓、活主人 7h → 留 ✓、无 pid 标记 7h → 删 ✓。
+- **第三条死断言（第三轮验收查出，也是最典型的一条）**：`_hermetic_guard` 里原先有一句
+  `assert str(_sc._semantic_cache._persist_dir).startswith(str(TMP_ROOT))`，而它紧跟在**本文件自己**用 `SemanticCache(persist_dir=str(TMP_ROOT/"chroma_cache"))` 赋值的种子块之后，改道又对已在 TMP_ROOT 内的路径原样返回——**数学上不可能失败**。第三轮变异实测：2b 改直通 + 删 2b 探针（该行保留）→ `124 passed` 全绿，这行一声不响。修法：改成只断言真正会静默坏掉的那件事——`assert _sc._semantic_cache is not None`（种子块被删时 `get_semantic_cache()` 会以生产默认 `persist_dir` 懒构造）。**对照证据**：把种子块删掉，新断言给出「语义缓存单例没有被提前钉住（仍是 None）…」；换成旧的恒真断言则**不响**，反而在无关用例里炸出 `124 errors / AttributeError: 'NoneType'`——旧写法既恒真又给出更差的失败形态。这正是本文件 docstring 反复告诫的「断言单例路径而非断言改道机制」。
+
+**反向验证（本模块，主 Agent 亲做）**：
+
+- 变异 A：把 2c 包装改成直通（标志位仍为 `True`）→ 会话立刻整体终止，报错为 2c 探针那句。注意它命中的是**第二条**断言（`_persist_dir` 不在临时目录），因为 2a 仍会把里面的 chroma 客户端改道、`REDIRECTED_PATHS` 照常增长——两条断言互补，这正是设计意图。
+- 变异 B：把落点名后缀哈希换成常量 → 「改道落点撞名」断言立刻终止会话。
+- 变异 C：落点名改回按字符截断 → 「改道落点名过长」断言终止会话（**修好可达性之后**才是这个报错；修之前报的是 `Errno 36`）。
+- 变异 D：删掉 semantic_cache 的种子块 → 新断言给出「语义缓存单例没有被提前钉住（仍是 None）…」；**同一变异下换回旧的恒真断言则不响**，反而在无关用例里炸出 `124 errors / AttributeError: 'NoneType'`——旧写法既恒真又给出更差的失败形态（第三轮验收查出后主 Agent 亲测对照）。
+- 陈旧清扫实测（正确顺序：先写 `pid`、后 `touch` 到 7 小时前）：死主人 → 删、活主人 → 留、无 pid 标记 → 删。
+- `--collect-only` 连跑 3 次 → `/tmp` 泄漏数 0。
+- 生产数据本轮跑前跑后未变：`data/` 下**最新文件 mtime 仍是 06:51:56**（`data/chroma_db/chroma.sqlite3` = `d7adde50`，`data/chroma_cache/chroma.sqlite3` = `84b967ee` @06:16:13，`selection-v2` mtime 06:16:12 且 0 文件），而本轮测试全部发生在 07:38 之后——用 mtime 判定比目录指纹更直接。
+- 默认集在**隔离 worktree**（不是生产树）里跑：`124 passed / 31 deselected / 1 xfailed`，7.5s。
+
+**独立验收第一轮（子 agent，2026-09-27，覆盖的是 2b 那一半）**：结论「可以提交」。它逐条复现了主 Agent 的 5 条声称，并自己做了 5 组主 Agent 没做过的变异——其中最有价值的一条是**反证**：同时（a）把 2b 改成直通、（b）**整段删掉 2b 探针**，再加一个裸构造 `SemanticCache()` 的用例 → **静默全绿**，且在仓库树里真的写出了 `data/chroma_cache/selection-v2/*.json`。也就是说：**探针不是装饰，它是「机制坏掉」唯一会被发现的地方**；拿掉探针，这个修复就退化成第二段「看起来像防护的死代码」。
+
+**独立验收第二轮（另一个子 agent，2026-09-27，覆盖 2c + 本次全部新增）**：结论「可以提交」（判据钉在 conftest 的 md5 上）。它除了复现 8 条声称，还做了 6 组变异，其中三条是把「纵深防御」讲清楚的关键：
+
+- **拆掉 2a 探针后，2a 坏掉无人发现**（静默全绿）——所以 2a 探针是承重的；所幸 2b/2c 已覆盖现有两个调用点，属纵深防御。
+- **关掉「撞名」那条断言后，编码退回非单射也无人发现**（静默全绿）——所以它是这件事**唯一**的哨兵，不是装饰。
+- 它同时确认了一个我本来担心的问题：**「KB 被改道成空」不是本次改动引入的**。用 HEAD 版 conftest 实测：`get_rag_store()._persist_dir` 仍是未改写的 `data/chroma_db`（mkdir 会落进仓库树），但 chroma 客户端已被 2a 改道 → `count=0`，即**改前就已是空库**；本次反而把 `_persist_dir` 一并收回临时目录。
+- 它顺带确认：`data/` 之内的写入点只有 `database`（走 `DATA_DIR`→TMP_ROOT）、`rag`、`semantic_cache` 三处，**全部被覆盖，无漏网点**；`/tmp/foo/../../etc/passwd` 这类越界路径也会被正常改道、不逃逸。
+
+**它查出的两条"我写错了"，都已在本模块修掉**（见上表第 5、6 条）：陈旧清扫的过度声称、以及落点名按字符截断导致的 Unicode 路径 `Errno 36`。它还指出我此前把**第一轮**（只覆盖 2b 的）验收结论写在了涵盖 2c 的小节里，读起来像给 2c 预写的结论——已在上面拆清。
+
+**独立验收第三轮（第三个子 agent，2026-09-27，覆盖「纯函数重构 + Unicode 断言可达性」这一版）**：结论「可以提交」（判据钉在 conftest 的 md5 `989bb862` 上）。它是三轮里打得最准的一轮：
+
+- **核心命题复现**：注入「按字符截断」变异后，报错**正是**断言消息（321 字节 > 255）而不是 `OSError Errno 36`；它另做了反证——同一变异下直接调 `_redirect_into_tmp(unicode_path)` 确实抛 `Errno 36`，坐实「旧写法下 mkdir 抢先、断言不可达」。
+- **它对「还有没有别的不可达断言」这个问题的回答**：没找到被异常抢先的，但**找到了那条恒真的死断言**（第 511 行，见上）。这是本轮最有价值的产出。
+- **它独立验证了我对陈旧清扫异常的解释**：反序实验（先 `touch` 后写 `pid`）完整复现了「死主人未删」，确认「目录内新建文件刷新目录 mtime」。它同时指出那条遗留目录 `/tmp/ezmanbo-pytest-0clikc1_` 是**无 pid 特性**的旧版 conftest 建的（`git show HEAD:tests/conftest.py | grep -c pid` = 0），满 6h 后会被「无 pid → 视为无主」自愈清掉。
+- **它订正了我两处表述**（均已按上文改写）：2c 的失效触发条件（必须删整个 2c 块，不只改直通）；以及「三处探针都承重」应为「2c 探针第一条 count 断言不承重」。
+- 它做了 7 组变异（4 组造成静默全绿），并**自己清理了 worktree 与所有自建 /tmp 产物**，复核生产 md5 与 `data/` mtime 均未变。
+
+### 残留（2026-09-27 独立验收列出，本模块**未**处理）
+
+`data/` 之外的落盘点一律没有隔离，且**不在本轮收尾项范围内**——它们需要各自重新走一遍验收，属另一个模块：
+
+| 落盘点 | 位置 | 危险度 |
+|---|---|---|
+| **仓库根 `.env`** | `app/setup_api.py:102`（`open(_ENV_PATH, "w")`） | **最高**：会把生产配置整份改写 |
+| `memory/USER.md` | `app/setup_api.py:252`、`app/memory.py` | 中 |
+| `.sessions/*.jsonl` | `app/react_agent.py:481` | 低 |
+| `docs/reports/` | `app/output_generator.py:1162-1185` | 低 |
+| `docs/datasheet_metadata.json` | `app/datasheet_rag.py:64` | 低 |
+| `tests/__pycache__/*.pyc` | 解释器自身（跑一次 pytest 就写一次） | 低：不进 git（已 ignore），但**生产目录即工作目录**，写的是仓库树 |
+
+- 现状**不是**正在发生的写入：默认集与 integration 的**子集**（`test_b4_integration.py` + `test_b1_sse.py`，即真正会构造知识库的那几个）都实测零触发（生产形状克隆上 `find -newer` 全树只有 `__pycache__`/`.pytest_cache`）。
+  ⚠️ **注意适用范围**：整个 `-m integration` 集在本机**跑不完**（无 `EZMANBO_TEST_REAL_NET=1` 时缺密钥/无外呼，并发用例会把 300s 超时耗光），所以「integration 集零触发」目前只对上述子集成立，**不是**对全集成立。
+  `POST /api/setup/*` 那几条只出现在 `test_auth_contract.py` 的 `_PROTECTED_ROUTES`（「未登录必须被拒」的契约清单）里，**不带管理员令牌**，因此在鉴权依赖处就被挡下，到不了写 `.env` 那行。
+- 它们是「下一个测试作者会不会踩到」的面。`app/setup_api.py` 那个「API 端点就地重写 `.env`」的设计本身也值得单独审一次（非原子写、且测试进程里根本不该发生）。
+- `tests/eval_runner.py` 走 `python -m tests.eval_runner`，**不经 pytest 因而不加载 conftest**，等于零隔离；它跑在 GitHub runner 上无妨，但**在生产机上手动跑就会写生产**。既有问题、非本次改动引入。
+- 隔离层自身的**已知边界**：`atexit` 只在正常退出时执行，被 `pytest-timeout`（内部 `os._exit`）掐断的会话仍会留下整个 TMP_ROOT（本轮实测到一个 07:38 留下的 `ezmanbo-pytest-0clikc1_`）。这类目录只能等 6 小时后由下一次运行的陈旧清扫回收，**不会**被 atexit 覆盖、也不会被误判为活主人（无 pid 文件的按已死处理）。这是有意的取舍：宁可晚 6 小时回收，也不误删并发会话。
+- **探针自己的落点会在防护失效时永久残留**：三条探针用的 `/tmp/ezmanbo-{redirect,exact,rag}-probe` 不在 TMP_ROOT 之下，`atexit` 与陈旧清扫都管不到（前缀不匹配）。防护**正常**时它们会被改道进 TMP_ROOT，无害；防护**失效**时它们会被真的建出来并一直留着——第三轮验收与主 Agent 的破坏性实验都实测留下过（已各自清理）。属「哨兵开火时产生的残骸」，可接受，但要知道它们不会被自动回收。
+- **`__pycache__` 属第三轮验收新列出的面**：跑一次 pytest 就往仓库树写 `tests/__pycache__/conftest.cpython-314.pyc`。已 ignore、不进 git，但与「生产目录即工作目录」是同一个隐患的另一个出口；想彻底免掉可在跑测试时加 `PYTHONDONTWRITEBYTECODE=1`（注意：它是解释器启动期读的环境变量，写在 conftest 里已经太晚）。未在本模块处理。
 
 ### ⚠️ 评审分支的基底选错了（2026-09-27 PM 审阅查出，**阻塞发布路径**）
 
