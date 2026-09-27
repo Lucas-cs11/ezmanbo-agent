@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models_db import User
 from ..auth import (
-    verify_password,
+    DUMMY_PASSWORD_HASH, verify_password, parse_user_id,
     create_access_token, create_refresh_token, decode_refresh_token,
     get_current_user, GUEST_TOKEN_EXPIRE_MINUTES,
 )
@@ -20,6 +20,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _guest_limit = rate_limit("guest", max_requests=10, window_seconds=600)
 _login_limit = rate_limit("login", max_requests=20, window_seconds=600, message="登录尝试过于频繁，请 10 分钟后再试")
 _register_limit = rate_limit("register", max_requests=5, window_seconds=3600)
+# 此前 refresh 是 auth 路由里唯一没有限流的入口，且无需认证
+_refresh_limit = rate_limit("refresh", max_requests=60, window_seconds=600)
 
 
 class RegisterBody(BaseModel):
@@ -30,6 +32,13 @@ class RegisterBody(BaseModel):
 class LoginBody(BaseModel):
     username: str
     password: str
+
+
+class RefreshBody(BaseModel):
+    # 必须声明为 str：此前用裸 dict 接收，refresh_token 传成 list/dict 时会一路走到
+    # jose 的 jwt.decode 对非字符串调 .rsplit，抛 AttributeError 变成 500。
+    # 而本路由无需认证，等于给了一个免费的报错放大器。类型交给 Pydantic 挡在入口。
+    refresh_token: Optional[str] = None
 
 
 def _user_out(u) -> dict:
@@ -55,7 +64,14 @@ def register(body: RegisterBody, _rl=Depends(_register_limit)):
 @router.post("/login")
 def login(body: LoginBody, db: Session = Depends(get_db), _rl=Depends(_login_limit)):
     user = db.query(User).filter(User.username == body.username).first()
-    if not user or not verify_password(body.password, user.hashed_password):
+    if user:
+        ok = verify_password(body.password, user.hashed_password)
+    else:
+        # 用户名不存在时也跑一次等价开销的校验：否则「存在的用户名慢、不存在的快」
+        # 这个响应时间差本身就是账号枚举信道。
+        verify_password(body.password, DUMMY_PASSWORD_HASH)
+        ok = False
+    if not ok:
         raise HTTPException(401, "用户名或密码错误")
     if not user.is_active:
         raise HTTPException(403, "账号已被禁用，请联系管理员")
@@ -66,20 +82,19 @@ def login(body: LoginBody, db: Session = Depends(get_db), _rl=Depends(_login_lim
 
 
 @router.post("/refresh")
-def refresh_token(body: dict, db: Session = Depends(get_db)):
+def refresh_token(body: RefreshBody, db: Session = Depends(get_db), _rl=Depends(_refresh_limit)):
     """P2-2: Exchange a valid refresh token for a new access + refresh token pair (sliding expiry)."""
-    rt = (body or {}).get("refresh_token", "")
+    rt = (body.refresh_token or "").strip()
     if not rt:
         raise HTTPException(400, "缺少 refresh_token")
     payload = decode_refresh_token(rt)
     if payload.get("is_guest"):
         # 游客令牌短时效且不持久化，本就不该续期
         raise HTTPException(401, "游客会话不支持续期，请重新进入")
-    user_id = payload.get("sub")
-    try:
-        uid = int(user_id)
-    except (TypeError, ValueError):
-        # 非数字 sub（历史游客令牌等）走 401 而不是让 int() 抛 500
+    # 非数字或越界的 sub（历史游客令牌、被构造的巨型整数等）一律 401，
+    # 不让 int()/数据库类型转换抛成 500
+    uid = parse_user_id(payload.get("sub"))
+    if uid is None:
         raise HTTPException(401, "刷新令牌无效")
     from ..models_db import User as _User
     user = db.query(_User).filter(_User.id == uid, _User.is_active == True).first()

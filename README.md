@@ -228,7 +228,7 @@ ezmanbo-agent/
 | POST | `/recalculate` | 重新计算评分 |
 | POST | `/workflow/generate` | 生成选型工作流 |
 | POST | `/api/models/switch` | 运行时切换模型 |
-| POST | `/auth/login` / `/auth/register` | 认证（`routers/`） |
+| POST | `/auth/login` / `/auth/guest` | 认证（`routers/`）。`/auth/register` 已永久关闭，账号由管理员创建 |
 
 ---
 

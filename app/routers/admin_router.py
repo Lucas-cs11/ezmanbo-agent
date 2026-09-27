@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models_db import User, AdminConfig
-from ..auth import get_current_admin, hash_password, get_current_user
+from ..auth import (
+    MAX_PASSWORD_BYTES,
+    get_current_admin,
+    get_current_user,
+    hash_password,
+    password_length_ok,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -92,7 +98,8 @@ def verifier_status(db: Session = Depends(get_db), user=Depends(get_current_user
 
 
 @router.get("/providers")
-def get_providers():
+def get_providers(admin=Depends(get_current_admin)):
+    """仅管理员可读：这是后台配置页的供应商下拉数据。"""
     return {"providers": PROVIDERS}
 
 
@@ -175,6 +182,9 @@ def create_user(body: CreateUserBody, admin=Depends(get_current_admin), db: Sess
         raise HTTPException(400, "用户名长度须在 2–30 字符之间")
     if len(body.password) < MIN_PASSWORD_LEN:
         raise HTTPException(400, f"密码至少 {MIN_PASSWORD_LEN} 位")
+    # bcrypt 5.x 对超长口令直接抛错，不校验就会在建号时变成 500
+    if not password_length_ok(body.password):
+        raise HTTPException(400, f"密码过长：最多 {MAX_PASSWORD_BYTES} 字节（约 24 个汉字 / 72 个字符）")
     if db.query(User).filter(User.username == username).first():
         raise HTTPException(400, "用户名已存在")
 
@@ -201,6 +211,8 @@ def reset_password(
 ):
     if len(body.password) < MIN_PASSWORD_LEN:
         raise HTTPException(400, f"密码至少 {MIN_PASSWORD_LEN} 位")
+    if not password_length_ok(body.password):
+        raise HTTPException(400, f"密码过长：最多 {MAX_PASSWORD_BYTES} 字节（约 24 个汉字 / 72 个字符）")
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(404, "用户不存在")

@@ -108,7 +108,16 @@ def get_active_model() -> str:
         pass
     return "claude-sonnet-5"
 
-app = FastAPI()
+# 生产默认关闭交互式文档：/docs、/redoc、/openapi.json 会把包含 /admin/* 在内的完整
+# 路由表整份吐出来。后端只监听回环、公网已经取不到（实测 404），所以这是纵深防御而非
+# 补救。需要调试时设 EZMANBO_ENABLE_DOCS=1 再重启。
+_DOCS_ON = os.getenv("EZMANBO_ENABLE_DOCS", "").strip().lower() in ("1", "true", "yes", "on")
+app = FastAPI(
+    title="eZmanbo API",
+    docs_url="/docs" if _DOCS_ON else None,
+    redoc_url="/redoc" if _DOCS_ON else None,
+    openapi_url="/openapi.json" if _DOCS_ON else None,
+)
 app.include_router(setup_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -389,8 +398,13 @@ async def agent_init_session_endpoint(
     import os as _os
 
     session_id = body.get("session_id") or _os.urandom(8).hex()
-    context = body.get("context") or body.get("payload", "").strip() if isinstance(body, dict) else ""
-    ctx_type = body.get("context_type", "general") if isinstance(body, dict) else "general"
+    # context/payload 的类型不受约束，直接 .strip() 会在传数字或数组时抛 AttributeError
+    # 变成 500。这里统一收敛成字符串。
+    raw_context = body.get("context") or body.get("payload") or ""
+    context = raw_context.strip() if isinstance(raw_context, str) else ""
+    ctx_type = body.get("context_type") or "general"
+    if not isinstance(ctx_type, str):
+        ctx_type = "general"
 
     if context:
         owner_id = _owner_id(current_user)

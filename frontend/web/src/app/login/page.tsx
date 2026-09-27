@@ -25,7 +25,16 @@ export default function LoginPage() {
       });
       const data = await resp.json();
       if (!resp.ok) { setError(data.detail || "认证失败，请检查账号密码"); return; }
-      login(data.token, data.user, data.refresh_token);
+      // 200 但响应体不完整（异常代理、半截响应）：不能拿着 undefined 去写存储，
+      // 那会把字面量字符串 "undefined" 当成令牌存下来。与 ensureFresh 的同类防护对齐。
+      if (!data?.token || !data?.user) { setError("登录响应异常，请稍后重试"); return; }
+      try {
+        login(data.token, data.user, data.refresh_token);
+      } catch {
+        // 接口已经成功，失败的是本地存储。这里若沿用「连接失败」会把人引去查网络。
+        setError("浏览器无法保存登录状态（可能禁用了存储或空间已满），请检查浏览器设置后重试");
+        return;
+      }
       router.replace("/");
     } catch { setError("连接失败，请检查网络"); }
     finally { setLoading(false); }
@@ -38,7 +47,13 @@ export default function LoginPage() {
       const resp = await fetch("/auth/guest", { method: "POST" });
       const data = await resp.json();
       if (!resp.ok) { setError(data.detail || "游客进入失败，请稍后再试"); return; }
-      login(data.token, data.user);
+      if (!data?.token || !data?.user) { setError("登录响应异常，请稍后重试"); return; }
+      try {
+        login(data.token, data.user);
+      } catch {
+        setError("浏览器无法保存登录状态（可能禁用了存储或空间已满），请检查浏览器设置后重试");
+        return;
+      }
       router.replace("/");
     } catch { setError("连接失败，请检查网络"); }
     finally { setLoading(false); }
