@@ -5,7 +5,8 @@ import { useChatStore, generateId } from "@/store/chat";
 import { MessageBubble } from "@/components/MessageBubble";
 import { PdfReportViewer } from "@/components/PdfReportViewer";
 import { ParameterForm } from "@/components/ParameterForm";
-import { Send, Loader2, Slash, PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose, Zap } from "lucide-react";
+import { SchematicPanel } from "@/components/SchematicPanel";
+import { Send, Loader2, Slash, PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose, Zap, CircuitBoard } from "lucide-react";
 import { estimateConversationTokens, COMPACT_THRESHOLD } from "@/lib/tokenBudget";
 import { buildSelectionContext, cn } from "@/lib/utils";
 import { getApiHeaders, getAuthBearer } from "@/lib/api";
@@ -62,6 +63,23 @@ type CmdCtx = {
   exportBom: () => void;
 };
 
+/* 报告里的约束够不够画一张电路图：拓扑得是后端认的那三种，三个参数都得是**正**的有限数。
+   缺一项就整块不渲染——参数不全的图比没有图更糟（会画出一张错的拓扑）。
+   两个边界都是实测的：`Vin=0` 后端会 500（参数化绘图里除了零），而 `Vin=-5` 返回 200。
+   所以「必须为正」比「不触发 500」更严：负的电压/电流能画出图，但那图没有意义。
+   与其摆一张「加载失败」或一张没意义的图，不如不摆。 */
+const isPositive = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v) && v > 0;
+
+export function schematicArgs(report?: AnalysisReport) {
+  const c = report?.constraints;
+  if (!c) return null;
+  const { topology, input_voltage_nominal_v: vin, output_voltage_v: vout, output_current_a: iout } = c;
+  if (topology !== "buck" && topology !== "boost" && topology !== "ldo") return null;
+  if (!isPositive(vin) || !isPositive(vout) || !isPositive(iout)) return null;
+  return { topology, vin, vout, iout };
+}
+
 /* ── 阶段映射（含百分比估算）────────────────────── */
 const STAGE_INFO: Record<string, { label: string; pct: number }> = {
   parse:    { label: "解析需求", pct: 10 },
@@ -93,6 +111,9 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight, onT
   const [activeReport, setActiveReport] = useState<"bom" | "risk" | null>(null);
   const [currentIntent, setCurrentIntent] = useState<"selection" | "chat" | "adjustment" | "clarify" | null>(null);
   const [showThinking, setShowThinking] = useState(false);
+  // 默认展开：这一块的意义就是让人**看见**那张图，藏在一个要点的箭头上等于没接通。
+  // SVG 只有 5–6.6 KB，且每个会话最多拉到最新那份报告的那一张。
+  const [schematicOpen, setSchematicOpen] = useState(true);
   const [accumulatedInput, setAccumulatedInput] = useState("");  // 跨轮累积的约束文本
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -181,7 +202,23 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight, onT
         }
       },
       showReport: (t) => setActiveReport(t),
-      toggleSchematic: () => setActiveReport(null),
+      // `/schematic` 对应报告下方那张电路图卡片。以前这里是 `setActiveReport(null)`——
+      // 一个只会把右侧面板关掉、什么也不显示的空动作。没有可画的东西时，明说原因。
+      toggleSchematic: () => {
+        const card = document.getElementById("schematic-card");
+        if (!card) {
+          addMessage({
+            id: generateId(),
+            role: "assistant",
+            content:
+              "> 还没有可画的电路图。需要先得到一份选型报告，且约束里有可识别的拓扑（buck / boost / ldo）与输入电压、输出电压、输出电流。",
+            timestamp: Date.now(),
+          });
+          return;
+        }
+        setSchematicOpen((v) => !v);
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+      },
       // 必须带上 session_id：后端按会话取报告，不带则落到 __default__ 会话而 404。
       // 同时先判 resp.ok，否则错误 JSON 会被当成 xlsx 存盘，用户拿到的是坏文件。
       exportBom: async () => {
@@ -901,8 +938,25 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight, onT
             <MessageBubble message={m} progress={m.id === streamingMsgId.current ? progress : undefined} />
             {m.report && !m.isStreaming && m.id === session.messages.filter((x) => x.role === "assistant" && x.report).pop()?.id && (() => {
               const isSelected = useChatStore.getState().selectedPartNumber;
+              const sch = schematicArgs(m.report);
               return (
               <div className="ml-11 mt-2 animate-fade-in">
+                {sch && (
+                  <div id="schematic-card" className="mb-2">
+                    <button
+                      onClick={() => setSchematicOpen((v) => !v)}
+                      className="flex items-center gap-1.5 text-2xs uppercase tracking-wider font-mono text-ez-text-muted hover:text-ez-accent transition-colors"
+                    >
+                      <CircuitBoard className="w-3.5 h-3.5" />
+                      应用电路图 · {sch.topology.toUpperCase()}
+                      <span className="text-ez-text-dim">{schematicOpen ? "收起" : "展开"}</span>
+                    </button>
+                    {/* 收起时不挂载：图是按需向后端要的，收起状态不给它白拉一张 SVG。 */}
+                    {schematicOpen && (
+                      <SchematicPanel topology={sch.topology} vin={sch.vin} vout={sch.vout} iout={sch.iout} />
+                    )}
+                  </div>
+                )}
                 {isSelected && (
                   <div className="p-3 border border-ez-border-hi bg-ez-bg-panel animate-fade-in">
                     <p className="text-xs text-ez-text font-medium mb-1.5 font-mono">
