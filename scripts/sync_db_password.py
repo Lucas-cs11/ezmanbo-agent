@@ -24,14 +24,22 @@
 
 `.env` 里若出现**多行**绑定同一个键（包括 `export DATABASE_URL=...` 这种写法），
 python-dotenv 是「后者胜」，所以本脚本改的是**最后一行**——也就是应用真正会读到的那行
-——并就把前面几行的行号报警给你。「哪一行算绑定了这个键」一律由 dotenv 自己的解析器
-判定，不另立规则。
+——并就把前面几行的行号报警给你。
+
+「哪一行算了绑定这个键」不由本脚本自己判定，而是整份文件交给 dotenv 的解析器、直接用它
+给出的行号。原因是这里栽过三次：自写规则漏掉 `export` 前缀；把每一行**单独**喂给流解析器，
+而引号可以跨行把后面的行吞进值里。三次的后果都是同一个——脚本打印「已写入」并返回 0，
+应用读到的却是另一行，重跑也不自愈。
+
+因此写盘前还有最后一道闸门：**用 dotenv 把改完的内容复读一遍**，读到的必须就是新连接串，
+否则中止且 `.env` 一字不动。带 BOM 的文件、值跨行的文件，脚本直接拒绝而不是猜。
 """
 
 import argparse
 import getpass
 import io
 import os
+import re
 import shutil
 import stat
 import sys
@@ -40,6 +48,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
+from dotenv import dotenv_values
 from dotenv.parser import parse_stream
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -48,27 +57,93 @@ KEY = "DATABASE_URL"
 MIN_PASSWORD_LEN = 8
 
 
-def _split_value(raw: str) -> tuple[str, str]:
-    """把 `KEY=` 右侧拆成 (值, 引号)。只认整体包裹的引号，保持原文件的风格。"""
-    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in "\"'":
-        return raw[1:-1], raw[0]
-    return raw, ""
+def _quote_style(raw: str) -> str:
+    """原行用的引号（只用于保持外观；**值**一律以 dotenv 解析出来的为准）。"""
+    s = raw.lstrip()
+    if s[:1] in ('"', "'") and s[:1] in s[1:]:
+        return s[0]
+    return ""
 
 
-def _key_lines(lines: list[str], key: str = KEY) -> list[int]:
-    """所有**真正绑定**该 key 的行号（跳过注释行），按出现顺序。
+# dotenv 认的行界就是这三个（见 dotenv.parser._newline）
+_NEWLINE = re.compile(r"\r\n|\n|\r")
+_TRAILING_NEWLINE = re.compile(r"(?:\r\n|\n|\r)\Z")
 
-    这里刻意用 python-dotenv **自己的解析器**逐行判断，而不是另写一套「`=` 左边等于 key」
-    的规则：两者一旦分歧，脚本就会改一行、应用读另一行——曾经的真实缺陷正是
-    `export DATABASE_URL=...`（dotenv 认，自制规则不认）。
+
+def _split_lines(content: str) -> list[str]:
+    """按 dotenv 认的行界切行并保留行尾。
+
+    刻意不用 `str.splitlines()`：它还会在 `\\v`、`\\f`、`\\x85` 等处切，比 dotenv 多切出
+    一些行，行号就跟 dotenv 对不上了——而这里的行号要拿去改文件。
     """
-    found = []
-    for i, line in enumerate(lines):
-        for binding in parse_stream(io.StringIO(line)):
-            if binding.error is False and binding.key == key:
-                found.append(i)
-                break
-    return found
+    parts, last = [], 0
+    for m in _NEWLINE.finditer(content):
+        parts.append(content[last : m.end()])
+        last = m.end()
+    if last < len(content):
+        parts.append(content[last:])
+    return parts
+
+
+def _line_index(content: str, offset: int) -> int:
+    """字符偏移 → 0 起算的行号。"""
+    return len(_NEWLINE.findall(content, 0, offset))
+
+
+def _key_bindings(content: str) -> list[tuple[int, int, str | None]]:
+    """所有**真正绑定** KEY 的位置，返回 [(关键行号, 该 binding 的结束行号, 解析出的值)]。
+
+    判定完全交给 python-dotenv 的**整文件**解析。这里踩过三次坑：先自己写「`=` 左边等于
+    key」的规则（漏掉 `export DATABASE_URL=`）；再把每一行单独喂给 `parse_stream`——而它是
+    **流**解析器，引号能跨行把后面的行吞进值里，逐行 ≠ 整文件；最后是拿 `endpos` 数行号，
+    在 CRLF 上把结尾的 `\\r` 当成一个换行。三次的后果都是「脚本改一行、应用读另一行」，
+    所以现在行号按 binding 原文内部的换行数推算，值也直接取 dotenv 解析出来的结果。
+    """
+    out: list[tuple[int, int, str | None]] = []
+    offset = 0
+    for binding in parse_stream(io.StringIO(content)):
+        text = binding.original.string
+        start, offset = offset, offset + len(text)
+        if binding.error or binding.key != KEY:
+            continue
+        # 一个 binding 的原文可能带前导空白（含换行），键本身在它之后
+        lead = re.match(r"\s*", text).end()
+        key_line = _line_index(content, start + lead)
+        inner = len(_NEWLINE.findall(text, lead))  # 键之后该 binding 内部的换行数
+        if inner == 0:
+            end_line = key_line
+        elif _TRAILING_NEWLINE.search(text):
+            end_line = key_line + inner - 1  # 结尾那个换行只负责收掉最后一行
+        else:
+            end_line = key_line + inner
+        out.append((key_line, end_line, binding.value))
+    return out
+
+
+def _effective_value(content: str) -> str | None:
+    """**用应用自己的方式**读一遍：python-dotenv 解析这份内容时，最终给 KEY 什么值。
+
+    `load_dotenv(override=True)` 与 `dotenv_values` 在这件事上取的都是「最后一个绑定」，
+    且默认都做 `${VAR}` 插值，所以拿它当判据与应用一致。
+    """
+    return dotenv_values(stream=io.StringIO(content)).get(KEY)
+
+
+def _assert_effective(content: str, want: str, key_line: int) -> None:
+    """写盘前的硬闸门：改完之后用 dotenv 复读，拿到的必须**就是**新连接串。
+
+    这是本脚本唯一的正确性支柱。定位逻辑一旦与 dotenv 分歧（历史上发生过三次），
+    就在这里被拦下——**宁可不写**，也不写出一份「脚本说成功、应用读到的却是别的」
+    的 `.env`。失败信息里不回显读到的东西，那可能是旧口令。
+    """
+    got = _effective_value(content)
+    if got != want:
+        where = "空" if got is None else "另一段内容"
+        raise SystemExit(
+            f"❌ 改完第 {key_line + 1} 行后用 python-dotenv 复读，读到的**不是**新连接串"
+            f"（读到的是{where}）。\n"
+            "   已中止，.env **未改动**。这个 .env 里有脚本没料到的写法，请手工改这一行。"
+        )
 
 
 def _port_of(parts) -> int | None:
@@ -259,27 +334,49 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"❌ 找不到 {env_path}")
 
     # newline="" —— 不做通用换行转换，否则 \r\n 在读取时就被规范化成 \n，
-    # 那条「保留该行原有行尾」的逻辑会形同虚设。
-    with env_path.open(encoding="utf-8", newline="") as f:
-        lines = f.readlines()
-    found = _key_lines(lines)
-    if not found:
-        raise SystemExit(f"❌ {env_path} 里找不到 {KEY}= 这一行，无法同步。")
-    # python-dotenv 是「后者胜」：应用读到的是**最后一行**，所以必须改它，
-    # 否则实连验证会证明「库里确实有这个口令」，而生产用的仍是旧口令。
-    idx = found[-1]
-    if len(found) > 1:
-        earlier = "、".join(str(i + 1) for i in found[:-1])
-        print(f"⚠️  {env_path} 里有 {len(found)} 行 {KEY}=（第 {earlier}、{idx + 1} 行）。")
+    # 「保留该行原有行尾」的逻辑会形同虚设。
+    content = env_path.read_text(encoding="utf-8", newline="")
+    if content.startswith("﻿"):
+        raise SystemExit(
+            "❌ 这个 .env 带 UTF-8 BOM。带不带 BOM 会让不同版本的 python-dotenv 对「哪一行"
+            "生效」给出不同答案，脚本不猜。\n"
+            "   请先用编辑器另存为「UTF-8 无 BOM」，再跑本脚本（未改动任何文件）。"
+        )
+
+    lines = _split_lines(content)
+    bindings = _key_bindings(content)
+    if not bindings:
+        raise SystemExit(f"❌ {env_path} 里找不到绑定 {KEY} 的行，无法同步。")
+    # python-dotenv 是「后者胜」：应用读到的是**最后一个**绑定，所以必须改它。
+    idx, end_line, old_url = bindings[-1]
+    if idx != end_line:
+        raise SystemExit(
+            f"❌ {env_path} 第 {idx + 1} 行的 {KEY} 值跨了多行（多半是引号没闭合），"
+            "脚本无法确定该改哪一行。\n   请先手工修好这一行（未改动任何文件）。"
+        )
+    if len(bindings) > 1:
+        earlier = "、".join(str(k + 1) for k, _, _ in bindings[:-1])
+        print(f"⚠️  {env_path} 里有 {len(bindings)} 行绑定 {KEY}（第 {earlier}、{idx + 1} 行）。")
         print(f"    dotenv 取最后一行，本脚本改的就是第 {idx + 1} 行；"
               f"第 {earlier} 行仍是旧口令，建议你顺手删掉。")
+    if "=" not in lines[idx] or old_url is None:
+        raise SystemExit(
+            f"❌ {env_path} 第 {idx + 1} 行的 {KEY} 没有 `=` 或没有值，脚本不猜。\n"
+            "   请先手工补好这一行（未改动任何文件）。"
+        )
     lhs, rhs = lines[idx].split("=", 1)
     ending = rhs[len(rhs.rstrip("\r\n")) :]  # 保留该行原本的行尾（LF/CRLF/无）
-    old_value, quote_char = _split_value(rhs.strip())
+    quote_char = _quote_style(rhs)
 
     new_password = _prompt_password()
-    new_url = _compose(new_password, old_value)
+    new_url = _compose(new_password, old_url)
     _assert_env_safe(new_url, quote_char)
+
+    new_line = f"{lhs}={quote_char}{new_url}{quote_char}{ending}"
+    candidate_lines = list(lines)
+    candidate_lines[idx] = new_line
+    candidate = "".join(candidate_lines)
+    _assert_effective(candidate, new_url, idx)
 
     parts = urlsplit(new_url)
     print(f"  用户：{unquote(parts.username or '')}")
@@ -294,8 +391,7 @@ def main(argv: list[str] | None = None) -> int:
         _verify_connection(new_url, new_password)
         print("  ✅ 新凭据实连成功")
 
-    lines[idx] = f"{lhs}={quote_char}{new_url}{quote_char}{ending}"
-    backup = _write_env(env_path, lines)
+    backup = _write_env(env_path, candidate_lines)
     print(f"✅ 已写入 {env_path}（备份：{backup.name}）。权限保持不变。")
     print("下一步：sudo systemctl restart ezmanbo-backend")
     return 0

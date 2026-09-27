@@ -15,7 +15,7 @@ import pytest
 import sqlalchemy
 from dotenv import dotenv_values
 from sqlalchemy.engine import make_url
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 from scripts import sync_db_password as mod
 
@@ -166,6 +166,119 @@ def test_quoted_and_commented_keys_are_not_touched(tmp_path, monkeypatch):
     out = path.read_text()
     assert "Commented" in out and "Upper" in out and "Lower" in out, "无关行不许被动"
     assert make_url(dotenv_values(path)[mod.KEY]).password == NEW_PW
+
+
+def _assert_invariant(path):
+    """本脚本对外承诺的不变量：改完之后，**应用会读到的那一行**就是新口令。"""
+    got = dotenv_values(path)[mod.KEY]
+    assert got is not None, "dotenv 读不到 DATABASE_URL 了"
+    assert unquote(make_url(got).password or "") == NEW_PW, (
+        f"dotenv 实际读到的不是新口令：{got!r}"
+    )
+
+
+# 各种「dotenv 会怎么解析」的写法，跑完都必须满足上面那条不变量
+TRICKY_ENVS = {
+    "单行": f"{mod.KEY}={OLD_URL}\n",
+    "export 前缀": f"export {mod.KEY}={OLD_URL}\n",
+    "export 后多空格": f"export   {mod.KEY}={OLD_URL}\n",
+    "缩进 + export": f"   export  {mod.KEY}={OLD_URL}\n",
+    "等号两侧留白": f"{mod.KEY} = {OLD_URL}\n",
+    "单引号值": f"{mod.KEY}='{OLD_URL}'\n",
+    "双引号值": f'{mod.KEY}="{OLD_URL}"\n',
+    "单引号键": f"'{mod.KEY}'={OLD_URL}\n",
+    "行尾注释": f"{mod.KEY}={OLD_URL} # 旧口令\n",
+    "两行普通（后者胜）": f"{mod.KEY}=postgresql://u:a@h:5432/d\n{mod.KEY}={OLD_URL}\n",
+    "普通 + export": f"{mod.KEY}=postgresql://u:a@h:5432/d\nexport {mod.KEY}={OLD_URL}\n",
+    "中间夹一堆无关键": (
+        f"# 注释\n\n{mod.KEY}={OLD_URL}\nJWT=x\nOTHER=y\n\n# 尾注\n"
+    ),
+    "CRLF": f"JWT=x\r\n{mod.KEY}={OLD_URL}\r\n",
+    "末行无换行": f"JWT=x\n{mod.KEY}={OLD_URL}",
+    # 前面那行的引号没闭合、把中间吞进值里，但**最后一个**绑定仍是普通行：
+    # dotenv 取后者，脚本就该改后者（这一条曾经被我误判成「必须拒绝」）
+    "跨行值在前 + 正常行在后": (
+        f'{mod.KEY}="postgresql://u:Old@h:5432/d\n继续"\n{mod.KEY}={OLD_URL}\n'
+    ),
+}
+
+
+@pytest.mark.parametrize("name", sorted(TRICKY_ENVS))
+def test_invariant_holds_for_every_env_shape(tmp_path, monkeypatch, name):
+    """不变量：无论 `.env` 长什么样，跑完 dotenv 读回的必须是新口令。
+
+    这条用例比「改没改某一行」更贴近承诺——上一版把每一行单独喂给流解析器，在「引号
+    跨行」的 `.env` 上就会改错行，而脚本照样返回 0、打印「已写入」。
+    """
+    path = tmp_path / ".env"
+    path.write_text(TRICKY_ENVS[name])
+    os.chmod(path, 0o600)
+
+    assert _run(tmp_path, monkeypatch, path) == 0
+    _assert_invariant(path)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # 引号不闭合：dotenv 会把后面那行当成同一个值，全文只绑定第一行
+        f'{mod.KEY}="x\n{mod.KEY}={OLD_URL}\n"\n',
+        # 唯一那个绑定自身跨行（值里有换行），改哪一行都说不清
+        f'JWT=x\n{mod.KEY}="postgresql://u:Old@h:5432/d\n继续"\n',
+        # 带 BOM：不同版本 dotenv 对「哪一行生效」判断不同，脚本不猜
+        f"\ufeff{mod.KEY}={OLD_URL}\n",
+    ],
+)
+def test_refuses_ambiguous_or_bom_env_untouched(tmp_path, monkeypatch, body):
+    """这些形态脚本**拒绝执行**，且 `.env` 逐字节不动——拒绝是正确行为，不是失败。"""
+    path = tmp_path / ".env"
+    path.write_text(body, encoding="utf-8")
+    os.chmod(path, 0o600)
+    before = path.read_bytes()
+
+    with pytest.raises(SystemExit):
+        _run(tmp_path, monkeypatch, path)
+
+    assert path.read_bytes() == before, "拒绝执行时不许动文件"
+    assert not [p for p in tmp_path.iterdir() if p.name.startswith(".env.bak.")]
+
+
+def test_effective_value_gate_blocks_the_write(tmp_path, monkeypatch):
+    """最后那道闸门必须承重：万一改完 dotenv 读到的不是新连接串，就不许写盘。
+
+    这是防「定位逻辑又跑偏」的兜底——闸门失效的话，前面所有定位代码的正确性就没人守了。
+    """
+    env = _write_env(tmp_path)
+    before = env.read_bytes()
+    monkeypatch.setattr(mod, "_effective_value", lambda content: "postgresql://u:Stale@h/db")
+
+    with pytest.raises(SystemExit) as err:
+        _run(tmp_path, monkeypatch, env)
+
+    assert "未改动" in str(err.value)
+    assert env.read_bytes() == before
+    assert not [p for p in tmp_path.iterdir() if p.name.startswith(".env.bak.")]
+
+
+def test_gate_failure_never_echoes_the_stale_value(tmp_path, monkeypatch, capsys):
+    """闸门失败时的提示不许把「读到的那段内容」打出来——那可能是旧口令。"""
+    env = _write_env(tmp_path)
+    monkeypatch.setattr(mod, "_effective_value", lambda content: "postgresql://u:LeakyOldPw@h/db")
+
+    with pytest.raises(SystemExit) as err:
+        _run(tmp_path, monkeypatch, env)
+
+    assert "LeakyOldPw" not in str(err.value)
+    assert "LeakyOldPw" not in capsys.readouterr().out
+
+
+def test_split_lines_matches_dotenv_line_boundaries():
+    """切行必须与 dotenv 的行界一致，否则行号会错位（`splitlines` 会多切 \\v、\\x85）。"""
+    content = "A=1\r\nB=2\rC=3\nD=4"
+    assert mod._split_lines(content) == ["A=1\r\n", "B=2\r", "C=3\n", "D=4"]
+    assert "".join(mod._split_lines(content)) == content, "切了再拼必须逐字节还原"
+    assert mod._line_index(content, 0) == 0
+    assert mod._line_index(content, len("A=1\r\nB=2\r")) == 2
 
 
 @pytest.mark.parametrize("quote_char", ["", '"', "'"])
