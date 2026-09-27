@@ -40,7 +40,7 @@ def _write_env(tmp_path, value=OLD_URL, quote_char=""):
 def _run(tmp_path, monkeypatch, env_path, argv=(), verify=None, password=NEW_PW):
     monkeypatch.setattr(mod, "_prompt_password", lambda: password)
     monkeypatch.setattr(
-        mod, "_verify_connection", verify if verify is not None else (lambda url, secret: None)
+        mod, "_verify_connection", verify if verify is not None else (lambda *a, **k: None)
     )
     return mod.main(["--env", str(env_path), *argv])
 
@@ -327,7 +327,7 @@ def test_verify_failure_leaves_env_untouched(tmp_path, monkeypatch):
     env = _write_env(tmp_path)
     before = env.read_bytes()
 
-    def boom(url, secret):
+    def boom(url, *secrets):
         raise SystemExit("❌ 用新凭据连接失败：模拟")
 
     with pytest.raises(SystemExit):
@@ -417,6 +417,45 @@ def test_masked_url_hides_password_and_keeps_port():
     assert NEW_PW not in masked and quote(NEW_PW, safe="") not in masked
     assert "***" in masked and "app_user" in masked
     assert "db.example.com:5432" in masked, "掩码后的展示信息不该丢掉端口"
+
+
+# 口令被同时写在 query 里：`_compose` 对 query 是**逐字保留**的，所以那里留下的是旧口令
+PASSWORD_IN_QUERY_URL = (
+    "postgresql+psycopg2://app_user:OldPw%40x@db.example.com:5432/ezmanbo?password=OldPw%40x"
+)
+
+
+def test_masked_url_scrubs_password_repeated_in_query():
+    """换掉 userinfo 段盖不住写在同一串 query 里的那份口令（第四轮验收查出的低级泄漏）。
+
+    这里 query 里的是**旧**口令——`_compose` 逐字保留 query——所以调用方必须把旧口令
+    交给 `_mask`，它才知道要擦什么。
+    """
+    old_pw_raw, old_pw_enc = "OldPw@x", "OldPw%40x"
+    new = mod._compose(NEW_PW, PASSWORD_IN_QUERY_URL)
+    masked = mod._mask(new, mod._password_of(PASSWORD_IN_QUERY_URL))
+    for form in (old_pw_raw, old_pw_enc, NEW_PW, quote(NEW_PW, safe="")):
+        assert form not in masked, f"掩码后仍泄漏：{form}"
+    assert "***" in masked and "app_user" in masked
+
+
+def test_old_password_repeated_in_query_is_never_printed(tmp_path, monkeypatch, capsys):
+    """同一件事走完整 `main()`：终端上不许出现旧口令或新口令的任一形态。"""
+    env = _write_env(tmp_path, value=PASSWORD_IN_QUERY_URL)
+    assert _run(tmp_path, monkeypatch, env) == 0
+    out = capsys.readouterr()
+    for form in ("OldPw@x", "OldPw%40x", NEW_PW, quote(NEW_PW, safe="")):
+        assert form not in out.out, f"stdout 泄漏了口令：{form}"
+        assert form not in out.err, f"stderr 泄漏了口令：{form}"
+
+
+def test_scrub_covers_lowercase_hex_escapes():
+    """同一段口令，有的库编码成 `%2F`、有的编码成 `%2f`——两种都得算口令。"""
+    secret = "p/w@d"
+    textured = f"boom {quote(secret, safe='').lower()}"
+    scrubbed = mod._scrub(textured, secret)
+    assert quote(secret, safe="").lower() not in scrubbed
+    assert "***" in scrubbed, "应当留下擦除痕迹，而不是把整行删掉"
 
 
 # ── 该拒绝的输入 ──────────────────────────────────────────────────────

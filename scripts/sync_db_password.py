@@ -196,7 +196,17 @@ def _assert_env_safe(url: str, quote_char: str) -> None:
         )
 
 
-def _mask(url: str) -> str:
+def _password_of(url: str) -> str:
+    return unquote(urlsplit(url).password or "")
+
+
+def _mask(url: str, *also_secrets: str) -> str:
+    """展示用的连接串：userinfo 段的口令换成 `***`，另外把 `also_secrets` 也一并擦掉。
+
+    只换 userinfo 是不够的：口令可能同时被写在 path/query 里（少见但合法），而
+    `_compose` 对 query 是逐字保留的——那里留着的往往是**上一个**口令，所以调用方必须
+    把旧口令也交进来，否则它会被原样打到终端。
+    """
     parts = urlsplit(url)
     if parts.password is None:
         return url
@@ -204,7 +214,8 @@ def _mask(url: str) -> str:
     port = _port_of(parts)
     if port:
         netloc += f":{port}"
-    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+    masked = urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+    return _scrub(masked, _password_of(url), *also_secrets)
 
 
 def _prompt_password() -> str:
@@ -216,7 +227,21 @@ def _prompt_password() -> str:
     return pw
 
 
-def _scrub(text: str, secret: str) -> str:
+_LOWER_HEX_ESCAPE = re.compile(r"%([0-9A-F]{2})")
+
+
+def _variants(secret: str) -> set[str]:
+    """口令可能出现在异常文本里的几种形态。
+
+    除原文外还有百分号编码后的样子；`%3A`（大写十六进制）与 `%3a`（小写）不同库各用
+    一种，两种都要认。这里只把 `%XY` 里的大写十六进制降成小写——`quote` 已经把口令中的
+    `%` 编码成 `%25`，所以匹配到的 `%XY` 一定是本函数生成的转义，不会误伤别的内容。
+    """
+    encoded = quote(secret, safe="")
+    return {secret, encoded, _LOWER_HEX_ESCAPE.sub(lambda m: "%" + m.group(1).lower(), encoded)}
+
+
+def _scrub(text: str, *secrets: str) -> str:
     """把可能夹在异常文本里的口令擦掉（原文与百分号编码两种形态）。
 
     这是**防御性**的一层，不是已证实的必需品：在本项目的 SQLAlchemy 版本上，我试过的
@@ -224,13 +249,14 @@ def _scrub(text: str, secret: str) -> str:
     自己的 URL 表示也已把口令显示成 `***`。留着它是因为异常文本来自第三方库、版本会变，
     万一哪天真带上口令，代价就是生产口令进了终端与日志。
     """
-    for variant in {secret, quote(secret, safe="")}:
-        if variant:
-            text = text.replace(variant, "***")
+    for secret in set(secrets):
+        for variant in _variants(secret):
+            if variant:
+                text = text.replace(variant, "***")
     return text
 
 
-def _verify_connection(url: str, secret: str) -> None:
+def _verify_connection(url: str, *secrets: str) -> None:
     """用新凭据真的连一次：既证明 URL 拼对了，也证明你改的正是这个用户。"""
     from sqlalchemy import create_engine, text
 
@@ -243,7 +269,7 @@ def _verify_connection(url: str, secret: str) -> None:
         raise
     except Exception as exc:  # noqa: BLE001 - 擦掉口令后报给使用者
         raise SystemExit(
-            f"❌ 用新凭据连接失败：{_scrub(f'{type(exc).__name__}: {exc}', secret)}\n"
+            f"❌ 用新凭据连接失败：{_scrub(f'{type(exc).__name__}: {exc}', *secrets)}\n"
             "   .env **未改动**。请先确认库里那个用户的口令已经改成你刚输入的值。"
         ) from None
     finally:
@@ -381,14 +407,14 @@ def main(argv: list[str] | None = None) -> int:
     parts = urlsplit(new_url)
     print(f"  用户：{unquote(parts.username or '')}")
     print(f"  主机：{parts.hostname}   库：{parts.path.lstrip('/')}")
-    print(f"  将写入：{KEY}={_mask(new_url)}")
+    print(f"  将写入：{KEY}={_mask(new_url, _password_of(old_url))}")
 
     if args.dry_run:
         print("（--dry-run：未改动任何文件）")
         return 0
 
     if not args.no_verify:
-        _verify_connection(new_url, new_password)
+        _verify_connection(new_url, new_password, _password_of(old_url))
         print("  ✅ 新凭据实连成功")
 
     backup = _write_env(env_path, candidate_lines)
