@@ -1,0 +1,88 @@
+name: 端到端选型评测（手动 / 需密钥）
+
+# 为什么单独拆出来、且不在 push 时自动跑：
+#
+# `tests/eval_runner.py` 会真调 `analyze()` —— 需要真实的 eZ-PLM API Key 与
+# LLM Key，并会真的消耗配额。它跑在「无密钥的 CI」里时，每个用例都会在
+# `analyze()` 里抛异常、被脚本吞成 passed=False，最终打印
+# `Eval complete: 0/5 passed (0.0%)` 然后 **exit 0**。
+# 也就是说它曾经是 CI 里唯一的步骤，却是一个恒绿的摆设。
+#
+# 现在的定位：只在手动触发、且仓库已配置密钥时运行，并且**对通过率设阈值**，
+# 通过率不达标就红。这才叫门禁。
+
+on:
+  workflow_dispatch:
+    inputs:
+      min_pass_rate:
+        description: "最低通过率（%），低于它则失败"
+        required: false
+        default: "80"
+
+jobs:
+  e2e-eval:
+    runs-on: ubuntu-latest
+    env:
+      EZPLM_API_KEY: ${{ secrets.EZPLM_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+      HF_HUB_OFFLINE: "0"
+      TRANSFORMERS_OFFLINE: "0"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install runtime requirements
+        run: pip install --prefer-binary -r requirements.txt
+
+      - name: Fail fast if secrets are missing
+        # 缺密钥时 `analyze()` 会全部失败并给出 0% —— 那与「模型真的选不出东西」
+        # 是两件事，必须区分开，否则又变成一次误读。
+        run: |
+          if [ -z "${EZPLM_API_KEY}" ] || [ -z "${OPENAI_API_KEY}" ]; then
+            echo "::error::缺少 EZPLM_API_KEY 或 OPENAI_API_KEY 仓库密钥；本次评测没有意义，直接失败。"
+            exit 1
+          fi
+
+      - name: Run end-to-end eval
+        run: PYTHONPATH=. python -m tests.eval_runner
+
+      - name: Enforce pass-rate threshold
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+
+          summary = Path("docs/eval_results/eval_summary.json")
+          if not summary.exists():
+              print("::error::评测未产出 eval_summary.json，无法判定")
+              sys.exit(1)
+
+          data = json.loads(summary.read_text(encoding="utf-8"))
+          total = data.get("total", 0)
+          rate = float(str(data.get("pass_rate", "0%")).rstrip("%"))
+          minimum = float(os.environ.get("MIN_PASS_RATE", "80"))
+
+          print(f"用例 {total} 条，通过率 {rate:.1f}%（阈值 {minimum:.1f}%）")
+          if total == 0:
+              print("::error::用例数为 0，相当于什么都没测")
+              sys.exit(1)
+          if rate < minimum:
+              print(f"::error::通过率 {rate:.1f}% 低于阈值 {minimum:.1f}%")
+              sys.exit(1)
+          PY
+        env:
+          MIN_PASS_RATE: ${{ github.event.inputs.min_pass_rate || '80' }}
+
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval_results
+          path: docs/eval_results/

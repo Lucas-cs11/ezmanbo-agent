@@ -1,128 +1,155 @@
-#!/usr/bin/env python3
-"""
-B1 SSE 流式输出接口的测试脚本
-用于验证 /analyze/stream 端点是否能正常推送 SSE 事件
+"""B1 SSE 流式输出接口测试 —— `/analyze/stream`
+
+这个文件曾经是个「假绿」脚本：用 `requests` 打 `http://localhost:8000`（**生产后端**），
+函数 `return True/False` 而没有任何 `assert`。pytest 不检查返回值，所以无论成败都算
+通过——实测它打印着「请求失败，状态码 401」却依然 PASS。
+
+现在改成两层：
+
+* **默认集（隔离、不外呼）**：只验证鉴权与请求体校验这两件发生在流水线之前的事。
+* ``@pytest.mark.integration``：真正跑通流水线、逐事件断言 SSE 契约。
+
+两层都有真实断言，不再有「没有断言、永远通过」的用例。
 """
 
-import requests
 import json
-import time
-from datetime import datetime
 
-# 后端地址
-API_URL = "http://localhost:8000"
+import pytest
 
-def test_sse_stream():
-    """测试 SSE 流式输出"""
-    print("=" * 60)
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] 开始测试 SSE 流式输出接口")
-    print("=" * 60)
+# SSE 主干事件：不依赖是否有候选器件，任何一次成功的分析都会发出。
+# （`score_update` / `text_delta` 只在检索到候选器件时才出现，不能拿来断言。）
+_BACKBONE_EVENTS = ["parse_done", "search_done", "evidence_done", "risk_done", "done"]
 
-    # 测试数据
+
+def _parse_sse(raw_text: str):
+    """把 SSE 报文解析成 [(event_name, data_dict), ...]。
+
+    同时校验帧格式：非空行必须是 `event: ` 或 `data: ` 开头。
+    格式跑偏会让前端的 EventSource 静默失效，所以这里要硬断言。
+    """
+    events = []
+    current_event = None
+    pending_data = []
+
+    for line in raw_text.splitlines():
+        if not line.strip():
+            # 空行 = 一个事件的结束
+            if current_event is not None:
+                payload = "\n".join(pending_data)
+                try:
+                    parsed = json.loads(payload) if payload else {}
+                except json.JSONDecodeError:
+                    parsed = {"__raw__": payload}
+                events.append((current_event, parsed))
+            current_event, pending_data = None, []
+            continue
+
+        assert line.startswith("event: ") or line.startswith("data: "), (
+            f"SSE 帧格式非法：{line!r}"
+        )
+
+        if line.startswith("event: "):
+            current_event = line[len("event: "):].strip()
+        else:
+            pending_data.append(line[len("data: "):])
+
+    if current_event is not None:
+        payload = "\n".join(pending_data)
+        try:
+            parsed = json.loads(payload) if payload else {}
+        except json.JSONDecodeError:
+            parsed = {"__raw__": payload}
+        events.append((current_event, parsed))
+
+    return events
+
+
+# ── 默认集：鉴权与请求体校验（流水线之前）────────────────────────────────────
+
+
+def test_stream_requires_auth(client):
+    """未鉴权访问 /analyze/stream 必须被挡下 —— 这正是旧脚本里那次 401。"""
+    response = client.post("/analyze/stream", json={"user_input": "Buck 12V转5V"})
+    assert response.status_code == 401
+
+
+def test_stream_rejects_missing_user_input(member_client):
+    """缺少 user_input：请求体校验先于流水线，应为 422。"""
+    response = member_client.post("/analyze/stream", json={})
+    assert response.status_code in [400, 422]
+
+
+def test_stream_rejects_malformed_json(member_client):
+    """畸形 JSON 应被挡下，而不是进入流水线。"""
+    response = member_client.post(
+        "/analyze/stream",
+        content=b"{not valid json",
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code in [400, 422]
+
+
+# ── integration：真正跑通流水线，逐事件断言 SSE 契约 ─────────────────────────
+
+
+@pytest.mark.integration
+def test_sse_stream_event_contract(member_client):
+    """跑通一次真实分析，断言 SSE 的响应头、帧格式与主干事件序列。"""
     payload = {
         "user_input": "我需要一个24V输入的5V/3A的降压器芯片，要求成本低、供应充足"
     }
 
-    try:
-        # 发起流式请求
-        print(f"\n📤 发送请求到 {API_URL}/analyze/stream")
-        print(f"请求体: {json.dumps(payload, ensure_ascii=False)}")
-        print("\n📥 接收 SSE 事件流：\n")
+    response = member_client.post("/analyze/stream", json=payload)
 
-        response = requests.post(
-            f"{API_URL}/analyze/stream",
-            json=payload,
-            stream=True,
-            timeout=30
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers.get("content-type", "")
+
+    events = _parse_sse(response.text)
+    assert events, "没有收到任何 SSE 事件"
+
+    names = [name for name, _ in events]
+
+    # 主干事件必须全部出现（顺序按流水线阶段推进）
+    for expected in _BACKBONE_EVENTS:
+        assert expected in names, (
+            f"SSE 流里缺少主干事件 {expected!r}；实际收到：{names}"
         )
 
-        # 检查响应状态
-        if response.status_code != 200:
-            print(f"❌ 请求失败，状态码: {response.status_code}")
-            print(f"响应: {response.text}")
-            return False
+    positions = [names.index(e) for e in _BACKBONE_EVENTS]
+    assert positions == sorted(positions), (
+        f"主干事件顺序错乱：{list(zip(_BACKBONE_EVENTS, positions))}"
+    )
 
-        # 验证 Content-Type
-        content_type = response.headers.get("content-type", "")
-        if "text/event-stream" not in content_type:
-            print(f"⚠️  Content-Type 不是 text/event-stream: {content_type}")
-        else:
-            print(f"✅ Content-Type 正确: {content_type}")
-
-        # 解析 SSE 事件
-        event_count = 0
-        event_types = set()
-        start_time = time.time()
-
-        for line in response.iter_lines(decode_unicode=True):
-            if not line.strip():
-                continue
-
-            if line.startswith("event: "):
-                event_type = line[7:].strip()
-                event_types.add(event_type)
-                event_count += 1
-                print(f"\n[事件 #{event_count}] 类型: {event_type}")
-
-            elif line.startswith("data: "):
-                try:
-                    data = json.loads(line[6:])
-                    # 格式化输出（避免输出过长的数据）
-                    if event_type == "done":
-                        print(f"  ✅ 分析完成 - 耗时: {data.get('elapsed_seconds', '?')}s")
-                        if 'report' in data:
-                            report = data['report']
-                            print(f"  📊 报告摘要:")
-                            print(f"     - 候选器件数: {len(report.get('candidates', []))}")
-                            print(f"     - 推荐器件数: {len(report.get('recommended_parts', []))}")
-                    elif event_type == "error":
-                        print(f"  ❌ 错误: {data.get('error', 'Unknown error')}")
-                    else:
-                        # 打印数据摘要
-                        keys = list(data.keys())
-                        if 'status' in data:
-                            print(f"  └─ {data['status']}")
-                        if 'candidate_count' in data:
-                            print(f"  └─ 候选数: {data['candidate_count']}")
-                        if 'score' in data:
-                            print(f"  └─ 评分: {data['score']}")
-                        if 'evidence_count' in data:
-                            print(f"  └─ 证据条数: {data['evidence_count']}")
-                except json.JSONDecodeError as e:
-                    print(f"  ⚠️  JSON 解析失败: {e}")
-
-        elapsed = time.time() - start_time
-
-        # 输出测试结果
-        print("\n" + "=" * 60)
-        print("📋 测试结果摘要")
-        print("=" * 60)
-        print(f"✅ 接收到 {event_count} 个 SSE 事件")
-        print(f"✅ 事件类型: {', '.join(sorted(event_types))}")
-        print(f"✅ 总耗时: {elapsed:.2f}s")
-
-        # 验证预期的事件
-        expected_events = {"parse_done", "search_done", "score_update", "evidence_done", "risk_done", "text_delta", "done"}
-        missing = expected_events - event_types
-        if missing:
-            print(f"⚠️  缺少事件: {', '.join(sorted(missing))}")
-        else:
-            print(f"✅ 所有预期事件都已收到")
-
-        return True
-
-    except requests.exceptions.ConnectionError:
-        print(f"❌ 无法连接到后端服务 ({API_URL})")
-        print("   请确保后端已启动: uvicorn app.main:app --reload")
-        return False
-    except Exception as e:
-        print(f"❌ 测试过程中出错: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+    # 不应出现 error 事件
+    assert "error" not in names, (
+        f"SSE 流里出现了 error 事件：{[d for n, d in events if n == 'error']}"
+    )
 
 
-if __name__ == "__main__":
-    import sys
-    success = test_sse_stream()
-    sys.exit(0 if success else 1)
+@pytest.mark.integration
+def test_sse_done_event_reports_a_real_summary(member_client):
+    """done 事件必须带着完整的分析结果摘要，而不是空壳。"""
+    response = member_client.post(
+        "/analyze/stream", json={"user_input": "Buck 12V转5V"}
+    )
+    assert response.status_code == 200
+
+    events = _parse_sse(response.text)
+    done_payloads = [data for name, data in events if name == "done"]
+    assert done_payloads, "SSE 流没有以 done 事件收尾"
+
+    done = done_payloads[-1]
+    assert done.get("status") == "分析完成"
+    assert isinstance(done.get("elapsed_s"), (int, float))
+    assert done["elapsed_s"] >= 0
+    assert done.get("request_id")
+
+    # 计数必须是非负整数，且与返回的列表长度自洽
+    assert isinstance(done.get("candidate_count"), int)
+    assert done["candidate_count"] >= 0
+    assert isinstance(done.get("recommended_count"), int)
+    assert done["recommended_count"] >= 0
+    assert done["recommended_count"] <= done["candidate_count"]
+
+    assert isinstance(done.get("candidates"), list)
+    assert len(done["candidates"]) == done["candidate_count"]

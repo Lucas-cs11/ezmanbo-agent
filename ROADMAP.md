@@ -35,7 +35,7 @@
 | 生产数据库（RDS） | `users` 1 行（管理员）；`chat_sessions` / `chat_messages` 全为 0 行 |
 | 版本控制 | ✅ 已初始化 git，有基线提交 |
 | 远程仓库 | ✅ 已同步为分支 `sync/ec2-phase1.6`（合并提交 `a5b42a2`，零删除），待你评审后合入 `main`；`main` 未被改动 |
-| 测试套件 | ⚠️ 没有可用的回归网：venv 未装 pytest，CI 只跑 `eval_runner`；`tests/test_api_stability.py`（895 行）已过期（见 B7 详情「既有问题」第 2 条） |
+| 测试套件 | ✅ **已重建**（Phase 1.8）：独立验收**两轮**——第一轮判「不可以提交」并查出隔离层是死代码（已修），第二轮判「可以提交」。默认集 **123 passed / 1 skipped / 1 xfailed / 31 deselected**，隔离经变异实测（改道失效 → 全会话报错；摘鉴权 → 变红），生产目录指纹全程逐字节未变。CI 换成硬门禁 `ci.yml` |
 | 已知功能缺陷 | ⚠️ `/schematic` 后端已修好（三种拓扑 200）；但前端是空壳，用户仍看不到电路图 ← 见 B9 |
 
 ---
@@ -198,6 +198,117 @@ bcrypt 5.x 对**超过 72 字节**的口令直接抛 `ValueError`（4.x 是静�
 
 ---
 
+## 四·补二、已完成（Phase 1.8 · 重建回归测试网）✅（CI 首次真跑待确认）
+
+**为什么要做**：这是「服务高质量」这条线上最贵的一个洞。当前没有任何东西能拦住我改坏代码——`main` 上任何一次提交，CI 都会亮绿灯放行。对一个要**真实商用**的系统，这等于没有刹车。
+
+### 现状诊断（2026-09-27 逐条实测，非推测）
+
+| # | 问题 | 证据 |
+|---|---|---|
+| 1 | **CI 恒绿，等于没有门禁** | `tests/eval_runner.py:66-73` 把 `analyze()` 的每个异常吞成 `check={"passed": False}`；`:266` 的 `run()` 无返回值、无 exit 断言，脚本永远退 0。所以哪怕 0/5 通过，CI 也是绿的 |
+| 2 | **pytest 根本没装** | `requirements.txt` 无 pytest；`./venv/bin/python -c "import pytest"` → `ModuleNotFoundError`。`tests/` 下 9 个文件里唯一写法正确的 `test_selection_regressions.py`（4 个纯函数用例 + `tempfile` 隔离）**从未被执行过** |
+| 3 | **配置与代码大面积脱节** | `pytest.ini` 已定义 `slow/concurrent/benchmark/integration/smoke` 五个 marker 且开了 `--strict-markers`；实际只有 `test_api_stability.py` 用了其中 6 处（4×`concurrent` + 2×`benchmark`），**其余 8 个测试文件一处都没用**；`timeout = 300` 需要 pytest-timeout，未声明 |
+| 4 | **测试文件混了四类东西**（这是它们集体腐烂的根因） | (A) 真单元测试：`test_selection_regressions` / `test_b2_schematic` / `test_hybrid_retrieval` / `test_b2_api`（`/schematic` 无鉴权）；(B) 加鉴权后失效的进程内 API 测试：`test_api_stability`（`/analyze`、`/replacement` → 401）、`test_b4_integration`；(C) **假测试真脚本**：`test_b1_sse.py` 用 `requests` 直打 `localhost:8000`、`test_b4_integration.py` 真调 `analyze()`——两者都**返回 bool 而没有任何 assert**，pytest 不检查返回值，所以**永远算通过**（实测输出里明写「请求失败，状态码 401」却仍 PASS）；(D) 夹在 (B) 里的**时延阈值压测**，天然在 CI 抖动 |
+| 5 | **对生产目录有破坏性副作用** | `test_b4_integration.py` 曾无条件 `shutil.rmtree("data/chroma_cache")`（已造成真实事故，见下）；`test_b4_semantic_cache.py` 用相对路径 `test_cache` 且无 teardown，非幂等 |
+| 6 | **文件名与内容错配** | `test_b2_api.py` 装的是 schematic 端点测试（真正的 API 稳定性测试在同名 895 行那份里） |
+| 7 | **venv 与 requirements 漂移** | `streamlit` 声明在 `requirements.txt` 却是**彻底的死依赖**（全仓 0 处 import，`setup.sh` 指向的 `frontend/streamlit_app.py` 也不存在），venv 未装——但它会把一次「装个 pytest」放大成拉进 pandas/pyarrow/pillow/kubernetes 等 25 个包；反向的漂移更危险——`schemdraw` 声明在 requirements 里，线上 venv 却一直缺，直到 2026-09-27 才补上 |
+
+### ⚠️ 本模块开工第一天就踩出的事故（2026-09-27，如实记录）
+
+**做了什么**：在 `/mnt/data/ezmanbo-agent`（生产运行目录）里跑了一次全量 `pytest`，去取「改造前的基线」。
+
+**后果**：`test_b4_integration.py` 里那行无条件 `shutil.rmtree("data/chroma_cache")` 真的执行了。生产语义缓存被删；`data/chroma_cache/selection-v2/`（精确匹配缓存）现在是空的，`semantic_cache` 向量集合 0 条。**知识库 `data/chroma_db` 完好**（`engineering_knowledge` 29 条，内容逐条核对无误），线上 `/health` 200、日志无异常。
+
+**影响评估**：语义缓存是可再生件，最坏后果是缓存未命中变多、响应变慢，会随使用自然重建；缓存里没有留下测试脏数据（集合为 0 条），所以**不会返回错误答案**。删除前它里面原本有多少条目，已无法确知——我不打算把这说成「无影响」。
+
+**根因（两层，都要修）**：
+1. 测试文件把「清理缓存」写成了删真实路径，而不是删自己的临时目录；
+2. 我的隔离 fixture 有设计缺陷：`get_semantic_cache()` 是**懒创建**单例，我只在它「已存在」时才替换全局变量——于是第一次被创建时，它照样落到了写死的生产路径上。**等它被创建出来再替换，是来不及的。**
+
+**已做的修复**（见 `tests/conftest.py`）。⚠️ **这里原先写的是「三层防护」，但独立验收证明第 2 层从未生效**——详见下文「第二次事故」，以下是订正后的实况：
+
+1. ~~顶层把 `chromadb.PersistentClient` 的落盘路径改道~~ → **原写法 `chromadb.PersistentClient.__init__ = ...` 是死代码**（`PersistentClient` 是函数不是类）。已改为**替换模块属性上的函数本身**，并在会话开始时用一个探针**实测该机制**（不是假设）。
+2. 会话级 fixture 把 `get_semantic_cache()` / `get_rag_store()` 的单例**提前**钉在临时目录。注意：默认集不导入 `app.rag`，所以 RAG 单例这一条在默认集里**不会触发**；RAG 的实际保护来自第 1 层（现已真正生效）。
+3. 会话开始即断言 `DATABASE_URL` 在临时目录下、`chroma 改道已安装且拦得住`、缓存目录在临时目录下，任一条不成立就整体终止会话。
+4. 会话结束清理临时目录（此前每跑一次就在 `/tmp` 遗留一个目录，实测已累积 72 个）。
+
+**验证方式**：跑测试前后对 `data/chroma_cache`、`data/chroma_db` 做逐文件 md5 指纹比对；并且**对第 1 层做了变异测试**——把补丁改回失效的旧写法，确认整个会话立刻报错终止（实测 124 errors，报错文本正是那条探针断言），从而证明「隔离失效」不会被静默放过。
+
+### ⚠️ 第二次事故：所谓「三层防护」其实只有两层（2026-09-27，验收阶段查出，如实记录）
+
+**怎么查出来的**：本模块的验收按总纲要求**由独立子 agent 执行**。它在做变异测试时发现：`tests/conftest.py` 里那句 `chromadb.PersistentClient.__init__ = _guarded_init` **完全没有作用**——因为 `chromadb.PersistentClient` 自 chroma 0.5 起就是**函数**（实测 chromadb 1.5.9：`inspect.isfunction(...) is True`）。给一个**函数对象**挂 `__init__` 属性，它被调用时根本不会去读。**那一层防护从未生效，是一段看起来很像防护的死代码。**
+
+**后果（不是理论风险，已经发生）**：任何真正走到 `RAGStore` 的测试都会**直接写生产的 `data/chroma_db`**。验收过程中确实发生了：`data/chroma_db/chroma.sqlite3` 的 mtime 变为 `06:41:22`。已核对知识库仍是 **29 条**、与 `engineering_knowledge.json` 一致，**无数据丢失**；但这与第一次事故一样，属于「测试写了生产」，我不打算把它说轻。默认集此前之所以看起来安全，只是因为默认集恰好没有用例走到那条路径——**那是运气，不是隔离**。
+
+**这个缺陷为什么值得单记一笔**：它是**我自己写的**，而且我在总纲里为它写了一整段「三层防护」的说明，还断言了「单例路径在临时目录」——**断言了症状，却从未验证机制**。第一版事故的教训我写成了「任何会落盘的东西都必须先证明它落在临时目录」，而这一次恰恰是**没有去证明**。真正有效的纠正不是再补一层断言，而是**让机制自己接受检验**：现在会话开始时会拿一个生产形状的路径去创建客户端、看它有没有被改写；机制一坏，整个会话立刻红。
+
+**顺带查出的两项（同一次验收）**：
+- **受保护路由清单是现算的，因此拦不住「摘鉴权」**（中）：`test_auth_contract.py` 参数化用的是从活着的 `app.routes` 现算的清单，于是摘掉某条端点的鉴权，那条路由会**从清单里消失**，没有任何用例为它运行。实测：摘掉**非哨兵**路由 `/classify` 的鉴权 → 121 passed、exit 0，毫无反应（只有 6 条哨兵和 `len>=20` 兜着）。已改为**冻结全量清单（43 条）逐条比对**，增删受保护端点都必须同步改，正是想要的效果。
+- **`test_b4_semantic_cache.py` 仍有假绿残留**（低）：Test4/Test7 两个分支只有 `print` 没有断言，函数末尾还留着一句 `return True`（pytest 不检查返回值，纯属假绿时代的写法）。已改成真断言——「阈值必须真的生效」「命中内容必须就是当初存进去的那一份」，同时**刻意不断言**命中与否（那取决于模型，写死了只是脆弱）。
+
+**教训**：在这个仓库里，「跑一遍测试」本身就是一次有副作用的操作。**任何会落盘的东西都必须先证明它落在临时目录**，不能靠「应该不会吧」。这条已写入验收标准，成为本模块每次交付都要复核的一项。
+
+### 本模块的交付物
+
+1. **`tests/conftest.py`**：三层环境隔离（**不是** `dependency_overrides` 顶掉鉴权）——
+   - 第 1 层：在导入任何 `app.*` 之前把 `dotenv.load_dotenv` 换成空操作，阻断 `app/main.py:3` 的 `load_dotenv(override=True)` 拿仓库 `.env`（生产 RDS 串 + 真密钥）盖掉测试环境变量；再显式设临时 SQLite、抹掉全部外呼凭据、把 `EZPLM_BASE_URL` 指向黑洞端口。白名单式补回 `HF_HOME` 等**纯路径**配置（否则离线向量模型加载失败，会把「模型能加载」这层真实覆盖误判成失败）。
+   - 第 2 层：改写 `chromadb.PersistentClient.__init__`，凡落盘路径在临时目录之外的一律改道进临时目录——兜住「任何模块、任何写死路径都不可能写到生产」。
+   - 第 3 层：会话级 autouse fixture **提前**把 `get_semantic_cache()` / `get_rag_store()` 两个懒创建单例钉到临时目录，并断言 `DATABASE_URL` 与缓存目录都在临时目录下，不成立即整体终止。
+   - 身份用**真实签名令牌**（`create_access_token({"sub": ...})`）而非顶掉鉴权依赖——`get_current_user` 本身就是最不能失守的一环，不该被测试绕过。
+2. **`requirements-dev.txt`**：`pytest` / `pytest-timeout`（`pytest.ini` 的 `timeout = 300` 靠它才生效）/ `pytest-asyncio`（`test_api_stability` 有 async fixture）。**刻意不写 `-r requirements.txt`** —— 实测那样会把 streamlit 及其 pandas/pyarrow/pillow/kubernetes 等 **25 个包**一起拉进生产 venv，把「装个 pytest」放大成一次大范围依赖变更；生产运行依赖由 `requirements.txt` 单独管理。实际只装了 5 个纯 Python 小包，**运行依赖与线上 venv 零变动、无需重启**。
+3. **给每个测试文件归类并打 marker**，默认运行排除 `integration`/`benchmark`/`concurrent`
+4. **修 (B) 类**：补鉴权路径、把 `/health` 断言从「精确等于 `{"status":"ok"}`」改为「字段存在且类型正确」
+5. **拆 (D) 类**：压测从 `test_api_stability.py` 拆出、打 `benchmark` marker、默认不跑
+6. **处理 (C) 类**：`test_b1_sse.py` 改为 pytest + `TestClient` + 假 LLM 的 SSE 契约测试；真链路的留给 integration
+7. **消除破坏性副作用**：所有 `rmtree` 指向 tmp 目录
+8. **新增一张能真正拦回归的网**：遍历 `app.routes` 的依赖图，找出全部需鉴权/需管理员的路由，逐条断言「无令牌 → 401」「非管理员令牌 → 403」。这条正是当初「给端点加了鉴权、却没同步更新调用方」会立刻抓住的。
+   **注意（验收查出的关键弱点，已修）**：光靠「现算清单」拦不住「摘鉴权」——摘掉某条端点的鉴权，它就从这个清单里**消失**，没有任何用例会为它运行。所以额外加了一条**冻结全量清单**（43 条）的比对：实际集合与冻结集合必须逐条一致，少一条即红（鉴权被摘）、多一条即红（新增了受保护端点，必须确认调用方已带令牌）。
+9. **CI 改为硬门禁**（已完成编码，待推送验证）：
+   - 原 `ci-python-3.11.yml` 删除，换成 `ci.yml`：跑 `pytest` 且**不加任何 `|| true` / `continue-on-error`**，失败即红
+   - CI 的 Python 版本从 3.11 改为 **3.14**，与生产 venv 对齐（此前 CI 跑 3.11、生产跑 3.14，版本差异造成的失效在 CI 里看不见）
+   - 触发分支加上 `sync/**`，让生产机推上来的评审分支也能跑门禁，而不是等合进 `main` 才发现红
+   - `eval_runner` 从自动链路移除，另建 `e2e-eval.yml`（`workflow_dispatch` 手动触发、需仓库密钥），并**对通过率设阈值**：缺密钥直接失败、用例数为 0 直接失败、通过率低于阈值直接失败。它原来既没断言又永远退 0，等于一个恒绿的摆设
+
+### 明确不在本模块范围内（记录，避免遗忘）
+
+- `requirements.txt` 里的死依赖 `streamlit>=1.24`、以及 `setup.sh` 里指向不存在文件的「旧版 UI」提示——已查明但未改，留给一次独立的依赖清理。本模块只做到「不让它污染测试依赖的安装」。
+- `tests/eval_runner.py` 本身「吞异常 + 恒退 0」的写法没改（它现在被移出自动链路、并靠 workflow 里的阈值兜住）。真要修，是把它改成断言式并把结果结构化。
+
+### 本模块交付时已知、但未修的残留（2026-09-27 第二轮复验查出，全部非阻塞）
+
+按「低危问题也要避免」的原则记录在此，不在本模块顺手改——因为它们都需要重新走一遍验收，而本模块的验收刚刚通过：
+
+1. **隔离仍有一个盲区（最值得修的一条）**：chroma 改道只拦「经 chromadb 落盘」的写入。
+   而 `SemanticCache.set_exact()` 是**直接写普通文件**到 `<persist_dir>/selection-v2/` 的，
+   `SemanticCache.__init__` 也对原始路径 `mkdir` —— 全程不碰 chromadb，**不受改道保护**。
+   实测：裸构造 `SemanticCache(persist_dir=<仓库内路径>)` 确实会建出该目录及 `selection-v2`。
+   **当前不会写生产**（单例由第 3 层提前钉死、测试用 `isolated_semantic_cache` 显式传临时目录），
+   属潜伏风险；但 `data/chroma_cache/selection-v2/` 恰恰是**现在在用**的精确缓存路径。
+   修法：把同样的改道施加到 `SemanticCache.__init__` 的 `persist_dir`。conftest 里原先那句
+   「任何模块、任何路径都不可能写到生产」已订正为实话。
+2. **`pytest --collect-only` 会泄漏 `/tmp` 临时目录**（复现 5 次）：`--collect-only` 不执行 fixture，
+   所以第 4 层的清理跑不到，而 TMP_ROOT 是在 conftest **导入时**就创建的。偏偏上面「维护冻结清单」
+   的说明就叫大家跑这条命令。修法：清理改用 `atexit` 注册，而不是只挂在 fixture teardown 上。
+3. **Test4/Test7 的断言目前是名义覆盖**：它们断言正确（契约级、与模型无关），但当前每次都走
+   miss 分支，所以断言体实际从未被执行。要真正覆盖命中分支，需要构造一个相似度确定过阈值的输入。
+4. `requirements.txt:4` 的 `streamlit>=1.24` 仍在（venv 未装），同上第 1 条的死依赖，留给独立清理。
+
+### 完成标准（验收由子 agent 独立执行）
+
+- 默认集在隔离环境全绿（`env -i PATH="$PATH" HOME="$HOME" PYTHONPATH=. ./venv/bin/python -m pytest -q`），且**不存在无断言的用例**（含 `print`-only 分支与 `return True/False` 这类假绿写法）
+- **反向验证之一 —— 测试网有牙齿（关键）**：人为注入回归，确认测试网**变红**。变异必须覆盖三类，缺一不可：
+  1. 摘掉一处**哨兵**端点的鉴权（如 `/analyze`）→ 红；
+  2. 摘掉一处**非哨兵**端点的鉴权（如 `/classify`）→ **必须也红**（这是冻结清单比对存在的意义；此前只靠现算清单时这一条**不会**红，实测 121 passed、exit 0）；
+  3. 改坏一处纯逻辑（如 Gate 阈值）→ 红。
+  随后必须还原，并用 `git diff --stat` 确认 `app/` 下不留改动。不这么做，只是换了一张漂亮但同样没用的网
+- **反向验证之二 —— 隔离机制本身有牙齿（关键，第二次事故换来的）**：把 `conftest.py` 里的 chroma 改道改回失效写法（挂 `__init__`），会话必须**立刻整体报错**而不是静默放行。因为「断言了单例路径在临时目录」并不能证明「改道机制真的拦得住」——第一次交付就是栽在这里
+- 跑测试前后对 `data/chroma_cache`、`data/chroma_db` 做逐文件 md5 指纹比对，必须**逐字节一致**（两次事故后，这条从「复核项」变成「硬门槛」）
+- 跑测试前后 `/tmp` 下临时目录数量不增长（会话结束即清理）
+- CI 在真实推送后跑到绿（证明 workflow 本身接线正确：依赖装得上、测试跑得起来）；「红」这一侧由两点共同保证——pytest 步骤无 `|| true` / `continue-on-error`，退出码非 0 即 job 失败；以及上一条反向验证里 pytest 确实返回了非 0
+
+---
+
 ## 五、待办（Phase 2 / 3）
 
 ### Phase 2 · 扛住高并发
@@ -209,11 +320,12 @@ bcrypt 5.x 对**超过 72 字节**的口令直接抛 `ValueError`（4.x 是静�
 - 2.4 RDS 连接池配置（`database.py` 目前无 pool 参数）
 - 2.5 依赖注入式健康检查与就绪探针（区分存活/就绪）
 - 2.6 **刷新令牌的轮换与吊销**。当前刷新令牌 30 天滑动、**换新后旧令牌仍然可用、且无法吊销**：改密码不会使已签发的访问/刷新令牌失效，登出也只是客户端删掉本地副本。需要一个令牌版本号（`users.token_version`）或 jti 黑名单，让「改密 / 禁用 / 登出」能真正作废既有令牌。
+- 2.7 **混合检索：接线，还是撤宣称（需产品决策）** —— 详见「既有问题」第 7 条。现状是 README 与论文都宣称 BM25+向量+RRF 混合检索，而线上实际是纯向量检索，那个模块既是死代码、排序逻辑又是坏的。**先做实测**：拿几个真实精确型号（如 `SY8240`、`LMR14030SDDAR`）打线上知识库，看精确匹配的那条是否稳定排第一（论文第 2.4 节正是拿这两个场景举例）。实测若确有落差，则接线 + 修排序（`retrieve()` 里按 `bm25_scores` 真实降序取排名，而非 `enumerate` 下标）+ 量化增益后再改文档；若无落差，则删掉死模块并订正 README 与论文措辞。**不要只改代码不改宣称，也不要只改宣称而不实测**。
 
 ### Phase 3 · 服务质量与体验
 - 3.1 结构化日志与错误追踪（当前 `log_error` 较薄）
 - 3.2 备份与恢复演练（RDS 快照 + ChromaDB 向量库）
-- 3.3 端到端自动化回归纳入 CI（已有 `.github/workflows/ci-python-3.11.yml`，未覆盖真实链路）
+- 3.3 ~~端到端自动化回归纳入 CI~~ → 已升级为独立模块 **Phase 1.8（进行中，见上）**：先有能拦回归的网，再谈端到端；`eval_runner` 在没密钥的 CI 里跑不出意义
 - 3.4 前端可用性：移动端适配、流式过程的失败重试、空状态引导
 - 3.5 **游客配额的约束力（需产品决策）**：目前 5 条上限只在前端计数，且有两条绕过路径——清掉 localStorage 即可重置；游客令牌过期时会走 `logout()` 顺带清掉计数，等于**再过 2 小时又得 5 条**。真正起作用的是 `/auth/guest` 的按 IP 限流（10 次 / 10 分钟）。所以现状是「体验性引导」而非「成本闸门」。要当闸门用就得在服务端记账。
 - 3.6 **没有任何地方在 API 返回 401 时主动登出**（`lib/api.ts` 只读令牌，`store/chat.ts` 同样）。配合 1.6.5 的「5xx 不登出」策略，若刷新接口持续 5xx，用户会停在一个「界面看着正常、每个请求都 401」的状态里，既没有「会话已过期，请重新登录」的出路，也没有退避重试，只能等重新聚焦或手动刷新页面自愈。需要一个统一的 401 拦截器。
@@ -241,13 +353,30 @@ curl -s https://ezmanbo.online/login | grep -o '/_next/static/chunks/[^"]*\.js' 
 |---|---|---|---|
 | ~~B1~~ | ~~放行安全组 443 端口~~ | — | ✅ **无需操作**：443 本就放行，外网实测可达 |
 | ~~B2~~ | ~~创建首个管理员账号~~ | — | ✅ 已按你的授权创建并验证 |
-| B3 | 确认 `ezmanbo.online` 的 80 端口改为跳转 HTTPS 是否符合预期 | 此前该域名落在 Navigation Hub 上，现在会跳去产品 | ⏳ 待确认 |
+| ~~B3~~ | ~~确认 `ezmanbo.online` 的 80 端口改为跳转 HTTPS 是否符合预期~~ | — | ✅ **已实测确认（2026-09-27）**：`http://ezmanbo.online/` 与 `/login` 均 301 到 HTTPS 且**保留路径**；Navigation Hub 仍在，只是改用 IP 访问（`http://3.26.51.29/` → 200 Hub，其 `/login` 为 404）。符合预期 |
 | B4 | 确认 ACME 联系邮箱（现为 `admin@ezmanbo.online`） | 证书到期告警发往该地址，我不清楚你的真实邮箱 | ⏳ 待确认 |
 | B5 | 轮换 RDS 弱口令、收紧公网可达性 | 生产数据库凭据 | ⏳ 待办 |
 | ~~B6~~ | ~~确认 git 提交身份~~ | — | ✅ 已改为 `Lucas-cs11 <200692816+Lucas-cs11@users.noreply.github.com>` |
 | ~~B7~~ | ~~决定本地历史与 GitHub 仓库如何合并~~ | — | ✅ 已按你选的方案 1 完成，推为分支待你评审（见下） |
 | B8 | 轮换已在本会话记录里出现过的管理员密码 | 该密码已落进对话记录与日志 | ⏳ 待办 |
 | B9 | `/schematic` 的**用户可见**部分（后端已修好，前端是空壳，见下「既有问题」第 1 条） | 需要接前端组件并重建前端，会造成十几秒中断 | ⏳ 待你决定何时做 |
+| B10 | **`:8088` 明文端口仍在提供登录页**：`http://ezmanbo.online:8088/login` 实测 200，无跳转、无 HSTS，即在明文下收取口令 | 它是你定的「退路」，删还是留取决于你要退的是什么 | ⏳ 待你决策（见下） |
+
+### B10 详情：`:8088` 明文退路的取舍（需你拍板）
+
+**实测**：`http://ezmanbo.online:8088/login` → 200，返回的正是产品登录页（`<title>eZmanbo — 智能元器件选型</title>`）；无 301 跳转，响应头里没有 HSTS。
+
+**风险到底有多大**：443 上已设 `strict-transport-security: max-age=86400`。HSTS 是**按主机**生效、不分端口的，所以**回访用户**的浏览器会把 `http://ezmanbo.online:8088/...` 自动升级成 HTTPS，实际打不开这个明文端口；而 `:8088` 上没有 TLS，请求会直接失败。因此真正暴露的窗口是：**第一次访问、且直接用 `:8088` 明文进入**的用户，那一次登录口令是明文传输的。另外 `max-age` 只有 1 天。
+
+**三个选项，各退一步不同**：
+
+| 选项 | 做法 | 换来什么 / 失去什么 |
+|---|---|---|
+| A. 维持现状 | 不动 | 保住「TLS 出问题时仍能进产品」这个退路；代价是首次明文访问者的口令暴露，且这条路径不在 HSTS 保护内 |
+| B. 只跳转不服务 | `:8088` 改为 301 到 443 | 彻底消除明文收口令；但 TLS 出问题时这个端口也就没用了——**退路的意义就没了** |
+| C. 限制来源 | 只允许你自己的 IP 访问 `:8088`，或加一层 Basic Auth | 退路仍在，但只有你知道怎么用；别人打不开。对「应急入口」这个定位最贴合 |
+
+**我的建议是 C**：退路的服务对象本就是你（运维应急），不是普通用户，那就没有理由让它对全网开放。若你更看重「任何时候都能点开」而愿意承担风险，A 也可接受，但建议把 HSTS 的 `max-age` 从 1 天提到半年以上，让回访用户被保护得更久。
 
 ### B7 详情（已解决）：本地历史与 GitHub 仓库互相独立
 
@@ -284,11 +413,17 @@ curl -s https://ezmanbo.online/login | grep -o '/_next/static/chunks/[^"]*\.js' 
    - **依赖缺失（已修，2026-09-27）**：`requirements.txt` 声明了 `schemdraw>=0.18`，生产 venv 里却**没装**。该依赖是懒加载（`app/main.py:1770` 在路由内 `from .schematic_generator import`），启动不受影响、故一直没暴露；一被调用就被通用 `except` 吞成 500。已装 `schemdraw 0.23`（`pip` 只装这一个包，不动 numpy/matplotlib，不会顶掉 torch 那条依赖链），**且无需重启**——失败的导入不会被缓存，装完即刻生效。实测三种拓扑全部 200 并返回真实 SVG（buck 6576 B / boost 6608 B / ldo 4703 B），非法拓扑正确返回 400 并附带可选值。
    - **前端根本没接上（未修）**：`SchematicPanel.tsx` 是**孤儿组件**（全树零引用），且它请求的是 `/api/schematic/...`——后端只提供 `/schematic/...`，实测经 Next 代理返回 **404**；而聊天里的 `/schematic` 命令（提示语写着「显示应用电路图」）处理函数是个空壳 `toggleSchematic: () => setActiveReport(null)`，`activeReport` 的类型里根本没有 `schematic` 这个值。也就是说：**用户看得到命令、看不到电路图**。
    - 要真正交付这个功能，需接上 `SchematicPanel` 并把它的 URL 改成 `/schematic/...`（约二十行），前端重建会造成十几秒中断 ← 见 B9。
-2. **`tests/test_api_stability.py` 895 行测试从未被执行过，且已过期（中）** —— CI（`.github/workflows/ci-python-3.11.yml`）只跑 `tests/eval_runner`，从不跑 pytest；而 venv 里也没装 pytest。实测该文件 32 条用例全失败，**全部**因为它是照「加鉴权之前」的接口写的：`/analyze`、`/replacement` 现在返回 401，`/health` 响应体多了 `started_at`/`uptime_s` 两个字段而断言仍是 `== {"status": "ok"}`。其余 15 条（b2/b4/hybrid/selection）在干净状态下**全通过**。这是「没人跑的测试会烂掉」的典型，需要专门一个模块来重写，不要塞进本次同步。
-3. **`tests/test_b4_semantic_cache.py` 不可重复运行（低）** —— 它用相对路径 `test_cache`，且无清理夹具，第二次运行必然因缓存非空而在第一条断言失败。干净检出下通过。
+2. **`tests/test_api_stability.py` 895 行测试从未被执行过，且已过期（中）** ——（**已由 Phase 1.8 重写**：该文件已改造成带鉴权、走 `TestClient` 的真实回归用例，CI 也换成了硬门禁的 `ci.yml`，此处保留原始记录。）CI（`.github/workflows/ci-python-3.11.yml`，**该文件已删除**）只跑 `tests/eval_runner`，从不跑 pytest；而 venv 里也没装 pytest。实测该文件 32 条用例全失败，**全部**因为它是照「加鉴权之前」的接口写的：`/analyze`、`/replacement` 现在返回 401，`/health` 响应体多了 `started_at`/`uptime_s` 两个字段而断言仍是 `== {"status": "ok"}`。其余 15 条（b2/b4/hybrid/selection）在干净状态下**全通过**。这是「没人跑的测试会烂掉」的典型，需要专门一个模块来重写，不要塞进本次同步。
+3. **`tests/test_b4_semantic_cache.py` 不可重复运行（低）** ——（**已由 Phase 1.8 修复**：相对路径 `test_cache` 已改为 `tempfile.mkdtemp()`，仓库根目录下那份残留也已清除。）它用相对路径 `test_cache`，且无清理夹具，第二次运行必然因缓存非空而在第一条断言失败。干净检出下通过。
 4. **远端 `main` 自身有一批「导入了不存在的函数」的死代码（低）** —— `app/kb_updater.py`、`app/workflow_executor.py`、`scripts/enrich_mock_from_api.py`、`scripts/rebuild_mock_from_api_v2.py` 各自局部 import 了 `rag.get_rag_index`、`search_components_by_constraints`、`build_evidence_for_candidates`、`build_risk_assessment`、`_map_api_part_to_partir` 等并不存在的名字。调用方与被调用方都与远端逐字节相同，确系远端既有问题，且都是函数内 import、只在被调用时炸。建议单开 issue，别在这个评审分支里顺手改。
 5. **首个管理员的引导路径变更（需知情，非缺陷）** —— 远端 `/auth/register` 允许「零管理员时自助创建首个管理员」作为引导；现在恒返 403，**新环境只能靠 `scripts/manage_users.py` 建号**（见上文「建首个管理员」）。前后端自洽，但全新部署若没跑 CLI 就进不去系统，部署文档需要写明这一步。
 6. **`app/setup_api.py` 的 `.env` 改写能力并未删除** —— 收口方式是给它套上 `Depends(get_current_admin)`（8/8 路由），不是移除 `_save_env`。对商用产品而言这是合理的：管理员通过 `/setup` 页面配置密钥本就是产品功能，关键是**只有管理员能写**。
+7. **混合检索（BM25 + 向量 + RRF）是「宣称有、实际不跑、且真跑起来还是坏的」三重问题（中，需产品决策）** —— 由 Phase 1.8 的测试重建过程中发现，逐条实测如下：
+   - **宣称**：`README.md:52`「混合检索：向量 + BM25 + **RRF 融合**」、`README.md:184` 列有 `hybrid_retrieval.py`；**论文 `docs/paper_main.md:67-69` 更明确**——「eZmanbo 的工程知识库检索模块采用 BM25 与向量检索相结合、RRF 融合的混合检索策略」。论文里的这句是关于**实现**的事实陈述。
+   - **实际不跑**：`app/hybrid_retrieval.py` 是**彻底的死代码**——全仓只有 `tests/test_hybrid_retrieval.py` import 它，没有任何生产代码引用；唯一疑似引用是 `app/ezplm_client.py:985` 一个名为 `use_hybrid_retrieval` 的形参，注释自陈「保留签名兼容性，暂不使用」，且该形参在全仓**再无第二处出现**。线上知识库检索走的是 `app/rag.py:121` 的 `RAGStore.query()`，**纯向量检索**（`_collection.query(query_embeddings=...)`），由 `agent_orchestrator.py` / `agent_tools.py` / `output_generator.py` / `admin_router.py` 经 `get_rag_store()` 调用。
+   - **真跑起来还是坏的**：`HybridRetriever.retrieve()` 第 116 行 `for rank_bm25, doc_idx in enumerate(valid_indices)` 把**枚举下标**当成了 BM25 排名，而默认 `bm25_threshold=None` 时 `valid_indices = np.arange(len(scores))`，即**按文档原始顺序**——于是 `rrf_bm25` 随文档入库顺序单调递减，最终结果**按文档原序返回，相关性完全不参与排序**。附带两处：`vector_rank` 在循环体内每轮重算（O(n²·logn) 的无谓开销）；`doc_idx` 依赖 chroma 的 id 形如 `doc_N`（`rag.py:86` 确实如此），换个 id 规则则向量分也一并归零。
+   - **影响与判断**：因为不在执行路径上，**当前对用户零影响**，不是线上故障。但它有两层真实代价：① 论文与 README 宣称了一项**并不执行的**能力，商用语境下这是要纠正的事实错误；② 产品设计的核心卖点之一恰是**精确型号查询**（如 `"SY8240"`），而在位的是语义向量检索（`all-MiniLM-L6-v2`，对字母数字精确串本就不擅长）——**「精确型号匹配」这个能力目前很可能名不副实**，需实测确认。
+   - **因此它不是一个「修 bug」任务，而是一个产品决策**：要么真正接线（并把排序修对、按 A/B 实测增益后再改 README 与论文措辞），要么撤掉宣称。已登记为 Phase 2 的 2.7。**本模块（Phase 1.8）不动 `app/`，只把缺陷用 `xfail(strict=True)` 如实记录**——修好之日该用例会 XPASS，strict 模式下即报错，强制修复者回来把它转成正式断言。（`tests/test_hybrid_retrieval.py` 中 `test_exact_mpn_query_ranks_that_part_first`）
 
 **一处操作教训（记下来）**：这个仓库目录**同时是生产运行目录**（systemd 服务就跑在它上面）。我在目录里直接 `git switch` 切分支的那一刻，`app/rate_limit.py` 曾从磁盘消失、远端那份会报错的 `models_db.py` 曾短暂落盘——服务当时未重启（backend 05:19:10 / frontend 05:41:54 未变）才没出事。**此后凡是切分支、合并、检出这类会改动工作树的操作，一律改用隔离 worktree 执行，绝不在生产目录里做。**
 
@@ -327,3 +462,11 @@ curl -s https://ezmanbo.online/login | grep -o '/_next/static/chunks/[^"]*\.js' 
 - **2026-09-27** — Phase 1.7 与远端仓库同步。按你选的方案 1，把本地工作叠到 `origin/main` 上，建成评审分支 `sync/ec2-phase1.6`（合并提交 `a5b42a2`，双父提交，**零删除**，`main` 未动）。构建者的两处取舍已确认：README 保留本地版、个人简历文件保留在仓库中。验证交由独立子 agent：零删除用 `--diff-filter` 与 `git archive` 逐字节比对双重确认，16 个代码文件做双向符号差，`compileall` exit 0，隔离环境 `import app.main` 成功且 openapi 产出 47 条路径（等于两棵树的路由并集），`tsc --noEmit` exit 0，密钥扫描 0 命中。另把 pytest 装进临时目录（**不碰生产 venv**）跑了回归：15/15 非过期用例通过。**过程中连带查出 6 项既有问题**（见 B7 详情末节），其中 `/schematic` 生产 500 与「895 行测试从未被执行且已过期」两项需要单独立项。
 
 - **2026-09-27** — `/schematic` 后端 500 已修（B9 的后端半边）。按你的授权往生产 venv 装了 `schemdraw 0.23`——`pip` 计划里只有这一个包，不动 numpy/matplotlib，无顶掉 torch 依赖链的风险；**且无需重启后端**（失败导入不缓存，装完即刻生效），三种拓扑实测 200 + 真实 SVG。**但排查中发现功能对用户仍不可用**：前端 `SchematicPanel.tsx` 是零引用的孤儿组件、请求路径 `/api/schematic/...` 与后端不符（经代理 404），聊天里的 `/schematic` 命令处理函数是空壳。要交付需接前端组件并重建前端（十几秒中断），已记入 B9 待你决定何时做。
+
+- **2026-09-27** — Phase 1.8 重建回归测试网完成。把测试套件从「恒绿摆设」改成能真拦回归的网：新增 `tests/conftest.py` 三层隔离、`requirements-dev.txt`（不污染生产 venv，实测只装 5 个纯 Python 小包、无需重启）、`test_auth_contract.py`（遍历路由依赖图的鉴权契约 + 冻结 43 条受保护清单）、`test_schematic.py`；重写 4 个腐烂的测试文件、删 2 个文件名与内容错配的；CI 从恒绿的 `ci-python-3.11.yml` 换成硬门禁 `ci.yml`（Python 3.14 对齐生产，pytest 失败即红），端到端评测拆成手动触发、**对通过率设阈值**的 `e2e-eval.yml`。默认集 **123 passed / 1 skipped / 1 xfailed / 31 deselected**。
+
+  **本模块出了两次「测试写生产」事故，都如实记在上面**：第一次是某个测试无条件 `shutil.rmtree("data/chroma_cache")`，删掉了线上语义缓存；第二次是**我写的隔离层本身是死代码**——`chromadb.PersistentClient` 是函数不是类，我给它挂 `__init__` 的补丁从未生效，验收期间写到了 `data/chroma_db`（知识库 29 条完好、无数据丢失）。两次的根因是同一个：**没有让机制自己接受检验**，只断言了症状。现在会话开始会用探针实测改道机制，机制一坏整个会话立刻红。
+
+  **独立验收两轮**（按你的规矩，验收范围/测试集/结论全部委派子 agent）：第一轮判**不可以提交**，查出上述死代码隔离层、以及「现算的受保护清单拦不住摘鉴权」（实测摘掉非哨兵路由 `/classify` 的鉴权后 121 passed、exit 0）；修复后第二轮判**可以提交**，两项修复均经变异复现（改道失效 → 124 errors；摘 `/classify` → 1 failed），生产指纹全程逐字节一致，`app/` 零改动。
+
+  **连带发现（不在本模块，已登记）**：混合检索 BM25 是「对外宣称（README ×2 + 论文）有、实际不跑、且真跑起来排序还是坏的」三重问题，模块是死代码，线上走的是纯向量 —— 见既有问题第 7 条与 Phase 2 的 2.7。

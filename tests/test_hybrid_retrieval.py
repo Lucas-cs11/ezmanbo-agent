@@ -1,18 +1,20 @@
-"""
-test_hybrid_retrieval.py - Hybrid retrieval evaluation script
+"""混合检索（BM25 + 向量）的隔离逻辑测试。
 
-Compare hybrid retrieval (BM25 + vector) vs pure vector retrieval recall.
+这个文件原先 4 个 `test_*` 全是「假绿」：函数 `return True/False` 而**一个 assert
+都没有**，pytest 不检查返回值，所以无论成败都算通过。现在全部换成真实断言。
+
+用 MockCollection 顶掉 ChromaDB（返回空向量结果，走纯 BM25 路径），因此完全隔离、
+不外呼，留在默认集。
+
+⚠️ 已知缺陷（见文件末尾的 xfail 用例）：`HybridRetriever.retrieve()` 的排序目前
+**按文档原序**输出，BM25 相关性没有参与排序。BM25 打分本身是对的，融合那一层有问题。
 """
 
-import sys
-from pathlib import Path
 from typing import List
 
-# Add project path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+import pytest
 
 from app.hybrid_retrieval import HybridRetriever
-
 
 # ── 内联样本数据（用于测试 BM25/Hybrid 逻辑，不依赖外部文件）────────────
 _SAMPLE_DOCUMENTS: List[str] = [
@@ -32,14 +34,12 @@ _SAMPLE_DOCUMENTS: List[str] = [
     "SGM2576 SGMICRO buck 40V 3A automotive AEC-Q100",
 ]
 
-
-def load_sample_documents() -> List[str]:
-    """返回内联样本文档列表（供 HybridRetriever 逻辑测试用）。"""
-    return list(_SAMPLE_DOCUMENTS)
+_RESULT_KEYS = {"doc_idx", "document", "bm25_score", "vector_score", "hybrid_score"}
 
 
 class MockCollection:
     """Mock ChromaDB collection for testing without real DB."""
+
     def __init__(self, documents: List[str]):
         self.documents = documents
 
@@ -48,229 +48,169 @@ class MockCollection:
         return {"ids": [[]], "distances": [[]], "documents": [[]]}
 
 
+def load_sample_documents() -> List[str]:
+    """返回内联样本文档列表（供 HybridRetriever 逻辑测试用）。"""
+    return list(_SAMPLE_DOCUMENTS)
+
+
+def _make_retriever(bm25_weight: float = 1.0) -> HybridRetriever:
+    documents = load_sample_documents()
+    return HybridRetriever(
+        chroma_collection=MockCollection(documents),
+        documents=documents,
+        bm25_weight=bm25_weight,
+    )
+
+
+def _assert_well_formed(results, k: int, corpus: List[str]):
+    """每一条结果的公共约束。"""
+    assert isinstance(results, list)
+    assert len(results) == k, f"期望 {k} 条结果，实际 {len(results)}"
+
+    for res in results:
+        assert _RESULT_KEYS <= set(res), f"结果缺少字段：{_RESULT_KEYS - set(res)}"
+        assert isinstance(res["document"], str) and res["document"], "document 不能为空"
+        assert res["document"] in corpus, f"返回了语料之外的文档：{res['document']!r}"
+        assert 0.0 <= res["bm25_score"] <= 1.0, f"bm25_score 越界：{res['bm25_score']}"
+        assert 0.0 <= res["vector_score"] <= 1.0, f"vector_score 越界：{res['vector_score']}"
+        assert 0.0 <= res["hybrid_score"] <= 1.0, f"hybrid_score 越界：{res['hybrid_score']}"
+        assert 0 <= res["doc_idx"] < len(corpus)
+
+    scores = [res["hybrid_score"] for res in results]
+    assert scores == sorted(scores, reverse=True), f"结果没有按 hybrid_score 降序：{scores}"
+
+
 def test_bm25_basic():
-    """Test BM25 retrieval functionality."""
-    print("=" * 60)
-    print("Test 1: BM25 Basic Functionality")
-    print("=" * 60)
+    """BM25 检索：结果结构、取值范围，以及打分本身确实反映了相关性。"""
+    documents = load_sample_documents()
+    retriever = _make_retriever(bm25_weight=1.0)
 
-    try:
-        documents = load_sample_documents()
-        print(f"OK: Loaded {len(documents)} component documents\n")
+    # ── 查询 1：精确 MPN ──
+    results1 = retriever.retrieve("SY8240", k=3)
+    _assert_well_formed(results1, 3, documents)
 
-        # Create retriever with mock collection
-        retriever = HybridRetriever(
-            chroma_collection=MockCollection(documents),
-            documents=documents,
-            bm25_weight=1.0,  # Use pure BM25 for this test
-        )
-        print("OK: BM25 retriever initialized\n")
+    # ── 查询 2：拓扑关键词 ──
+    results2 = retriever.retrieve("buck", k=3)
+    _assert_well_formed(results2, 3, documents)
+    assert any("buck" in res["document"].lower() for res in results2), (
+        "查询 'buck' 的前 3 条里一条 buck 文档都没有"
+    )
 
-        # Test query 1: Exact MPN match
-        query1 = "SY8240"
-        print(f"[Query 1] '{query1}' (MPN exact match)")
-        results1 = retriever.retrieve(query1, k=3)
+    # ── 查询 3：多关键词 ──
+    results3 = retriever.retrieve("12V 5V", k=3)
+    _assert_well_formed(results3, 3, documents)
 
-        if results1:
-            print(f"  Returned {len(results1)} results:")
-            for i, res in enumerate(results1, 1):
-                doc_preview = res['document'][:60] if res['document'] else "N/A"
-                print(f"    {i}. {doc_preview}...")
-                print(f"       BM25 score: {res['bm25_score']}")
-        else:
-            print(f"  No results returned")
+    # ── BM25 打分本身是对的：拿全量结果，精确匹配的那条应当是最高分 ──
+    all_results = retriever.retrieve("SY8240", k=len(documents))
+    _assert_well_formed(all_results, len(documents), documents)
 
-        print()
+    hit_docs = [res["document"] for res in all_results if "SY8240" in res["document"]]
+    assert len(hit_docs) == 1, "语料里应当恰好有一条 SY8240 文档"
 
-        # Test query 2: Topology matching
-        query2 = "buck"
-        print(f"[Query 2] '{query2}' (topology keyword)")
-        results2 = retriever.retrieve(query2, k=3)
-
-        if results2:
-            print(f"  Returned {len(results2)} results:")
-            for i, res in enumerate(results2, 1):
-                doc_preview = res['document'][:60] if res['document'] else "N/A"
-                print(f"    {i}. {doc_preview}...")
-                print(f"       BM25 score: {res['bm25_score']}")
-        else:
-            print(f"  No results returned")
-
-        print()
-
-        # Test query 3: Multiple keywords
-        query3 = "12V 5V"
-        print(f"[Query 3] '{query3}' (multiple voltage keywords)")
-        results3 = retriever.retrieve(query3, k=3)
-
-        if results3:
-            print(f"  Returned {len(results3)} results:")
-            for i, res in enumerate(results3, 1):
-                doc_preview = res['document'][:60] if res['document'] else "N/A"
-                print(f"    {i}. {doc_preview}...")
-                print(f"       BM25 score: {res['bm25_score']}")
-        else:
-            print(f"  No results returned")
-
-        print()
-        print("OK: Test 1 completed\n")
-        return True
-
-    except Exception as e:
-        print(f"FAIL: Test 1 failed: {e}\n")
-        import traceback
-        traceback.print_exc()
-        return False
+    best = max(all_results, key=lambda res: res["bm25_score"])
+    assert best["document"] == hit_docs[0], (
+        f"BM25 打分没有把精确匹配的文档排到最高分，最高分给了：{best['document']!r}"
+    )
+    assert best["bm25_score"] == 1.0, "归一化后精确匹配的 BM25 分数应为 1.0"
 
 
 def test_tokenization():
-    """Test BM25 tokenization."""
-    print("=" * 60)
-    print("Test 2: BM25 Tokenization")
-    print("=" * 60)
-
-    test_texts = [
-        "SY8240 Silergy Buck 5V 3A",
-        "12V to 5V converter LDO chip",
-        "LDO low-dropout noise",
-        "Silergy SGMICRO domestic alternative",
-        "AEC-Q100 automotive grade",
+    """分词：小写化、按标点切分、中文保留成词。"""
+    assert HybridRetriever._tokenize("SY8240 Silergy Buck 5V 3A") == [
+        "sy8240", "silergy", "buck", "5v", "3a"
     ]
 
-    for text in test_texts:
-        tokens = HybridRetriever._tokenize(text)
-        print(f"Text: {text}")
-        print(f"Tokens: {tokens}")
-        print()
+    assert HybridRetriever._tokenize("12V to 5V converter LDO chip") == [
+        "12v", "to", "5v", "converter", "ldo", "chip"
+    ]
 
-    print("OK: Test 2 completed\n")
-    return True
+    # 连字符 / 点号是分隔符
+    assert HybridRetriever._tokenize("IC-123.456_ABC") == ["ic", "123", "456_abc"]
+    assert HybridRetriever._tokenize("AEC-Q100 automotive grade") == [
+        "aec", "q100", "automotive", "grade"
+    ]
+
+    # 中文按空格成词，不被拆散
+    assert HybridRetriever._tokenize("车规 降压 芯片") == ["车规", "降压", "芯片"]
+
+    # 空输入 / 纯标点 → 空 token 列表
+    for empty in ("", "   ", "!@#$%"):
+        assert HybridRetriever._tokenize(empty) == []
+
+    # 所有 token 都是小写且非空
+    tokens = HybridRetriever._tokenize("TPS54360 Texas Instruments buck")
+    assert tokens == [t.lower() for t in tokens]
+    assert all(tokens)
 
 
 def test_hybrid_weight():
-    """Test hybrid retrieval with different BM25 weights."""
-    print("=" * 60)
-    print("Test 3: Hybrid Weight Comparison")
-    print("=" * 60)
+    """不同 BM25 权重下都必须返回结构良好的 TOP-k。"""
+    documents = load_sample_documents()
+    query = "SY8240"
 
-    try:
-        documents = load_sample_documents()
-        print(f"OK: Loaded {len(documents)} documents\n")
-
-        query = "SY8240"
-        print(f"Query: '{query}'\n")
-
-        # Test different weights
-        weights = [0.0, 0.25, 0.5, 0.75, 1.0]
-        results_summary = []
-
-        for weight in weights:
-            retriever = HybridRetriever(
-                chroma_collection=MockCollection(documents),
-                documents=documents,
-                bm25_weight=weight,
-            )
-            results = retriever.retrieve(query, k=3)
-            results_summary.append({
-                "weight": weight,
-                "results": len(results),
-                "top_doc": results[0]['document'][:40] if results else "N/A"
-            })
-
-        print(f"{'BM25 Weight':<15} {'Results':<10} {'Top Match':<40}")
-        print("-" * 65)
-        for r in results_summary:
-            print(f"{r['weight']:<15.2f} {r['results']:<10} {r['top_doc']:<40}")
-
-        print()
-        print("OK: Test 3 completed\n")
-        return True
-
-    except Exception as e:
-        print(f"FAIL: Test 3 failed: {e}\n")
-        import traceback
-        traceback.print_exc()
-        return False
-
-
-def test_edge_cases():
-    """Test edge cases."""
-    print("=" * 60)
-    print("Test 4: Edge Cases")
-    print("=" * 60)
-
-    try:
-        documents = load_sample_documents()
+    summary = []
+    for weight in (0.0, 0.25, 0.5, 0.75, 1.0):
         retriever = HybridRetriever(
             chroma_collection=MockCollection(documents),
             documents=documents,
-            bm25_weight=0.5,
+            bm25_weight=weight,
         )
-        print(f"OK: Initialized retriever with {len(documents)} documents\n")
+        results = retriever.retrieve(query, k=3)
+        _assert_well_formed(results, 3, documents)
 
-        # Edge case 1: Empty query
-        print("[Case 1] Empty query")
-        try:
-            results = retriever.retrieve("", k=3)
-            print(f"  Returned {len(results)} results")
-        except Exception as e:
-            print(f"  Exception (expected): {type(e).__name__}")
-        print()
+        summary.append({
+            "weight": weight,
+            "results": len(results),
+            "top_doc": results[0]["document"][:40],
+        })
 
-        # Edge case 2: Query with special characters
-        print("[Case 2] Special characters in query")
-        results = retriever.retrieve("IC-123.456_ABC", k=3)
-        print(f"  Returned {len(results)} results")
-        print()
-
-        # Edge case 3: Very long query
-        print("[Case 3] Long query")
-        long_query = "12V to 5V 3A buck converter " * 5
-        results = retriever.retrieve(long_query, k=3)
-        print(f"  Returned {len(results)} results")
-        print()
-
-        # Edge case 4: k larger than document count
-        print("[Case 4] k > document count")
-        results = retriever.retrieve("buck", k=10000)
-        print(f"  Returned {len(results)} results (requested 10000)")
-        print()
-
-        print("OK: Test 4 completed\n")
-        return True
-
-    except Exception as e:
-        print(f"FAIL: Test 4 failed: {e}\n")
-        import traceback
-        traceback.print_exc()
-        return False
+    assert len(summary) == 5
+    assert all(row["results"] == 3 for row in summary)
 
 
-if __name__ == "__main__":
-    print("\n" + "=" * 60)
-    print("Hybrid Retrieval Test Suite")
-    print("=" * 60 + "\n")
+def test_edge_cases():
+    """边界输入不能把检索炸掉，也不能返回结构错乱的结果。"""
+    documents = load_sample_documents()
+    retriever = _make_retriever(bm25_weight=0.5)
 
-    results = []
-    results.append(("BM25 Basic", test_bm25_basic()))
-    results.append(("Tokenization", test_tokenization()))
-    results.append(("Hybrid Weight", test_hybrid_weight()))
-    results.append(("Edge Cases", test_edge_cases()))
+    # 1. 空查询
+    empty_results = retriever.retrieve("", k=3)
+    assert isinstance(empty_results, list)
+    assert len(empty_results) == 3
 
-    print("=" * 60)
-    print("Test Summary")
-    print("=" * 60)
+    # 2. 特殊字符
+    special_results = retriever.retrieve("IC-123.456_ABC", k=3)
+    _assert_well_formed(special_results, 3, documents)
 
-    for test_name, passed in results:
-        status = "PASS" if passed else "FAIL"
-        print(f"{test_name:<20} {status}")
+    # 3. 超长查询
+    long_query = "12V to 5V 3A buck converter " * 5
+    long_results = retriever.retrieve(long_query, k=3)
+    _assert_well_formed(long_results, 3, documents)
 
-    all_passed = all(p for _, p in results)
-    print("\n" + ("=" * 60))
-    if all_passed:
-        print("OK: All tests passed!")
-    else:
-        print("WARNING: Some tests failed, see logs above.")
-    print("=" * 60 + "\n")
+    # 4. k 大于语料规模 → 最多返回全部文档
+    overflow_results = retriever.retrieve("buck", k=10000)
+    assert len(overflow_results) == len(documents), (
+        f"k 超过语料规模时应返回全部 {len(documents)} 条，实际 {len(overflow_results)}"
+    )
+    _assert_well_formed(overflow_results, len(documents), documents)
 
-    sys.exit(0 if all_passed else 1)
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "已知缺陷：HybridRetriever.retrieve() 的 RRF 融合用的是文档枚举下标而不是 BM25 "
+        "排名，导致结果按文档原序返回、相关性不参与排序。见 app/hybrid_retrieval.py "
+        "的 `for rank_bm25, doc_idx in enumerate(valid_indices)`。"
+        "修好之后本用例会 XPASS（strict 模式下即失败），请把 xfail 去掉并转成正式断言。"
+    ),
+)
+def test_exact_mpn_query_ranks_that_part_first():
+    """精确 MPN 查询应当把该 MPN 的文档排到第一位。"""
+    retriever = _make_retriever(bm25_weight=1.0)
+
+    results = retriever.retrieve("SY8240", k=3)
+
+    assert results, "查询精确 MPN 竟然一条都没返回"
+    assert "SY8240" in results[0]["document"], (
+        f"精确 MPN 查询的第一条不是该器件，而是：{results[0]['document']!r}"
+    )
