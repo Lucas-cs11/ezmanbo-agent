@@ -39,7 +39,7 @@ def _write_env(tmp_path, value=OLD_URL, quote_char=""):
 def _run(tmp_path, monkeypatch, env_path, argv=(), verify=None, password=NEW_PW):
     monkeypatch.setattr(mod, "_prompt_password", lambda: password)
     monkeypatch.setattr(
-        mod, "_verify_connection", verify if verify is not None else (lambda url: None)
+        mod, "_verify_connection", verify if verify is not None else (lambda url, secret: None)
     )
     return mod.main(["--env", str(env_path), *argv])
 
@@ -144,7 +144,7 @@ def test_verify_failure_leaves_env_untouched(tmp_path, monkeypatch):
     env = _write_env(tmp_path)
     before = env.read_bytes()
 
-    def boom(url):
+    def boom(url, secret):
         raise SystemExit("❌ 用新凭据连接失败：模拟")
 
     with pytest.raises(SystemExit):
@@ -180,8 +180,28 @@ def test_verify_detects_wrong_user(tmp_path, monkeypatch):
 
     monkeypatch.setattr(sqlalchemy, "create_engine", lambda *a, **k: _Engine())
     with pytest.raises(SystemExit) as err:
-        mod._verify_connection(OLD_URL)
+        mod._verify_connection(OLD_URL, NEW_PW)
     assert "不一致" in str(err.value)
+
+
+def test_leaking_exception_is_scrubbed(monkeypatch):
+    """`create_engine` 的报错会把整条 URL 带出来（含口令），必须擦掉再打印。"""
+    url = mod._compose(NEW_PW, OLD_URL)
+
+    def explode(*a, **k):
+        from sqlalchemy.exc import ArgumentError
+
+        raise ArgumentError(f"Could not parse SQLAlchemy URL from string '{url}'")
+
+    monkeypatch.setattr(sqlalchemy, "create_engine", explode)
+    with pytest.raises(SystemExit) as err:
+        mod._verify_connection(url, NEW_PW)
+
+    message = str(err.value)
+    assert NEW_PW not in message, "原始口令不得出现在报错里"
+    assert quote(NEW_PW, safe="") not in message, "百分号编码后的口令同样不得出现"
+    assert "***" in message, "应当留下擦除痕迹，而不是把整行删掉"
+    assert "未改动" in message, "必须告诉使用者 .env 没被动过"
 
 
 def test_dry_run_touches_nothing(tmp_path, monkeypatch):

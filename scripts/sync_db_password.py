@@ -112,23 +112,37 @@ def _prompt_password() -> str:
     return pw
 
 
-def _verify_connection(url: str) -> None:
+def _scrub(text: str, secret: str) -> str:
+    """把可能夹在异常文本里的口令擦掉。
+
+    这是必需的：`create_engine` 的参数错误等信息**会把整条 URL 原样带出来**，
+    直接打印就等于把口令写进了终端和日志。
+    """
+    for variant in {secret, quote(secret, safe="")}:
+        if variant:
+            text = text.replace(variant, "***")
+    return text
+
+
+def _verify_connection(url: str, secret: str) -> None:
     """用新凭据真的连一次：既证明 URL 拼对了，也证明你改的正是这个用户。"""
     from sqlalchemy import create_engine, text
 
-    engine = create_engine(url)
+    engine = None
     try:
+        engine = create_engine(url)
         with engine.connect() as conn:
             who = conn.execute(text("SELECT current_user")).scalar()
     except SystemExit:
         raise
-    except Exception as exc:  # noqa: BLE001 - 原样报给使用者
+    except Exception as exc:  # noqa: BLE001 - 擦掉口令后报给使用者
         raise SystemExit(
-            f"❌ 用新凭据连接失败：{type(exc).__name__}: {exc}\n"
+            f"❌ 用新凭据连接失败：{_scrub(f'{type(exc).__name__}: {exc}', secret)}\n"
             "   .env **未改动**。请先确认库里那个用户的口令已经改成你刚输入的值。"
-        ) from exc
+        ) from None
     finally:
-        engine.dispose()
+        if engine is not None:
+            engine.dispose()
     want = unquote(urlsplit(url).username or "")
     if who != want:
         raise SystemExit(
@@ -192,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if not args.no_verify:
-        _verify_connection(new_url)
+        _verify_connection(new_url, new_password)
         print("  ✅ 新凭据实连成功")
 
     lines[idx] = f"{lhs}={quote_char}{new_url}{quote_char}{ending}"
