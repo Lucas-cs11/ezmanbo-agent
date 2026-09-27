@@ -121,6 +121,53 @@ def test_edits_the_line_dotenv_actually_uses(tmp_path, monkeypatch, capsys):
     assert "2 行" in capsys.readouterr().out, "重复这件事必须说出来，不能默默改一行了事"
 
 
+def test_export_prefixed_line_is_the_one_dotenv_uses(tmp_path, monkeypatch, capsys):
+    """`export DATABASE_URL=...` dotenv 是认的——脚本必须认同一行。
+
+    「哪一行绑定了这个键」必须由 dotenv 自己的语法决定；一旦脚本另立规则，
+    就会出现「改了一行、应用读另一行」的假成功（上一版正是栽在这里）。
+    """
+    stale = "postgresql://app_user:StalePw@db.example.com:5432/ezmanbo"
+    path = tmp_path / ".env"
+    path.write_text(f"{mod.KEY}={stale}\nexport {mod.KEY}={OLD_URL}\n")
+    os.chmod(path, 0o600)
+
+    assert _run(tmp_path, monkeypatch, path) == 0
+
+    lines = path.read_text().splitlines()
+    assert "StalePw" in lines[0], "前面那行不许被动"
+    assert lines[1].startswith(f"export {mod.KEY}="), "`export ` 前缀必须原样保留"
+    assert make_url(dotenv_values(path)[mod.KEY]).password == NEW_PW, (
+        "dotenv 实际读回来的必须就是新口令"
+    )
+    assert "2 行" in capsys.readouterr().out, "重复这件事必须说出来"
+
+
+def test_export_prefixed_line_alone_is_found(tmp_path, monkeypatch):
+    """只有一行 `export DATABASE_URL=...` 时也要认出来，而不是报「找不到」。"""
+    path = tmp_path / ".env"
+    path.write_text(f"export {mod.KEY}={OLD_URL}\n")
+    os.chmod(path, 0o600)
+    assert _run(tmp_path, monkeypatch, path) == 0
+    assert make_url(dotenv_values(path)[mod.KEY]).password == NEW_PW
+
+
+def test_quoted_and_commented_keys_are_not_touched(tmp_path, monkeypatch):
+    """这些写法 dotenv **不**绑定 `DATABASE_URL`，脚本也必须同样无视它们。"""
+    path = tmp_path / ".env"
+    path.write_text(
+        '#DATABASE_URL=postgresql://u:Commented@h:5432/d\n'
+        'EXPORT DATABASE_URL=postgresql://u:Upper@h:5432/d\n'
+        'database_url=postgresql://u:Lower@h:5432/d\n'
+        f'{mod.KEY}={OLD_URL}\n'
+    )
+    os.chmod(path, 0o600)
+    assert _run(tmp_path, monkeypatch, path) == 0
+    out = path.read_text()
+    assert "Commented" in out and "Upper" in out and "Lower" in out, "无关行不许被动"
+    assert make_url(dotenv_values(path)[mod.KEY]).password == NEW_PW
+
+
 @pytest.mark.parametrize("quote_char", ["", '"', "'"])
 def test_quote_style_is_preserved(tmp_path, monkeypatch, quote_char):
     env = _write_env(tmp_path, quote_char=quote_char)
@@ -289,8 +336,11 @@ def test_refuses_non_numeric_port(tmp_path, monkeypatch):
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root 无视目录权限，这条测不出来")
-def test_write_failure_is_reported_and_leaves_nothing_behind(tmp_path, monkeypatch):
-    """磁盘满/目录只读这类写失败：.env 必须原样，且不许留下临时文件或半截备份。"""
+def test_readonly_dir_is_refused_cleanly(tmp_path, monkeypatch):
+    """目录只读（连临时文件都建不出来）：.env 原样，不留任何残留。
+
+    注意这条覆盖的是「一开始就写不了」；「写到一半失败」由下面两条 rename 用例覆盖。
+    """
     env = _write_env(tmp_path)
     before = env.read_bytes()
     os.chmod(tmp_path, 0o500)
@@ -302,10 +352,71 @@ def test_write_failure_is_reported_and_leaves_nothing_behind(tmp_path, monkeypat
 
     assert "写" in str(err.value), "要说清是写盘失败"
     assert env.read_bytes() == before
-    leftovers = [p.name for p in tmp_path.iterdir() if p.name.startswith(".env.tmp.")]
-    assert not leftovers, f"留下了临时文件：{leftovers}"
-    backups = [p.name for p in tmp_path.iterdir() if p.name.startswith(".env.bak.")]
-    assert not backups, f"留下了做不到回滚的半截备份：{backups}"
+    assert not _leftovers(tmp_path), f"留下了残留：{_leftovers(tmp_path)}"
+
+
+def _leftovers(tmp_path):
+    return [p.name for p in tmp_path.iterdir() if p.name.startswith(".env.tmp.")]
+
+
+def _flaky_replace(monkeypatch, fail_on: int):
+    """让第 fail_on 次 `os.replace` 报 ENOSPC（模拟写满/换名失败）。"""
+    real = os.replace
+    state = {"n": 0}
+
+    def flaky(src, dst):
+        state["n"] += 1
+        if state["n"] == fail_on:
+            raise OSError(28, "No space left on device")
+        return real(src, dst)
+
+    monkeypatch.setattr(mod.os, "replace", flaky)
+
+
+def test_rename_failure_on_backup_leaves_env_intact(tmp_path, monkeypatch):
+    """备份那一步就换名失败：.env 原样，且不许留下临时文件。"""
+    env = _write_env(tmp_path)
+    before = env.read_bytes()
+    _flaky_replace(monkeypatch, fail_on=1)
+
+    with pytest.raises(SystemExit):
+        _run(tmp_path, monkeypatch, env)
+
+    assert env.read_bytes() == before
+    assert not _leftovers(tmp_path), f"留下了孤儿临时文件：{_leftovers(tmp_path)}"
+    assert not [p for p in tmp_path.iterdir() if p.name.startswith(".env.bak.")]
+
+
+def test_rename_failure_on_env_after_backup(tmp_path, monkeypatch):
+    """备份成功、替换 .env 时才换名失败：.env 原样、备份完好、无孤儿临时文件。"""
+    env = _write_env(tmp_path)
+    before = env.read_bytes()
+    _flaky_replace(monkeypatch, fail_on=2)
+
+    with pytest.raises(SystemExit) as err:
+        _run(tmp_path, monkeypatch, env)
+
+    assert "写" in str(err.value)
+    assert env.read_bytes() == before
+    assert not _leftovers(tmp_path), f"留下了孤儿临时文件：{_leftovers(tmp_path)}"
+    backups = [p for p in tmp_path.iterdir() if p.name.startswith(".env.bak.")]
+    assert len(backups) == 1 and backups[0].read_bytes() == before
+
+
+def test_stage_failure_leaves_no_leftovers(tmp_path, monkeypatch):
+    """内容写到一半就失败（copyfile 报 ENOSPC）：.env 原样，临时文件自己收掉。"""
+    env = _write_env(tmp_path)
+    before = env.read_bytes()
+
+    def boom(*a, **k):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(mod.shutil, "copyfile", boom)
+    with pytest.raises(SystemExit):
+        _run(tmp_path, monkeypatch, env)
+
+    assert env.read_bytes() == before
+    assert not _leftovers(tmp_path), f"留下了孤儿临时文件：{_leftovers(tmp_path)}"
 
 
 class _FrozenDatetime:

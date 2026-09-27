@@ -22,12 +22,15 @@
 一次**，连得上才替换 `.env`；替换是原子的（同目录临时文件 + `os.replace`），旧文件
 留备份（`.env.bak.<UTC 时间戳>`），文件权限保持不变。
 
-`.env` 里若出现**多行** `DATABASE_URL`，python-dotenv 是「后者胜」，所以本脚本改的是
-**最后一行**——也就是应用真正会读到的那行——并就把前面几行的行号报警给你。
+`.env` 里若出现**多行**绑定同一个键（包括 `export DATABASE_URL=...` 这种写法），
+python-dotenv 是「后者胜」，所以本脚本改的是**最后一行**——也就是应用真正会读到的那行
+——并就把前面几行的行号报警给你。「哪一行算绑定了这个键」一律由 dotenv 自己的解析器
+判定，不另立规则。
 """
 
 import argparse
 import getpass
+import io
 import os
 import shutil
 import stat
@@ -36,6 +39,8 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
+
+from dotenv.parser import parse_stream
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_ENV = REPO_ROOT / ".env"
@@ -51,12 +56,18 @@ def _split_value(raw: str) -> tuple[str, str]:
 
 
 def _key_lines(lines: list[str], key: str = KEY) -> list[int]:
-    """所有生效的 `key=` 行号（跳过注释行），按出现顺序。"""
+    """所有**真正绑定**该 key 的行号（跳过注释行），按出现顺序。
+
+    这里刻意用 python-dotenv **自己的解析器**逐行判断，而不是另写一套「`=` 左边等于 key」
+    的规则：两者一旦分歧，脚本就会改一行、应用读另一行——曾经的真实缺陷正是
+    `export DATABASE_URL=...`（dotenv 认，自制规则不认）。
+    """
     found = []
     for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#") and stripped.split("=", 1)[0].strip() == key:
-            found.append(i)
+        for binding in parse_stream(io.StringIO(line)):
+            if binding.error is False and binding.key == key:
+                found.append(i)
+                break
     return found
 
 
@@ -213,16 +224,26 @@ def _write_env(env_path: Path, lines: list[str]) -> Path:
             f.writelines(lines)
 
     made_backup = False
+    staged = None
     try:
-        os.replace(_stage(env_path.parent, mode, _copy), backup)
+        staged = _stage(env_path.parent, mode, _copy)
+        os.replace(staged, backup)
+        staged = None
         made_backup = True
-        os.replace(_stage(env_path.parent, mode, _write), env_path)
+
+        staged = _stage(env_path.parent, mode, _write)
+        os.replace(staged, env_path)
+        staged = None
     except OSError as exc:
         raise SystemExit(
             f"❌ 写 {env_path} 失败：{exc.strerror or exc}\n"
             "   .env 原样未动；"
             + (f"备份 {backup.name} 已留在原处。" if made_backup else "备份也没生成。")
         ) from None
+    finally:
+        # rename 失败时临时文件已经建好、没人接手，必须自己收掉
+        if staged is not None:
+            _unlink(staged)
     return backup
 
 
