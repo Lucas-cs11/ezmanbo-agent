@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Maximize2, Minimize2 } from "lucide-react";
 import DOMPurify from "dompurify";
+import { cn } from "@/lib/utils";
 
 interface Props {
   topology: string;
@@ -16,17 +17,28 @@ export function SchematicPanel({ topology, vin, vout, iout }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 对后端返回的 SVG 字符串进行 XSS 净化
+  // 对后端返回的 SVG 字符串进行 XSS 净化。
+  //
+  // `ADD_ATTR: ["dominant-baseline"]` 是实测加上的：schemdraw 用它把电压/位号标签贴在
+  // 导线上（每张图 5–7 处），而 DOMPurify 的 svg profile 默认会把它剥掉——图还在，标签
+  // 却会整体上浮/下沉着离开导线。加进来只放行这一个**表现属性**，
+  // `onload` / `<script>` / `javascript:` href / `foreignObject` 依旧全被剥除（已实测）。
   const sanitizedSvg = useMemo(() => {
     if (!svg) return null;
-    return DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } });
+    return DOMPurify.sanitize(svg, {
+      USE_PROFILES: { svg: true, svgFilters: true },
+      ADD_ATTR: ["dominant-baseline"],
+    });
   }, [svg]);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const url = `/api/schematic/${topology}?Vin=${vin}&Vout=${vout}&Iout=${iout}`;
+        // 后端这个端点的根级路径就是 `/schematic/{topology}`（app/main.py 的
+        // get_schematic），next.config.js 里登记的转发规则也是 `/schematic/:path*`。
+        // 多写一层 `/api` 会落到并不存在的 `/api/schematic` 上，拿到 404——此前就是这么坏的。
+        const url = `/schematic/${topology}?Vin=${vin}&Vout=${vout}&Iout=${iout}`;
         const resp = await fetch(url);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const text = await resp.text();
@@ -74,10 +86,14 @@ export function SchematicPanel({ topology, vin, vout, iout }: Props) {
           </div>
         )}
       </div>
+
+      {/* 商用产品必须说清这张图是什么：它是按报数参数生成的**示意**拓扑，不是网表、也没跑过仿真。
+          不标这一句，用户可能把它当成可以直接投产的设计依据，那是我们的责任。 */}
+      {sanitizedSvg && (
+        <p className="px-4 py-1.5 border-t border-gray-100 text-2xs text-gray-400">
+          示意图 · 非 EDA 网表 · 未经仿真，不作为设计依据
+        </p>
+      )}
     </div>
   );
-}
-
-function cn(...classes: (string | false | undefined | null)[]): string {
-  return classes.filter(Boolean).join(" ");
 }

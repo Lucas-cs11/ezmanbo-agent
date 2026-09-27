@@ -1,209 +1,148 @@
+"""B4 集成测试：语义缓存与 `agent_orchestrator` / `main.py` 的接线
+
+这个文件曾经也是「假绿」：两个 `test_*` 函数 `return True/False`，而 pytest 不检查
+返回值，所以无论成败都算通过。现在全部改成真实断言，并统一打 `@pytest.mark.integration`
+——它们要真正跑通选型流水线（真 eZ-PLM + LLM）。
+
+两处刻意的改动（都是**修正陈旧断言**，不是放宽）：
+
+1. 缓存实例改由 `isolated_semantic_cache` 提供。原先断言 `cache.count == 0`，
+   依赖「全局单例是空的」这个前提；而单例现在是会话级共享的，别的用例会污染它。
+   这里用 `monkeypatch` 把 orchestrator / main 取缓存的那条路径指向独占实例。
+2. `X-Cache` 的契约已经变了，旧断言与当前实现不符：
+   * `/analyze`（非流式）**固定返回 `MISS`** —— 源码注释写明「原始文本的语义命中
+     不算有效的选型报告缓存命中」，所以非流式路径每次都真跑流水线。
+   * `/analyze/stream` 返回 **`DEFERRED`** —— 权威的命中信息由流内的 `cache_hit`
+     事件给出，响应头只是占位。
+   继续断言 `HIT` 只会是错的。
+
+历史注意：这里曾经无条件 `shutil.rmtree("data/chroma_cache")`，而本目录同时是
+生产运行目录 —— 那一行删掉的是线上语义缓存。已彻底移除，且不会再写回。
+缓存目录现在由 tests/conftest.py 统一改道到临时目录。
 """
-B4 Integration Test: Verify semantic cache integration with agent_orchestrator and main.py
-"""
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+import pytest
 
-import json
-from app.semantic_cache import get_semantic_cache
-from app.agent_orchestrator import analyze
-from app.schemas import RequirementConstraints
+_CACHE_QUERY = "12V to 5V buck converter"
 
 
-def test_agent_orchestrator_cache():
-    """Test cache integration in agent_orchestrator"""
-    print("=" * 60)
-    print("B4 Integration Test: agent_orchestrator")
-    print("=" * 60)
+def _point_cache_at(monkeypatch, cache):
+    """让所有 `get_semantic_cache()` 的调用方拿到这个独占实例。
 
-    # Clear cache for testing
-    import shutil
-    if Path("data/chroma_cache").exists():
-        shutil.rmtree("data/chroma_cache")
-
-    cache = get_semantic_cache()
-    print(f"\n1. Initial cache state")
-    print(f"   Cache entries: {cache.count}")
-    assert cache.count == 0, "Cache should be empty"
-    print("   [OK] Cache is empty")
-
-    # Test analyze with simple requirement
-    query = "12V to 5V buck converter"
-    print(f"\n2. First call to analyze('{query}')")
-    print("   (This will execute full analysis and cache the result)")
-
-    try:
-        report1 = analyze(query)
-        print(f"   [OK] Analysis completed, report type: {type(report1).__name__}")
-        print(f"   Cache entries after first call: {cache.count}")
-        assert cache.count > 0, "Cache should have entries after analyze"
-
-        print(f"\n3. Second call with exact same query")
-        print("   (This should hit cache)")
-
-        # This should hit cache immediately
-        report2 = analyze(query)
-        print(f"   [OK] Second analysis completed")
-        print(f"   Cache entries: {cache.count}")
-
-        # Both reports should have same content
-        assert report1.dict() == report2.dict(), "Reports should be identical"
-        print("   [OK] Both reports are identical")
-
-        print(f"\n4. Verify cache hit behavior")
-        cache_result = cache.get(query)
-        assert cache_result is not None, "Cache should have the query"
-        assert cache_result["cache_hit"] is True, "Should be marked as cache hit"
-        print(f"   [OK] Cache hit verified")
-        print(f"   Similarity score: {cache_result['similarity']}")
-
-    except Exception as e:
-        print(f"   [FAIL] Error during analysis: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-    print("\n" + "=" * 60)
-    print("[PASS] agent_orchestrator cache integration working")
-    print("=" * 60)
-    return True
+    `agent_orchestrator.analyze` 与 `main.py` 都是在函数体内
+    `from .semantic_cache import get_semantic_cache`，即调用时才去模块上取属性，
+    所以替换模块属性即可生效。
+    """
+    monkeypatch.setattr(
+        "app.semantic_cache.get_semantic_cache", lambda: cache, raising=True
+    )
 
 
-def test_main_endpoints():
-    """Test X-Cache header in main.py endpoints"""
-    print("\n" + "=" * 60)
-    print("B4 Integration Test: main.py endpoints")
-    print("=" * 60)
-
-    try:
-        from fastapi.testclient import TestClient
-        from app.main import app
-
-        client = TestClient(app)
-
-        # Test /health endpoint
-        print("\n1. Testing /health endpoint")
-        response = client.get("/health")
-        assert response.status_code == 200, "Health check should succeed"
-        print("   [OK] Health check passed")
-
-        # Test /analyze endpoint with cache miss (new query)
-        print("\n2. Testing /analyze endpoint - first call (MISS)")
-        query1 = "Need a 24V to 12V converter"
-        response1 = client.post("/analyze", json={"user_input": query1})
-
-        print(f"   Status: {response1.status_code}")
-        assert response1.status_code == 200, "Request should succeed"
-
-        x_cache_header = response1.headers.get("X-Cache")
-        print(f"   X-Cache header: {x_cache_header}")
-        assert x_cache_header in ["HIT", "MISS"], "X-Cache should be HIT or MISS"
-        print("   [OK] X-Cache header present")
-
-        # Test /analyze endpoint with cache hit (same query)
-        print("\n3. Testing /analyze endpoint - second call (HIT)")
-        response2 = client.post("/analyze", json={"user_input": query1})
-
-        print(f"   Status: {response2.status_code}")
-        assert response2.status_code == 200, "Request should succeed"
-
-        x_cache_header2 = response2.headers.get("X-Cache")
-        print(f"   X-Cache header: {x_cache_header2}")
-        assert x_cache_header2 == "HIT", "Second call should be HIT"
-        print("   [OK] Cache hit detected via X-Cache header")
-
-        # Verify response content is the same
-        data1 = response1.json()
-        data2 = response2.json()
-        assert data1 == data2, "Responses should be identical"
-        print("   [OK] Response content identical for cached query")
-
-        # Test /analyze/stream endpoint (SSE)
-        print("\n4. Testing /analyze/stream endpoint")
-        query3 = "LDO 3.3V output 500mA"
-        response3 = client.post("/analyze/stream", json={"user_input": query3})
-
-        print(f"   Status: {response3.status_code}")
-        assert response3.status_code == 200, "Streaming request should succeed"
-
-        x_cache_stream = response3.headers.get("X-Cache")
-        print(f"   X-Cache header: {x_cache_stream}")
-        assert x_cache_stream in ["HIT", "MISS"], "X-Cache should be HIT or MISS"
-        print("   [OK] X-Cache header present on SSE endpoint")
-
-        # Parse SSE events
-        content = response3.text
-        print(f"   Received {len(content.split('event:'))} events")
-        assert "event:" in content, "Should have SSE events"
-
-        # Check for cache_hit event
-        if "cache_hit" in content:
-            print("   [OK] cache_hit event found in SSE stream")
-        else:
-            print("   [WARN] cache_hit event not found (might be cache miss)")
-
-        print("\n" + "=" * 60)
-        print("[PASS] main.py endpoint integration working")
-        print("=" * 60)
-        return True
-
-    except ImportError as e:
-        print(f"   [SKIP] TestClient not available: {e}")
-        print("   Skipping endpoint tests")
-        return True
-    except Exception as e:
-        print(f"   [FAIL] Error during endpoint test: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+# ── 1. agent_orchestrator 的缓存接线 ─────────────────────────────────────────
 
 
-def main():
-    print("\n" + "=" * 70)
-    print("B4 FULL INTEGRATION TEST")
-    print("=" * 70)
+@pytest.mark.integration
+def test_agent_orchestrator_cache(monkeypatch, isolated_semantic_cache):
+    """`analyze()` 必须把结果写进语义缓存，并在第二次调用时命中。"""
+    _point_cache_at(monkeypatch, isolated_semantic_cache)
 
-    results = []
+    from app.agent_orchestrator import analyze
 
-    # Test 1: agent_orchestrator integration
-    try:
-        result1 = test_agent_orchestrator_cache()
-        results.append(("agent_orchestrator", result1))
-    except Exception as e:
-        print(f"\n[ERROR] agent_orchestrator test failed: {e}")
-        results.append(("agent_orchestrator", False))
+    cache = isolated_semantic_cache
+    assert cache.count == 0, "独占缓存实例一开始必须是空的"
 
-    # Test 2: main.py endpoints integration
-    try:
-        result2 = test_main_endpoints()
-        results.append(("main.py endpoints", result2))
-    except Exception as e:
-        print(f"\n[ERROR] main.py test failed: {e}")
-        results.append(("main.py endpoints", False))
+    report1 = analyze(_CACHE_QUERY)
+    assert isinstance(report1, object)
+    assert cache.count > 0, "analyze() 跑完必须往缓存里写"
+    assert report1.constraints is not None
 
-    # Summary
-    print("\n" + "=" * 70)
-    print("TEST SUMMARY")
-    print("=" * 70)
+    # 第二次同样的 query 应当直接命中缓存
+    report2 = analyze(_CACHE_QUERY)
 
-    all_passed = True
-    for test_name, result in results:
-        status = "PASS" if result else "FAIL"
-        print(f"  {test_name}: [{status}]")
-        if not result:
-            all_passed = False
+    cache_entry = cache.get(_CACHE_QUERY)
+    assert cache_entry is not None, "缓存里应当有这条 query"
+    assert cache_entry["cache_hit"] is True
+    assert cache_entry["similarity"] >= 0.99, (
+        f"完全相同的 query 相似度应当接近 1，实际 {cache_entry['similarity']}"
+    )
 
-    print("=" * 70)
-
-    if all_passed:
-        print("\n*** ALL B4 INTEGRATION TESTS PASSED ***\n")
-        return 0
-    else:
-        print("\n*** SOME TESTS FAILED ***\n")
-        return 1
+    # 命中缓存返回的就是当初存进去的那份报告，request_id 应当一致
+    assert report2.request_id == report1.request_id, (
+        "第二次调用没有走缓存：两次 request_id 不同 "
+        f"({report1.request_id} != {report2.request_id})"
+    )
+    assert report2.model_dump() == report1.model_dump()
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+# ── 2. main.py 端点的接线 ───────────────────────────────────────────────────
+
+
+@pytest.mark.integration
+def test_main_endpoints(monkeypatch, member_client, isolated_semantic_cache):
+    """`/health`、`/analyze`、`/analyze/stream` 三个端点的接线与响应头契约。"""
+    _point_cache_at(monkeypatch, isolated_semantic_cache)
+
+    # ── /health ──
+    health = member_client.get("/health")
+    assert health.status_code == 200
+    assert health.json()["status"] == "ok"
+
+    # ── /analyze 首次调用（缓存未命中）──
+    query = "Need a 24V to 12V converter"
+    response1 = member_client.post("/analyze", json={"user_input": query})
+    assert response1.status_code == 200, response1.text[:400]
+
+    # 非流式路径固定 MISS：原始文本的语义命中不算有效的报告缓存命中。
+    assert response1.headers.get("X-Cache") == "MISS"
+
+    data1 = response1.json()
+    assert data1["user_input"] == query
+    assert isinstance(data1["request_id"], str) and data1["request_id"]
+    assert isinstance(data1["candidates"], list)
+    assert isinstance(data1["constraints"], dict)
+
+    # ── /analyze 再次调用 ──
+    response2 = member_client.post("/analyze", json={"user_input": query})
+    assert response2.status_code == 200, response2.text[:400]
+    assert response2.headers.get("X-Cache") == "MISS"
+
+    data2 = response2.json()
+
+    # 两次的流水线结论必须一致（request_id 每次新建，不参与比较）
+    assert data2["constraints"] == data1["constraints"], (
+        "同一个 query 两次解析出的约束不一致"
+    )
+    assert [c.get("part", {}).get("part_number") for c in data2["candidates"]] == [
+        c.get("part", {}).get("part_number") for c in data1["candidates"]
+    ], "同一个 query 两次检索出的候选器件不一致"
+
+    # ── /analyze/stream（SSE）──
+    stream = member_client.post("/analyze/stream", json={"user_input": "LDO 3.3V output 500mA"})
+    assert stream.status_code == 200
+    assert "text/event-stream" in stream.headers.get("content-type", "")
+    # 权威的命中信息在流内，响应头只是 DEFERRED 占位
+    assert stream.headers.get("X-Cache") == "DEFERRED"
+
+    body = stream.text
+    assert "event:" in body, "SSE 响应里没有任何事件"
+
+    event_names = {
+        line[len("event: "):].strip()
+        for line in body.splitlines()
+        if line.startswith("event: ")
+    }
+    assert "cache_hit" in event_names, (
+        f"SSE 流里缺少 cache_hit 事件，实际收到：{sorted(event_names)}"
+    )
+    assert "done" in event_names, (
+        f"SSE 流没有以 done 收尾，实际收到：{sorted(event_names)}"
+    )
+
+
+def test_main_endpoints_require_auth(client):
+    """`/analyze` 与 `/analyze/stream` 都受保护 —— 未鉴权必须 401。
+
+    鉴权校验发生在流水线之前，因此这是个隔离的、快的用例，留在默认集里。
+    """
+    assert client.post("/analyze", json={"user_input": "x"}).status_code == 401
+    assert client.post("/analyze/stream", json={"user_input": "x"}).status_code == 401

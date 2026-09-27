@@ -9,14 +9,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import json
+import tempfile
 from app.semantic_cache import SemanticCache
 
 
 def test_semantic_cache():
     """Test semantic cache basic functionality"""
 
-    # Create cache instance (using temp directory)
-    cache = SemanticCache(persist_dir="test_cache")
+    # 用临时目录，且同一用例内两个实例共用它（测持久化）。
+    # 曾经写的是相对路径 "test_cache"——既会污染仓库目录，又因为不清理而
+    # 让这个用例在非首次运行时必然失败（缓存里已有条目）。
+    cache_dir = tempfile.mkdtemp(prefix="b4-semantic-cache-")
+    cache = SemanticCache(persist_dir=cache_dir)
 
     print("=" * 60)
     print("B4 Semantic Cache Layer Test")
@@ -54,13 +58,22 @@ def test_semantic_cache():
     print("     Returned: %s" % cached['summary'])
 
     # Test 4: Similar semantic query
-    print("\n[Test 4] Semantically similar query - similarity > 0.95 should hit")
+    # 刻意**不**断言「一定命中/一定不命中」——那取决于嵌入模型的相似度分布，
+    # 换模型版本就会变，写死了只是个脆弱断言。但返回值的**契约**必须成立：
+    # 要么 None，要么是结构完整、自洽的命中结果。（原先这里两个分支都只有 print，
+    # 没有任何断言 —— 正是本模块要根除的假绿写法。）
+    print("\n[Test 4] Semantically similar query")
     query4 = "Need to step down 12 volts to 5 volts buck topology"
     result4 = cache.get(query4)
-    if result4 is not None:
-        print("[OK] Cache hit! Similarity: %.4f" % result4['similarity'])
+    if result4 is None:
+        print("[OK] Cache miss（相似度未过默认阈值，属正常范围）")
     else:
-        print("[OK] Cache miss (similarity < 0.95, this is normal)")
+        assert result4["cache_hit"] is True, "非 None 的结果必须是命中"
+        assert 0.0 <= result4["similarity"] <= 1.0, (
+            f"相似度必须落在 [0,1]，实际 {result4['similarity']}"
+        )
+        assert "cached_result" in result4, "命中结果必须带回原始缓存内容"
+        print("[OK] Cache hit, similarity: %.4f" % result4['similarity'])
 
     # Test 5: Completely different query no hit
     print("\n[Test 5] Completely different query - should not hit")
@@ -82,27 +95,37 @@ def test_semantic_cache():
     print("[OK] Added %d entries, total count: %d" % (len(test_queries), cache.count))
 
     # Test 7: Threshold test
+    # 同理不断言命中与否（阈值边界本身就是模型相关的），但**若返回了结果，
+    # 它的相似度必须真的过了阈值、且内容必须是当初存进去的那一份** ——
+    # 这是「阈值生效」与「不会串条目」两个真正的正确性属性。
     print("\n[Test 7] Similarity threshold test - use threshold=0.8")
     query7 = "12 to 5 step down"
     result7 = cache.get(query7, threshold=0.8)
-    if result7 is not None:
-        print("[OK] Hit with threshold=0.8, similarity: %.4f" % result7['similarity'])
-    else:
+    if result7 is None:
         print("[OK] Miss with threshold=0.8")
+    else:
+        assert result7["similarity"] >= 0.8, (
+            f"低于阈值的结果不该被返回：similarity={result7['similarity']} < 0.8"
+        )
+        assert result7["cached_result"] == test_result, (
+            "命中的内容不是 query1 当初存进去的那一份，缓存串了条目"
+        )
+        print("[OK] Hit with threshold=0.8, similarity: %.4f" % result7['similarity'])
 
     # Test 8: Cache persistence
     print("\n[Test 8] Cache persistence - create new instance")
-    cache2 = SemanticCache(persist_dir="test_cache")
+    cache2 = SemanticCache(persist_dir=cache_dir)
     result_persist = cache2.get(query1)
     assert result_persist is not None, "New instance should access same cache"
     assert result_persist["cache_hit"] is True
     print("[OK] Cache persists across instances, count: %d" % cache2.count)
 
     print("\n" + "=" * 60)
-    print("[PASS] All tests passed! B4 semantic cache working correctly")
+    print("[PASS] All assertions passed — B4 semantic cache working correctly")
     print("=" * 60)
-
-    return True
+    # 这里原先有一句 `return True`。pytest **不检查返回值**，所以它既不会让用例更严格，
+    # 也不会在失败时起作用——纯属假绿时代的残留写法，已删除。真正的判定全部由上面的
+    # assert 承担。
 
 
 if __name__ == "__main__":

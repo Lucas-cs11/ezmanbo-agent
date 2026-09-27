@@ -1,34 +1,78 @@
+# ---- Secrets / local config ----
 .env
 .env.*
 !.env.example
+
+# ---- macOS ----
 .DS_Store
+
+# ---- Python ----
 __pycache__/
 *.pyc
-.omc/
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# ---- IDE / tooling (local only) ----
 .idea/
+.claude/
+.omc/
+.sessions/
+.pids/
+*.pids
+
+# ---- Frontend build artifacts ----
+# 不带斜杠：`node_modules/`（带尾斜杠）只匹配**目录**，而 worktree 里常把
+# node_modules 做成指向主仓库的**软链**——git 把软链当文件看，于是那份软链在
+# `git status` 里是未跟踪状态，`git add -A` 会把它提交进仓库。
+node_modules
+frontend/web/node_modules
+.next/
+frontend/web/.next/
+# 部署时的暂存/回滚目录：同盘两次 mv 换 .next 时用，名字不是 `.next` 本身，
+# 所以上面带尾斜杠的两条（只匹配同名目录）盖不住它们——会以未跟踪形式露出上百 MB。
+.next.old-*
+.next.new-*
+frontend/web/.next.old-*
+frontend/web/.next.new-*
+out/
+dist/
+build/
+*.spec
+
+# ---- Runtime data (regenerable) ----
 data/chroma_db/
 data/chroma_cache/
 test_cache/
 docs/reports/
-latex-paper/*.pdf
+docs/eval_results/
+memory/
+docs/_private/
+
+# ---- Scripts output / archives ----
 scripts/archive/
 data/mock_parts.json.backup*
-
-# Runtime artifacts (scripts output)
 docs/datasheets/*.json
-
-# Build artifacts
-dist/
-build/
-*.spec
-node_modules/
-.sessions/
-.pids/
 *.log
 
-# Large binary assets (keep only in frontend/public)
+# ---- 本地人工备份（git 已提供历史，不再入库）----
+*.bak
+*.bak-*
+*.orig
+*.rej
+
+# ---- 本地运行时数据库 ----
+data/*.db
+data/*.db-journal
+
+# ---- Personal material (not part of the public repo) ----
+/Intruduction.tex
+
+# ---- Docs build artifacts ----
+latex-paper/*.pdf
+
+# ---- 大体积二进制素材（只保留 frontend/public 下的那份）----
 icon.png
 icon-svg.png
 icon-svg.svg
 talk_icon.jpeg
-*.pids

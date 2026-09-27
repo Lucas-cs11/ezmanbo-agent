@@ -1,0 +1,27 @@
+# 开发/测试依赖 —— 与生产 requirements.txt 分开
+#
+# 生产 requirements.txt 只装运行必需的包。测试工具链放这里，
+# 避免把 pytest 及其插件带上生产机（线上曾因此出现过依赖漂移）。
+#
+# 刻意**不写 `-r requirements.txt`**：本文件只负责补测试工具，
+# 运行依赖由生产 requirements.txt 单独管理。合在一起写会让一次
+# `pip install -r requirements-dev.txt` 顺带重装并补全全部运行依赖
+# （实测会拉进 streamlit 及其 pandas/pyarrow/pillow 等 25 个包），
+# 把「装个 pytest」变成一次有风险的大范围变更。
+#
+# 安装：
+#   ./venv/bin/pip install -r requirements-dev.txt
+# 首次还需保证运行依赖已就位：
+#   ./venv/bin/pip install -r requirements.txt
+#
+# 运行默认（快、隔离、无外呼）测试集：
+#   PYTHONPATH=. ./venv/bin/python -m pytest
+# 运行被默认排除的慢速/集成/压测：
+#   PYTHONPATH=. ./venv/bin/python -m pytest -m integration
+#   PYTHONPATH=. ./venv/bin/python -m pytest -m benchmark
+
+pytest>=7.4
+# pytest.ini 里的 timeout = 300 由它提供；缺失时该配置项只是警告，超时不会生效
+pytest-timeout>=2.2
+# tests/test_api_stability.py 里有 async fixture
+pytest-asyncio>=0.23

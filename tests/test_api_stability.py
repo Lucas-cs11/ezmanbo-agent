@@ -1,5 +1,4 @@
-"""
-FastAPI 接口稳定性测试套件
+"""FastAPI 接口稳定性测试套件
 
 测试范围：
 - /health 端点基础测试
@@ -7,66 +6,54 @@ FastAPI 接口稳定性测试套件
 - /replacement 端点并发测试
 - 性能基准测试
 - 错误处理和恢复测试
+
+分层约定（与 pytest.ini 的默认 selector 一致）：
+
+* **默认集（快、隔离、不外呼）**：只放「校验发生在流水线之前」的请求 —— 鉴权缺失
+  应 401、请求体非法应 422/400。这些不需要真实 eZ-PLM 数据与 LLM，可以放心当门禁。
+* ``@pytest.mark.integration``：需要**真正跑通选型流水线**的用例 —— 断言候选数量、
+  推荐器件、SSE 事件序列等。默认集里没有密钥，它们跑不了，也不该假装通过。
+* ``@pytest.mark.concurrent`` / ``@pytest.mark.benchmark``：并发与时延阈值类压测。
+  结果随机器负载浮动，必须排除在默认门禁之外。
+
+历史注意：本模块原先写死了 ``base_url="http://127.0.0.1:8000"``，而 8000 端口上跑的
+是**生产后端**。那段路径已删除，所有请求一律走 in-process 的 ``TestClient``。
 """
 
-import asyncio
-import json
 import time
-from typing import Dict, List, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List
 
 import pytest
-from fastapi.testclient import TestClient
-import httpx
-
-# 导入FastAPI应用
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from app.main import app
-
-# ============================================================================
-# 测试客户端和Fixtures
-# ============================================================================
-
-@pytest.fixture
-def client():
-    """同步测试客户端"""
-    return TestClient(app)
-
-@pytest.fixture
-async def async_client():
-    """异步测试客户端"""
-    async with httpx.AsyncClient(app=app, base_url="http://test") as ac:
-        yield ac
 
 # ============================================================================
 # 辅助函数
 # ============================================================================
 
-class APITester:
-    """API 测试辅助类"""
 
-    def __init__(self, base_url="http://127.0.0.1:8000"):
-        self.base_url = base_url
-        self.session = None
-        self.results = {
+class APITester:
+    """请求结果统计辅助类。
+
+    刻意不持有任何 base_url：所有请求都由调用方通过 ``TestClient`` 发出，
+    这个类只负责记账。避免任何一条路径意外指向真实服务。
+    """
+
+    def __init__(self):
+        self.results = self._empty_results()
+
+    @staticmethod
+    def _empty_results() -> Dict[str, Any]:
+        return {
             "total_requests": 0,
             "successful": 0,
             "failed": 0,
             "latencies": [],
-            "errors": []
+            "errors": [],
         }
 
     def reset_results(self):
         """重置统计结果"""
-        self.results = {
-            "total_requests": 0,
-            "successful": 0,
-            "failed": 0,
-            "latencies": [],
-            "errors": []
-        }
+        self.results = self._empty_results()
 
     def record_request(self, status_code: int, latency: float, error: str = None):
         """记录请求结果"""
@@ -107,6 +94,7 @@ class APITester:
         index = int(len(sorted_data) * percentile)
         return sorted_data[min(index, len(sorted_data) - 1)]
 
+
 # ============================================================================
 # 2.2 - /health 端点基础测试
 # ============================================================================
@@ -118,7 +106,12 @@ class TestHealthEndpoint:
         """基础健康检查"""
         response = client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+
+        data = response.json()
+        assert data["status"] == "ok"
+        # 进程启动时间戳（Unix 秒）
+        assert isinstance(data["started_at"], (int, float))
+        assert data["started_at"] > 0
 
     def test_health_response_time(self, client):
         """健康检查响应时间"""
@@ -142,9 +135,16 @@ class TestHealthEndpoint:
 
         data = response.json()
         assert isinstance(data, dict)
-        assert "status" in data
         assert data["status"] == "ok"
-        assert len(data) == 1  # 只有 status 字段
+
+        # 运行时信息：启动时刻 + 已运行秒数
+        assert "started_at" in data
+        assert isinstance(data["started_at"], (int, float))
+        assert data["started_at"] > 0
+
+        assert "uptime_s" in data
+        assert isinstance(data["uptime_s"], (int, float))
+        assert data["uptime_s"] >= 0
 
     def test_health_content_type(self, client):
         """健康检查内容类型验证"""
@@ -161,6 +161,7 @@ class TestHealthEndpoint:
         assert "content-type" in response.headers
         assert "application/json" in response.headers.get("content-type", "")
 
+    @pytest.mark.concurrent
     def test_health_concurrent_requests(self, client):
         """健康检查并发请求测试"""
         payloads = [{} for _ in range(50)]  # 50 个并发请求
@@ -173,6 +174,7 @@ class TestHealthEndpoint:
         assert stats["failed"] == 0
         print(f"\n并发请求统计：{stats}")
 
+    @pytest.mark.benchmark
     def test_health_performance_baseline(self, client):
         """健康检查性能基准测试"""
         stats = BenchmarkTestBase.run_benchmark(
@@ -196,6 +198,7 @@ class TestHealthEndpoint:
         print(f"  P99: {p99_latency:.2f}ms")
         print(f"  成功率: {stats['success_rate']:.1f}%")
 
+    @pytest.mark.benchmark
     def test_health_stability_over_time(self, client):
         """健康检查长期稳定性测试"""
         interval_results = []
@@ -221,7 +224,7 @@ class TestHealthEndpoint:
         min_latency = min(interval_results)
         variance = (max_latency - min_latency) / min_latency * 100
 
-        # 注意：延迟波动在 100% 以内是合理的（考虑系统干扰）
+        # 注意：延迟波动在 200% 以内是合理的（考虑系统干扰）
         assert variance < 200, f"延迟波动过大：{variance:.1f}%"
         print(f"  延迟波动：{variance:.1f}%（可接受）")
 
@@ -245,12 +248,17 @@ class TestHealthEndpoint:
 # ============================================================================
 
 class TestAnalyzeEndpoint:
-    """测试 /analyze 端点"""
+    """测试 /analyze 端点
 
-    def test_analyze_basic(self, client):
+    `/analyze` 需要鉴权。默认集里只保留「请求体校验」这一类用例；凡是要跑通
+    选型流水线才有意义的（候选数量、推荐器件、时延基准）一律标 integration。
+    """
+
+    @pytest.mark.integration
+    def test_analyze_basic(self, member_client):
         """基础分析请求"""
         payload = {"user_input": "Buck 12V转5V"}
-        response = client.post("/analyze", json=payload)
+        response = member_client.post("/analyze", json=payload)
 
         assert response.status_code == 200
         data = response.json()
@@ -258,19 +266,21 @@ class TestAnalyzeEndpoint:
         assert "candidates" in data
         assert len(data["candidates"]) > 0
 
-    def test_analyze_chinese_input(self, client):
+    @pytest.mark.integration
+    def test_analyze_chinese_input(self, member_client):
         """中文输入支持"""
         payload = {"user_input": "车规 buck"}
-        response = client.post("/analyze", json=payload)
+        response = member_client.post("/analyze", json=payload)
 
         assert response.status_code == 200
         data = response.json()
         assert data["user_input"] == "车规 buck"
 
-    def test_analyze_response_structure(self, client):
+    @pytest.mark.integration
+    def test_analyze_response_structure(self, member_client):
         """响应结构完整性"""
         payload = {"user_input": "test"}
-        response = client.post("/analyze", json=payload)
+        response = member_client.post("/analyze", json=payload)
 
         assert response.status_code == 200
         data = response.json()
@@ -279,14 +289,16 @@ class TestAnalyzeEndpoint:
         for field in required_fields:
             assert field in data, f"缺失字段：{field}"
 
-    def test_analyze_missing_input(self, client):
-        """缺失输入参数"""
+    def test_analyze_missing_input(self, member_client):
+        """缺失输入参数 —— 请求体校验在流水线之前，属于隔离用例。"""
         payload = {}
-        response = client.post("/analyze", json=payload)
+        response = member_client.post("/analyze", json=payload)
 
         assert response.status_code in [400, 422]
 
-    def test_analyze_concurrent_requests(self, client):
+    @pytest.mark.concurrent
+    @pytest.mark.integration
+    def test_analyze_concurrent_requests(self, member_client):
         """分析请求并发测试"""
         payloads = [
             {"user_input": "Buck 12V转5V"},
@@ -298,7 +310,7 @@ class TestAnalyzeEndpoint:
         payloads_extended = payloads * 13  # 4 * 13 = 52
 
         stats = ConcurrencyTestBase.run_concurrent_requests(
-            client, "/analyze", payloads_extended[:50], num_workers=10
+            member_client, "/analyze", payloads_extended[:50], num_workers=10
         )
 
         assert stats["success_rate"] == 100.0, f"成功率不是 100%：{stats['success_rate']:.1f}%"
@@ -306,11 +318,13 @@ class TestAnalyzeEndpoint:
         assert stats["failed"] == 0
         print(f"\n/analyze 并发请求统计：{stats}")
 
-    def test_analyze_performance_baseline(self, client):
+    @pytest.mark.benchmark
+    @pytest.mark.integration
+    def test_analyze_performance_baseline(self, member_client):
         """分析请求性能基准测试"""
         payload = {"user_input": "Buck 12V转5V"}
         stats = BenchmarkTestBase.run_benchmark(
-            client, "/analyze", payload, num_requests=100
+            member_client, "/analyze", payload, num_requests=100
         )
 
         avg_latency = stats["avg_latency_ms"]
@@ -330,7 +344,9 @@ class TestAnalyzeEndpoint:
         print(f"  P99: {p99_latency:.2f}ms")
         print(f"  成功率: {stats['success_rate']:.1f}%")
 
-    def test_analyze_stability_over_time(self, client):
+    @pytest.mark.benchmark
+    @pytest.mark.integration
+    def test_analyze_stability_over_time(self, member_client):
         """分析请求长期稳定性测试"""
         payload = {"user_input": "Buck 12V转5V"}
         interval_results = []
@@ -341,7 +357,7 @@ class TestAnalyzeEndpoint:
             interval_stats = []
             for _ in range(requests_per_interval):
                 start = time.time()
-                response = client.post("/analyze", json=payload)
+                response = member_client.post("/analyze", json=payload)
                 latency = time.time() - start
 
                 assert response.status_code == 200
@@ -361,14 +377,15 @@ class TestAnalyzeEndpoint:
         print(f"  延迟波动：{variance:.1f}%（可接受）")
 
     @pytest.mark.concurrent
-    def test_analyze_high_concurrency(self, client):
+    @pytest.mark.integration
+    def test_analyze_high_concurrency(self, member_client):
         """分析请求高并发测试"""
         payloads = [
             {"user_input": f"Buck converter variant {i}"}
             for i in range(500)
         ]
         stats = ConcurrencyTestBase.run_concurrent_requests(
-            client, "/analyze", payloads, num_workers=50
+            member_client, "/analyze", payloads, num_workers=50
         )
 
         assert stats["success_rate"] == 100.0
@@ -383,35 +400,42 @@ class TestAnalyzeEndpoint:
 # ============================================================================
 
 class TestReplacementEndpoint:
-    """测试 /replacement 端点"""
+    """测试 /replacement 端点（同样需要鉴权，分层规则见 TestAnalyzeEndpoint）。"""
 
-    def test_replacement_basic(self, client):
+    @pytest.mark.integration
+    def test_replacement_basic(self, member_client):
         """基础替代品查询"""
         payload = {"original_part_number": "MOCK-BUCK-001"}
-        response = client.post("/replacement", json=payload)
+        response = member_client.post("/replacement", json=payload)
 
         assert response.status_code == 200
         data = response.json()
-        assert "original_part_number" in data
+        # 响应里原器件是嵌套的 original_part 对象（不是扁平的 original_part_number）。
+        # 旧断言查的是 "original_part_number"，那个键在当前契约里根本不存在，
+        # 即便接上真实 eZ-PLM 数据也不可能通过 —— 属于陈旧的字段名，已修正。
+        assert data["original_part"]["part_number"] == "MOCK-BUCK-001"
         assert "replacement_candidates" in data
 
-    def test_replacement_response_structure(self, client):
+    @pytest.mark.integration
+    def test_replacement_response_structure(self, member_client):
         """响应结构完整性"""
         payload = {"original_part_number": "MOCK-BUCK-001"}
-        response = client.post("/replacement", json=payload)
+        response = member_client.post("/replacement", json=payload)
 
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data["replacement_candidates"], list)
 
-    def test_replacement_missing_param(self, client):
-        """缺失参数处理"""
+    def test_replacement_missing_param(self, member_client):
+        """缺失参数处理 —— 请求体校验在流水线之前，属于隔离用例。"""
         payload = {}
-        response = client.post("/replacement", json=payload)
+        response = member_client.post("/replacement", json=payload)
 
         assert response.status_code in [400, 422]
 
-    def test_replacement_concurrent_requests(self, client):
+    @pytest.mark.concurrent
+    @pytest.mark.integration
+    def test_replacement_concurrent_requests(self, member_client):
         """替代品查询并发测试"""
         part_numbers = [
             "MOCK-BUCK-001",
@@ -426,7 +450,7 @@ class TestReplacementEndpoint:
         ]
 
         stats = ConcurrencyTestBase.run_concurrent_requests(
-            client, "/replacement", payloads, num_workers=10
+            member_client, "/replacement", payloads, num_workers=10
         )
 
         assert stats["success_rate"] == 100.0, f"成功率不是 100%：{stats['success_rate']:.1f}%"
@@ -434,11 +458,13 @@ class TestReplacementEndpoint:
         assert stats["failed"] == 0
         print(f"\n/replacement 并发请求统计：{stats}")
 
-    def test_replacement_performance_baseline(self, client):
+    @pytest.mark.benchmark
+    @pytest.mark.integration
+    def test_replacement_performance_baseline(self, member_client):
         """替代品查询性能基准测试"""
         payload = {"original_part_number": "MOCK-BUCK-001"}
         stats = BenchmarkTestBase.run_benchmark(
-            client, "/replacement", payload, num_requests=100
+            member_client, "/replacement", payload, num_requests=100
         )
 
         avg_latency = stats["avg_latency_ms"]
@@ -458,7 +484,9 @@ class TestReplacementEndpoint:
         print(f"  P99: {p99_latency:.2f}ms")
         print(f"  成功率: {stats['success_rate']:.1f}%")
 
-    def test_replacement_stability_over_time(self, client):
+    @pytest.mark.benchmark
+    @pytest.mark.integration
+    def test_replacement_stability_over_time(self, member_client):
         """替代品查询长期稳定性测试"""
         payload = {"original_part_number": "MOCK-BUCK-001"}
         interval_results = []
@@ -469,7 +497,7 @@ class TestReplacementEndpoint:
             interval_stats = []
             for _ in range(requests_per_interval):
                 start = time.time()
-                response = client.post("/replacement", json=payload)
+                response = member_client.post("/replacement", json=payload)
                 latency = time.time() - start
 
                 assert response.status_code == 200
@@ -489,14 +517,15 @@ class TestReplacementEndpoint:
         print(f"  延迟波动：{variance:.1f}%（可接受）")
 
     @pytest.mark.concurrent
-    def test_replacement_high_concurrency(self, client):
+    @pytest.mark.integration
+    def test_replacement_high_concurrency(self, member_client):
         """替代品查询高并发测试"""
         payloads = [
             {"original_part_number": f"MOCK-PART-{i:03d}"}
             for i in range(500)
         ]
         stats = ConcurrencyTestBase.run_concurrent_requests(
-            client, "/replacement", payloads, num_workers=50
+            member_client, "/replacement", payloads, num_workers=50
         )
 
         assert stats["success_rate"] == 100.0
@@ -582,7 +611,8 @@ class TestPerformanceBenchmark:
     """综合性能基准测试"""
 
     @pytest.mark.benchmark
-    def test_all_endpoints_performance_comparison(self, client):
+    @pytest.mark.integration
+    def test_all_endpoints_performance_comparison(self, member_client):
         """所有端点性能对比测试"""
         endpoints_config = [
             {
@@ -628,7 +658,7 @@ class TestPerformanceBenchmark:
             thresholds = config["thresholds"]
 
             stats = BenchmarkTestBase.run_benchmark(
-                client, endpoint, payload, num_requests=100
+                member_client, endpoint, payload, num_requests=100
             )
 
             avg_latency = stats["avg_latency_ms"]
@@ -664,7 +694,6 @@ class TestPerformanceBenchmark:
         print("="*80)
 
         # 找出性能最优和最差的端点
-        endpoints = list(results_summary.keys())
         best_avg = min(results_summary.values(), key=lambda x: x["avg"])
         worst_avg = max(results_summary.values(), key=lambda x: x["avg"])
         best_endpoint = [k for k, v in results_summary.items() if v == best_avg][0]
@@ -675,7 +704,8 @@ class TestPerformanceBenchmark:
         print(f"性能差异倍数: {worst_avg['avg'] / best_avg['avg']:.1f}x")
 
     @pytest.mark.benchmark
-    def test_endpoint_load_distribution(self, client):
+    @pytest.mark.integration
+    def test_endpoint_load_distribution(self, member_client):
         """端点负载分布测试"""
         endpoint_configs = [
             ("/health", {}),
@@ -691,7 +721,7 @@ class TestPerformanceBenchmark:
             for num_concurrent in concurrent_levels:
                 payloads = [payload.copy() for _ in range(num_concurrent)]
                 stats = ConcurrencyTestBase.run_concurrent_requests(
-                    client, endpoint, payloads, num_workers=10
+                    member_client, endpoint, payloads, num_workers=10
                 )
 
                 avg_latency = stats["avg_latency_ms"]
@@ -707,32 +737,39 @@ class TestPerformanceBenchmark:
 # ============================================================================
 
 class TestErrorHandling:
-    """错误处理和恢复测试"""
+    """错误处理和恢复测试
 
-    def test_analyze_invalid_input_type(self, client):
+    分两类：**请求体非法**（校验先于流水线，默认集）与**跑通流水线才算数**
+    （integration）。后者原先混在默认集里，会让「没有密钥」的 CI 环境假红/假绿。
+    """
+
+    def test_analyze_invalid_input_type(self, member_client):
         """分析端点 - 无效输入类型"""
         # 发送数字而不是字符串
-        response = client.post("/analyze", json={"user_input": 12345})
-        # 应该能处理或返回错误
-        assert response.status_code in [200, 400, 422]
+        response = member_client.post("/analyze", json={"user_input": 12345})
+        # 请求体校验先于流水线，必须被挡下
+        assert response.status_code in [400, 422]
 
-    def test_analyze_empty_input(self, client):
+    @pytest.mark.integration
+    def test_analyze_empty_input(self, member_client):
         """分析端点 - 空字符串输入"""
         payload = {"user_input": ""}
-        response = client.post("/analyze", json=payload)
-        # 应该成功处理空字符串或返回合适的错误
+        response = member_client.post("/analyze", json=payload)
+        # 空字符串是合法 body，会真正走完流水线
         assert response.status_code in [200, 400]
 
-    def test_analyze_very_long_input(self, client):
+    @pytest.mark.integration
+    def test_analyze_very_long_input(self, member_client):
         """分析端点 - 超长输入"""
         # 创建长字符串 (10000 字符)
         long_input = "A" * 10000
         payload = {"user_input": long_input}
-        response = client.post("/analyze", json=payload)
+        response = member_client.post("/analyze", json=payload)
         # 应该能处理或返回错误
         assert response.status_code in [200, 400, 422, 413]
 
-    def test_analyze_special_characters(self, client):
+    @pytest.mark.integration
+    def test_analyze_special_characters(self, member_client):
         """分析端点 - 特殊字符"""
         special_inputs = [
             "!@#$%^&*()",
@@ -742,11 +779,12 @@ class TestErrorHandling:
         ]
         for special_input in special_inputs:
             payload = {"user_input": special_input}
-            response = client.post("/analyze", json=payload)
+            response = member_client.post("/analyze", json=payload)
             # 应该安全处理所有特殊字符
             assert response.status_code in [200, 400, 422]
 
-    def test_replacement_invalid_part_number(self, client):
+    @pytest.mark.integration
+    def test_replacement_invalid_part_number(self, member_client):
         """替代品端点 - 无效零件号"""
         invalid_parts = [
             "",
@@ -755,14 +793,14 @@ class TestErrorHandling:
         ]
         for part_number in invalid_parts:
             payload = {"original_part_number": part_number}
-            response = client.post("/replacement", json=payload)
+            response = member_client.post("/replacement", json=payload)
             # 应该返回 200（处理请求）或 400（无效输入）
             assert response.status_code in [200, 400, 422]
 
-    def test_malformed_json(self, client):
+    def test_malformed_json(self, member_client):
         """测试格式错误的 JSON"""
         # 直接发送格式错误的 JSON（通过 raw content）
-        response = client.post(
+        response = member_client.post(
             "/analyze",
             content=b'{invalid json}',
             headers={"Content-Type": "application/json"}
@@ -770,48 +808,51 @@ class TestErrorHandling:
         # 应该返回 4xx 错误
         assert response.status_code >= 400
 
-    def test_missing_content_type(self, client):
+    @pytest.mark.integration
+    def test_missing_content_type(self, member_client):
         """测试缺少 Content-Type header"""
-        response = client.post("/analyze", json={"user_input": "test"})
+        response = member_client.post("/analyze", json={"user_input": "test"})
         # TestClient 会自动设置正确的 Content-Type，但验证功能性
         assert response.status_code == 200
 
-    def test_error_response_structure(self, client):
+    def test_error_response_structure(self, member_client):
         """验证错误响应结构"""
         # 发送缺少必需字段的请求
         payload = {}
-        response = client.post("/analyze", json=payload)
+        response = member_client.post("/analyze", json=payload)
 
         # 验证错误响应包含必要字段
         assert response.status_code == 422
         data = response.json()
         assert "detail" in data or "error" in data or "errors" in data
 
-    def test_replacement_error_response_structure(self, client):
+    def test_replacement_error_response_structure(self, member_client):
         """验证替代品端点错误响应结构"""
         payload = {}
-        response = client.post("/replacement", json=payload)
+        response = member_client.post("/replacement", json=payload)
 
         assert response.status_code == 422
         data = response.json()
         assert "detail" in data or "error" in data or "errors" in data
 
-    def test_recovery_after_error(self, client):
+    @pytest.mark.integration
+    def test_recovery_after_error(self, member_client):
         """错误恢复测试 - 验证错误后的恢复能力"""
         # 1. 发送有效请求
-        valid_response = client.post("/analyze", json={"user_input": "test"})
+        valid_response = member_client.post("/analyze", json={"user_input": "test"})
         assert valid_response.status_code == 200
 
         # 2. 发送无效请求
-        invalid_response = client.post("/analyze", json={})
+        invalid_response = member_client.post("/analyze", json={})
         assert invalid_response.status_code == 422
 
         # 3. 再次发送有效请求 - 应该恢复
-        recovery_response = client.post("/analyze", json={"user_input": "recovery test"})
+        recovery_response = member_client.post("/analyze", json={"user_input": "recovery test"})
         assert recovery_response.status_code == 200
         assert "request_id" in recovery_response.json()
 
-    def test_concurrent_error_recovery(self, client):
+    @pytest.mark.integration
+    def test_concurrent_error_recovery(self, member_client):
         """并发错误恢复测试"""
         mixed_payloads = [
             {"user_input": "valid1"},           # 有效
@@ -823,7 +864,7 @@ class TestErrorHandling:
 
         # 运行混合有效和无效的并发请求
         stats = ConcurrencyTestBase.run_concurrent_requests(
-            client, "/analyze", mixed_payloads, num_workers=2
+            member_client, "/analyze", mixed_payloads, num_workers=2
         )
 
         # 验证系统仍能处理有效请求
@@ -838,10 +879,16 @@ class TestErrorHandling:
         for _ in range(10):
             response = client.get("/health")
             assert response.status_code == 200
-            assert response.json() == {"status": "ok"}
+
+            data = response.json()
+            assert data["status"] == "ok"
+            assert isinstance(data["started_at"], (int, float))
+            assert isinstance(data["uptime_s"], (int, float))
+            assert data["uptime_s"] >= 0
 
     @pytest.mark.concurrent
-    def test_error_under_load(self, client):
+    @pytest.mark.integration
+    def test_error_under_load(self, member_client):
         """高并发下的错误处理"""
         # 混合有效和无效请求的高并发测试
         payloads = []
@@ -852,7 +899,7 @@ class TestErrorHandling:
                 payloads.append({"user_input": f"test_{i}"})  # 有效
 
         stats = ConcurrencyTestBase.run_concurrent_requests(
-            client, "/analyze", payloads, num_workers=20
+            member_client, "/analyze", payloads, num_workers=20
         )
 
         # 验证在高并发负载下，系统能正确处理所有请求
@@ -862,34 +909,8 @@ class TestErrorHandling:
         # 失败请求数应约为 34（每三个中有一个无效）
         assert stats["failed"] <= 35
 
-    def test_response_content_type_on_error(self, client):
+    def test_response_content_type_on_error(self, member_client):
         """验证错误响应的 Content-Type"""
-        response = client.post("/analyze", json={})
+        response = member_client.post("/analyze", json={})
         assert response.status_code == 422
         assert "application/json" in response.headers.get("content-type", "")
-
-# ============================================================================
-# 测试配置和钩子
-# ============================================================================
-
-@pytest.fixture(scope="session")
-def test_config():
-    """测试配置"""
-    return {
-        "base_url": "http://127.0.0.1:8000",
-        "timeout": 30,
-        "concurrent_workers": 10,
-        "benchmark_requests": 100,
-    }
-
-def pytest_configure(config):
-    """Pytest 配置钩子"""
-    config.addinivalue_line(
-        "markers", "slow: 标记为慢速测试"
-    )
-    config.addinivalue_line(
-        "markers", "concurrent: 标记为并发测试"
-    )
-    config.addinivalue_line(
-        "markers", "benchmark: 标记为性能基准测试"
-    )

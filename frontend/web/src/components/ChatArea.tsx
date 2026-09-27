@@ -5,7 +5,8 @@ import { useChatStore, generateId } from "@/store/chat";
 import { MessageBubble } from "@/components/MessageBubble";
 import { PdfReportViewer } from "@/components/PdfReportViewer";
 import { ParameterForm } from "@/components/ParameterForm";
-import { Send, Loader2, Slash, PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose, Zap } from "lucide-react";
+import { SchematicPanel } from "@/components/SchematicPanel";
+import { Send, Loader2, Slash, PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose, Zap, CircuitBoard } from "lucide-react";
 import { estimateConversationTokens, COMPACT_THRESHOLD } from "@/lib/tokenBudget";
 import { buildSelectionContext, cn } from "@/lib/utils";
 import { getApiHeaders, getAuthBearer } from "@/lib/api";
@@ -31,18 +32,7 @@ const SLASH_COMMANDS: Record<string, { desc: string; action: (ctx: CmdCtx) => vo
   },
   export: {
     desc: "下载 BOM Excel",
-    action: () => {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
-      fetch(`${API_BASE}/export/bom`, { method: "POST", headers: getAuthBearer() })
-        .then(r => r.blob())
-        .then(blob => {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url; a.download = "BOM.xlsx"; a.click();
-          URL.revokeObjectURL(url);
-        })
-        .catch(() => {});
-    },
+    action: ({ exportBom }) => exportBom(),
   },
   risk: {
     desc: "查看风险评估报告",
@@ -70,7 +60,25 @@ type CmdCtx = {
   toggleSchematic: () => void;
   exportChat: () => void;
   replacePart: () => void;
+  exportBom: () => void;
 };
+
+/* 报告里的约束够不够画一张电路图：拓扑得是后端认的那三种，三个参数都得是**正**的有限数。
+   缺一项就整块不渲染——参数不全的图比没有图更糟（会画出一张错的拓扑）。
+   两个边界都是实测的：`Vin=0` 后端会 500（参数化绘图里除了零），而 `Vin=-5` 返回 200。
+   所以「必须为正」比「不触发 500」更严：负的电压/电流能画出图，但那图没有意义。
+   与其摆一张「加载失败」或一张没意义的图，不如不摆。 */
+const isPositive = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v) && v > 0;
+
+export function schematicArgs(report?: AnalysisReport) {
+  const c = report?.constraints;
+  if (!c) return null;
+  const { topology, input_voltage_nominal_v: vin, output_voltage_v: vout, output_current_a: iout } = c;
+  if (topology !== "buck" && topology !== "boost" && topology !== "ldo") return null;
+  if (!isPositive(vin) || !isPositive(vout) || !isPositive(iout)) return null;
+  return { topology, vin, vout, iout };
+}
 
 /* ── 阶段映射（含百分比估算）────────────────────── */
 const STAGE_INFO: Record<string, { label: string; pct: number }> = {
@@ -100,9 +108,16 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight, onT
   const [progress, setProgress] = useState({ current: 0, total: 0, pct: 0 });
   const [showCmdMenu, setShowCmdMenu] = useState(false);
   const [compactResult, setCompactResult] = useState<string | null>(null);
-  const [activeReport, setActiveReport] = useState<"bom" | "risk" | null>(null);
+  // 报告卡片对应的**是哪个会话的**报告，与类型存在一起。原先只存类型、另用一个 effect
+  // 在切会话时清空——那样有个空窗：切过去的当帧 `session.id` 已经变了、清空还没跑，
+  // 卡片会拿新会话的 id 白要一次报告，并且闪一下。把会话 id 跟类型绑在一个 state 里，
+  // 渲染条件自己就能判「这份报告不属于当前会话」，不需要 effect。
+  const [activeReport, setActiveReport] = useState<{ type: "bom" | "risk"; sessionId: string } | null>(null);
   const [currentIntent, setCurrentIntent] = useState<"selection" | "chat" | "adjustment" | "clarify" | null>(null);
   const [showThinking, setShowThinking] = useState(false);
+  // 默认展开：这一块的意义就是让人**看见**那张图，藏在一个要点的箭头上等于没接通。
+  // SVG 只有 5–6.6 KB，且每个会话最多拉到最新那份报告的那一张。
+  const [schematicOpen, setSchematicOpen] = useState(true);
   const [accumulatedInput, setAccumulatedInput] = useState("");  // 跨轮累积的约束文本
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -190,8 +205,54 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight, onT
           updateMessage(aid, { content: "压缩失败" });
         }
       },
-      showReport: (t) => setActiveReport(t),
-      toggleSchematic: () => setActiveReport(null),
+      // 没有活动会话时不置状态：下面挂卡片的地方本来就在 `session?.messages` 里，
+      // 存一个没有归属的报告只会留下一个永远不会被渲染、却也不会被清掉的状态。
+      showReport: (t) => { if (session) setActiveReport({ type: t, sessionId: session.id }); },
+      // `/schematic` 对应报告下方那张电路图卡片。以前这里是 `setActiveReport(null)`——
+      // 一个只会把右侧面板关掉、什么也不显示的空动作。没有可画的东西时，明说原因。
+      toggleSchematic: () => {
+        const card = document.getElementById("schematic-card");
+        if (!card) {
+          addMessage({
+            id: generateId(),
+            role: "assistant",
+            content:
+              "> 还没有可画的电路图。需要先得到一份选型报告，且约束里有可识别的拓扑（buck / boost / ldo）与输入电压、输出电压、输出电流。",
+            timestamp: Date.now(),
+          });
+          return;
+        }
+        setSchematicOpen((v) => !v);
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+      },
+      // 必须带上 session_id：后端按会话取报告，不带则落到 __default__ 会话而 404。
+      // 同时先判 resp.ok，否则错误 JSON 会被当成 xlsx 存盘，用户拿到的是坏文件。
+      exportBom: async () => {
+        if (!session) return;
+        const API = process.env.NEXT_PUBLIC_API_BASE || "";
+        const aid = generateId();
+        try {
+          const resp = await fetch(`${API}/export/bom?session_id=${session.id}`, {
+            method: "POST",
+            headers: getAuthBearer(),
+          });
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            addMessage({ id: aid, role: "assistant",
+              content: `> BOM 导出失败：${err.detail || resp.statusText}`, timestamp: Date.now() });
+            return;
+          }
+          const blob = await resp.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = "BOM.xlsx"; a.click();
+          URL.revokeObjectURL(url);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "Unknown";
+          addMessage({ id: aid, role: "assistant",
+            content: `> BOM 导出失败：${msg}`, timestamp: Date.now() });
+        }
+      },
       replacePart: async () => {
         const fullCmd = inputTextRef.current.trim();
         const mpn = fullCmd.replace(/^\/replace\s+/i, "").trim();
@@ -742,7 +803,7 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight, onT
     if (!text || loading) return;
     // Guest quota check
     if (!canSendAsGuest()) {
-      addMessage({ id: generateId(), role: "assistant", content: "游客试用已达到 5 次上限，请注册账号（待开放）或联系管理员获取访问权限。", timestamp: Date.now() });
+      addMessage({ id: generateId(), role: "assistant", content: "游客试用已达到 5 次上限。平台的账号由管理员统一创建，请联系管理员开通后重新登录。", timestamp: Date.now() });
       return;
     }
     if (authUser?.is_guest) incrementGuestCount();
@@ -883,8 +944,36 @@ export function ChatArea({ leftOpen, rightOpen, onToggleLeft, onToggleRight, onT
             <MessageBubble message={m} progress={m.id === streamingMsgId.current ? progress : undefined} />
             {m.report && !m.isStreaming && m.id === session.messages.filter((x) => x.role === "assistant" && x.report).pop()?.id && (() => {
               const isSelected = useChatStore.getState().selectedPartNumber;
+              const sch = schematicArgs(m.report);
               return (
               <div className="ml-11 mt-2 animate-fade-in">
+                {sch && (
+                  <div id="schematic-card" className="mb-2">
+                    <button
+                      onClick={() => setSchematicOpen((v) => !v)}
+                      className="flex items-center gap-1.5 text-2xs uppercase tracking-wider font-mono text-ez-text-muted hover:text-ez-accent transition-colors"
+                    >
+                      <CircuitBoard className="w-3.5 h-3.5" />
+                      应用电路图 · {sch.topology.toUpperCase()}
+                      <span className="text-ez-text-dim">{schematicOpen ? "收起" : "展开"}</span>
+                    </button>
+                    {/* 收起时不挂载：图是按需向后端要的，收起状态不给它白拉一张 SVG。 */}
+                    {schematicOpen && (
+                      <SchematicPanel topology={sch.topology} vin={sch.vin} vout={sch.vout} iout={sch.iout} />
+                    )}
+                  </div>
+                )}
+                {/* 风险评估报告：`/risk` 命令把 activeReport 置成 {type, sessionId}，卡片就挂在这里。
+                    这一行是 2026-08-15 的重构删掉的（import 却留着），导致 `/risk`
+                    能敲、状态也变了，就是什么都不显示。恢复时补上了 sessionId——
+                    原来没传，后端会退回「默认会话」，显示的不是当前会话的报告。
+                    渲染条件带上 sessionId 比对：切到别的会话后这份报告自然不再挂出，
+                    也不需要 effect 去清（见 state 声明处的注释）。 */}
+                {activeReport && activeReport.sessionId === session?.id && (
+                  <div className="mb-2">
+                    <PdfReportViewer reportType={activeReport.type} sessionId={activeReport.sessionId} />
+                  </div>
+                )}
                 {isSelected && (
                   <div className="p-3 border border-ez-border-hi bg-ez-bg-panel animate-fade-in">
                     <p className="text-xs text-ez-text font-medium mb-1.5 font-mono">

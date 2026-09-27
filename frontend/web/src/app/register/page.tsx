@@ -17,9 +17,9 @@ export default function RegisterPage() {
               <Lock className="w-6 h-6 text-amber-500" />
             </div>
             <div>
-              <p className="text-ez-text font-semibold text-sm">内测阶段</p>
-              <p className="text-ez-text-muted text-xs mt-1.5 leading-relaxed">注册通道尚未开通，感谢您的关注</p>
-              <p className="text-ez-text-label text-2xs mt-2 leading-relaxed">如需访问权限，请联系系统管理员</p>
+              <p className="text-ez-text font-semibold text-sm">账号由管理员创建</p>
+              <p className="text-ez-text-muted text-xs mt-1.5 leading-relaxed">本平台不开放自助注册</p>
+              <p className="text-ez-text-label text-2xs mt-2 leading-relaxed">如需访问权限，请联系系统管理员开通</p>
             </div>
           </div>
         </div>

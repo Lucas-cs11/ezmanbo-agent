@@ -1,0 +1,52 @@
+name: CI - 回归测试门禁
+
+# 这是**硬门禁**：pytest 一旦失败，本 job 就红。
+# 不要给下面的 pytest 步骤加 `|| true` / `continue-on-error`——那会让它退回成
+# 一个「看起来在测、实际恒绿」的摆设，而上一版 CI 正是毁在这里：
+# 它唯一的步骤是 `python -m tests.eval_runner`，那个脚本把每个用例的异常吞成
+# passed=False、且从不非零退出，于是无论代码坏到什么程度 CI 都亮绿灯。
+
+on:
+  push:
+    # 带上 sync/** 是为了让「从生产机推上来的评审分支」也能跑门禁，
+    # 而不是等到合进 main 才发现红。
+    branches: [ main, 'sync/**' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    env:
+      # 测试默认离线（见 tests/conftest.py）。CI 上没有本机模型缓存，
+      # 所以这里显式允许联网，让向量模型能在本次运行内下载。
+      # conftest 用的是 setdefault，因此这里给的值优先。
+      HF_HUB_OFFLINE: "0"
+      TRANSFORMERS_OFFLINE: "0"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # 与生产 venv 一致。之前 CI 跑 3.11、生产跑 3.14，
+          # 版本差异带来的失效在 CI 里看不见。
+          python-version: "3.14"
+          cache: pip
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip setuptools wheel
+
+      - name: Install runtime requirements
+        # --prefer-binary 避免在 CI 上从源码编译 pydantic-core 等
+        run: pip install --prefer-binary -r requirements.txt
+
+      - name: Install test requirements
+        run: pip install -r requirements-dev.txt
+
+      - name: Run regression suite (hard gate)
+        # 默认集：快、隔离、无外呼（integration / benchmark / concurrent / slow
+        # 由 pytest.ini 的 addopts 排除）。失败即本 job 失败。
+        run: PYTHONPATH=. python -m pytest -q

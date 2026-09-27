@@ -6,11 +6,13 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 _db_dir = Path(os.getenv("DATA_DIR", str(Path(__file__).resolve().parent.parent / "data")))
 _db_dir.mkdir(parents=True, exist_ok=True)
 
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{_db_dir}/ezmanbo.db"
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL") or f"sqlite:///{_db_dir}/ezmanbo.db"
+
+_connect_args = {"check_same_thread": False} if SQLALCHEMY_DATABASE_URL.startswith("sqlite") else {}
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args=_connect_args,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

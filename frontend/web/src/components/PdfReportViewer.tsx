@@ -8,6 +8,9 @@ import { getAuthBearer } from "@/lib/api";
 
 interface Props {
   reportType: "bom" | "risk";
+  /** 报告属于哪个会话。**不传会读到「默认会话」**——后端 `_sid(user, None)`
+   *  会退回 `_DEFAULT_SESSION_ID`，于是显示的报告与用户正在看的会话对不上。 */
+  sessionId?: string;
 }
 
 const LABELS: Record<string, string> = {
@@ -15,7 +18,7 @@ const LABELS: Record<string, string> = {
   risk: "供应链与工程风险评估报告",
 };
 
-export function PdfReportViewer({ reportType }: Props) {
+export function PdfReportViewer({ reportType, sessionId }: Props) {
   const [md, setMd] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +28,8 @@ export function PdfReportViewer({ reportType }: Props) {
     let cancelled = false;
     setLoading(true);
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
-    fetch(`${API_BASE}/report/${reportType}`, { headers: getAuthBearer() })
+    const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
+    fetch(`${API_BASE}/report/${reportType}${qs}`, { headers: getAuthBearer() })
       .then((r) => r.json())
       .then((d) => {
         if (!cancelled) {
@@ -36,7 +40,7 @@ export function PdfReportViewer({ reportType }: Props) {
       .catch((e) => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [reportType]);
+  }, [reportType, sessionId]);
 
   const handlePrintPDF = () => {
     const printWindow = window.open("", "_blank");

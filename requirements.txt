@@ -12,6 +12,11 @@ sentence-transformers>=2.2
 langchain>=1.0
 langchain-openai>=0.1
 langchain-core>=0.3
+# create_agent 的运行时底座与 token 计数：langchain/lib 的传递依赖，
+# 但线上 venv 曾因逐包安装而缺失，导致整个 ReAct 通路 import 失败，故显式声明。
+langgraph>=1.0
+openai>=1.0
+tiktoken>=0.7
 # B2: schemdraw 电路图生成
 schemdraw>=0.18
 # B3/B4: 检索和缓存
@@ -24,5 +29,8 @@ pymupdf>=1.23
 redis>=5.0
 # Auth + Database
 sqlalchemy>=2.0
+# PostgreSQL 驱动：生产连 RDS 必需。此前只装在部署机上、漏在清单外——别人按 README
+# 跑 setup.sh 会得到一棵连不上 Postgres 的树（DATABASE_URL 有值时 create_engine 直接抛错）。
+psycopg2-binary>=2.9
 python-jose[cryptography]>=3.3
 passlib[bcrypt]>=1.7
