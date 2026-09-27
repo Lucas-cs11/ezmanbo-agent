@@ -94,7 +94,7 @@
 ### 1.5.5 HTTPS
 
 - certbot 4.0.0 + Let's Encrypt，走 HTTP-01 挑战。**443 端口安全组本就放行，无需构建者额外操作**（实测外网可达）。
-- 证书：`CN=ezmanbo.online`，有效期至 **2026-12-26**，certbot systemd timer 自动续期，并加了 deploy hook 在续期后 reload nginx。
+- 证书：`CN=ezmanbo.online`，有效期至 **2026-12-26**，certbot systemd timer 自动续期，并加了 deploy hook 在续期后 reload nginx。**已用 `certbot renew --dry-run` 演练通过**——自动续期是那种会静默失效、然后在第 90 天把站点打下来的东西，所以必须演练过才算数。
 - nginx 新增 `sites-available/ezmanbo-tls`（80 挑战+跳转 / 443 产品），与既有的 `ezmanbo`（:8088）、`navigation`（:80 default_server）互不干扰：80 端口用精确 `server_name` 截走 `ezmanbo.online` / `www.ezmanbo.online` 两个 Host，其余主机名仍归 Navigation Hub。
 - 8088 明文入口保留不动，作为 443 出问题时的退路。
 - HSTS 暂设 `max-age=86400`（1 天）。HSTS 一旦下发，浏览器在有效期内会拒绝该域名的明文访问，出故障时不好回退；等线上稳定后应抬到一年。
