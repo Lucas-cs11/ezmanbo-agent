@@ -529,6 +529,76 @@ def test_scrub_ignores_an_empty_secret():
     assert mod._scrub("boom", "") == "boom"
 
 
+# 口令被写在 URL 的 **path** 里（少见但合法，`_mask` 的 docstring 自己就这么说）。
+# 第六轮验收的 `repro_leak.py` 就是拿它打穿了旧版：展示行里有一句**没走 `_mask`** 的
+# `库：{path}`，于是原文直接打到终端。三种形态（原文/大写编码/小写编码）全中。
+PATH_PW_URL = "postgresql://app_user:OldPw%2Fxy@db.example.com:5432/OldPw/xy"
+PATH_PW_FORMS = ("OldPw/xy", "OldPw%2Fxy", "OldPw%2fxy")
+
+
+def test_mask_hides_a_path_that_carries_the_password():
+    """path 里的口令是**整段隐去**，不是逐字擦——逐字擦要先知道它的编码形态。"""
+    masked = mod._mask(PATH_PW_URL, mod._password_of(PATH_PW_URL))
+    for form in PATH_PW_FORMS:
+        assert form not in masked, f"掩码后仍泄漏：{form}"
+    assert "db.example.com:5432" in masked, "主机与端口仍应可见"
+    assert "/***" in masked, "被隐去的 path 要留下痕迹，让人看得出这里被掩了"
+
+
+def test_main_never_prints_a_path_carried_password(tmp_path, monkeypatch, capsys):
+    """这条走完整 `main()`：终端上不许出现 path 里那份口令的任何形态。
+
+    旧版在这里打印 `库：OldPw/xy`——**根本没经过 `_mask`**。所以光钉 `_mask` 不够，
+    必须钉住「终端输出里不含它」，否则删掉那一行 print 又加回来也没人拦。
+    """
+    env = _write_env(tmp_path, value=PATH_PW_URL)
+    assert _run(tmp_path, monkeypatch, env, argv=("--dry-run",)) == 0
+    out = capsys.readouterr()
+    both = out.out + out.err
+    for form in (*PATH_PW_FORMS, NEW_PW, quote(NEW_PW, safe="")):
+        assert form not in both, f"终端泄漏了口令：{form}"
+    assert "库：" not in out.out, "库名不再单独打印（那一行是漏的源头）"
+
+
+# 口令不是「整体编码」而是**部分编码**时，逐形态擦除同样认不出来。第六轮验收自造的
+# `A%20B/c`（空格编码、斜杠不编码）与 `A+B%2Fc`（表单编码）两种写法都漏了。
+# `_decodes_to_secret` 解到不动点，就是为这一类准备的。
+PARTIAL_PW = "A B/c"
+
+
+@pytest.mark.parametrize("spelling", ["A%20B/c", "A+B%2Fc", "A%20B%2Fc", "A B/c"])
+def test_mask_hides_partially_encoded_password_in_query(spelling):
+    url = f"postgresql://u:Old@h:5432/db?password={spelling}"
+    masked = mod._mask(url, PARTIAL_PW)
+    assert spelling not in masked, f"掩码后仍泄漏：{spelling}"
+    assert "?***" in masked, "query 整段隐去后要留下痕迹"
+
+
+def test_mask_hides_nested_encoding_in_path():
+    """嵌套编码要盖住：口令 `x/y` 编码成 `x%2Fy`、再整体编码成 `x%252Fy`。
+
+    解一层得到 `x%2Fy`（仍不是原文），解两层才得到 `x/y`——所以逐形态比对必然漏，
+    只有解到不动点才认得出。解码封顶 4 层就为这种嵌套留余量。
+    """
+    url = f"postgresql://h:5432/db/{quote(quote('x/y', safe=''), safe='')}"
+    assert url.endswith("x%252Fy"), "构造前提：path 里是两层编码形态"
+    masked = mod._mask(url, "x/y")
+    assert "x%252Fy" not in masked, "两层形态不许留"
+    assert "x%2Fy" not in masked, "解一层后的形态也不许留"
+    assert "/***" in masked
+
+
+def test_mask_keeps_harmless_path_and_query_readable():
+    """反向的钉子：掩码不是把整串打成 `***`。
+
+    本用例守住过度掩码——把 `/ezmanbo?sslmode=require` 也抹掉，使用者就失去了「我改的
+    是不是这个库」这唯一的人眼确认点。
+    """
+    masked = mod._mask(mod._compose(NEW_PW, OLD_URL))
+    assert "/ezmanbo" in masked and "sslmode=require" in masked
+    assert "/***" not in masked and "?***" not in masked
+
+
 # ── 该拒绝的输入 ──────────────────────────────────────────────────────
 
 

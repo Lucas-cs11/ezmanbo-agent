@@ -46,7 +46,7 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import quote, unquote, urlsplit, urlunsplit
+from urllib.parse import quote, unquote, unquote_plus, urlsplit, urlunsplit
 
 from dotenv import dotenv_values
 from dotenv.parser import parse_stream
@@ -200,26 +200,65 @@ def _password_of(url: str) -> str:
     return unquote(urlsplit(url).password or "")
 
 
+_MAX_DECODE_LAYERS = 4
+
+
+def _decodes_to_secret(component: str, *secrets: str) -> bool:
+    """这段 URL 组件（path/query/fragment）解开百分号编码后，是否含着口令原文。
+
+    不枚举「口令可能被编码成哪几种形态」：那是**不收敛**的。`A B/c` 可以写成
+    `A%20B/c`、`A+B%2Fc`、`A%20B%2fc`……层数与哪几个字符被编码都是任意的，列不完，
+    第六轮验收正是靠自造这种变体打穿了逐形态擦除。
+
+    反过来，口令**原文**是有限的：把组件反复解码到不动点（封顶 `_MAX_DECODE_LAYERS`
+    层，覆盖嵌套编码），再用原文做子串判断，就把无穷的编码空间折回成一个有限判断。
+    解码只会放大匹配面（`+` 也当空格解），所以这层偏保守——宁可多掩，不会漏掩。
+    """
+    decoded = component
+    for _ in range(_MAX_DECODE_LAYERS + 1):
+        if any(s in decoded for s in secrets if s):
+            return True
+        again = unquote_plus(decoded)
+        if again == decoded:
+            return False
+        decoded = again
+    return False
+
+
 def _mask(url: str, *also_secrets: str) -> str:
-    """展示用的连接串：userinfo 段的口令换成 `***`，另外把 `also_secrets` 也一并擦掉。
+    """展示用的连接串：userinfo 段的口令换成 `***`；口令若出现在 path/query/fragment
+    里，就把**整段**隐去。
 
     只换 userinfo 是不够的：口令可能同时被写在 path/query 里（少见但合法），而
     `_compose` 对 query 是逐字保留的——那里留着的往往是**上一个**口令，所以调用方必须
     把旧口令也交进来，否则它会被原样打到终端。
 
-    擦除是**无条件**的：这个 URL 就算没有 userinfo 口令，传进来的 secret 也照样要擦。
-    否则「传了 secret 却没被擦」会成为一个静默的坑。
+    这三个位置上的口令**不做逐字擦除，而是整段隐去**：擦除的前提是先知道口令被编码成了
+    哪种形态，而形态不收敛（见 `_decodes_to_secret`）。宁可把 `/ezmanbo` 显示成 `/***`，
+    也不猜。
+
+    `_scrub` 那一层保留：userinfo 段与其余零散位置仍靠它擦，擦除是**无条件**的——这个
+    URL 就算没有 userinfo 口令，传进来的 secret 也照样要擦。否则「传了 secret 却没被擦」
+    会成为一个静默的坑。
     """
     parts = urlsplit(url)
     secrets = list(also_secrets)
+    netloc, path, query, fragment = parts.netloc, parts.path, parts.query, parts.fragment
     if parts.password is not None:
         secrets.append(_password_of(url))
         netloc = f"{parts.username}:***@{parts.hostname or ''}"
         port = _port_of(parts)
         if port:
             netloc += f":{port}"
-        url = urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
-    return _scrub(url, *secrets)
+    if secrets:
+        if _decodes_to_secret(path, *secrets):
+            path = "/***"
+        if _decodes_to_secret(query, *secrets):
+            query = "***"
+        if _decodes_to_secret(fragment, *secrets):
+            fragment = "***"
+    shown = urlunsplit((parts.scheme, netloc, path, query, fragment))
+    return _scrub(shown, *secrets)
 
 
 def _prompt_password() -> str:
@@ -420,7 +459,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parts = urlsplit(new_url)
     print(f"  用户：{unquote(parts.username or '')}")
-    print(f"  主机：{parts.hostname}   库：{parts.path.lstrip('/')}")
+    print(f"  主机：{parts.hostname}")
     print(f"  将写入：{KEY}={_mask(new_url, _password_of(old_url))}")
 
     if args.dry_run:
