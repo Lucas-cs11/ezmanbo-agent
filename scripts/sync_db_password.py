@@ -200,9 +200,6 @@ def _password_of(url: str) -> str:
     return unquote(urlsplit(url).password or "")
 
 
-_MAX_DECODE_LAYERS = 4
-
-
 def _decodes_to_secret(component: str, *secrets: str) -> bool:
     """这段 URL 组件（path/query/fragment）解开百分号编码后，是否含着口令原文。
 
@@ -210,12 +207,19 @@ def _decodes_to_secret(component: str, *secrets: str) -> bool:
     `A%20B/c`、`A+B%2Fc`、`A%20B%2fc`……层数与哪几个字符被编码都是任意的，列不完，
     第六轮验收正是靠自造这种变体打穿了逐形态擦除。
 
-    反过来，口令**原文**是有限的：把组件反复解码到不动点（封顶 `_MAX_DECODE_LAYERS`
-    层，覆盖嵌套编码），再用原文做子串判断，就把无穷的编码空间折回成一个有限判断。
-    解码只会放大匹配面（`+` 也当空格解），所以这层偏保守——宁可多掩，不会漏掩。
+    反过来，口令**原文**是有限的：把组件反复解码到不动点，再用原文做子串判断，
+    就把无穷的编码空间折回成一个有限判断。解码只会放大匹配面（`+` 也当空格解），
+    所以这层偏保守——宁可多掩。
+
+    **为什么不写死一个层数上限**（原先写的是 4 层，第七轮验收实测出 5 层嵌套仍会漏掩）：
+    每次有效解码都会让串**变短**（`%XX` 三个字符至少变一个），唯一的等长变换
+    `+` → 空格只会发生在最后一步（下一步对空格再解不变，循环即停）。所以解到不动点
+    必然在 `len(component)` 步内结束——用组件自身长度作上界，既覆盖任意层数的嵌套，
+    又不会因为某个没想到的输入转不出来。上界内没解完就返回 False 这条兜底保留着，
+    但按上面的推导它不可达。
     """
     decoded = component
-    for _ in range(_MAX_DECODE_LAYERS + 1):
+    for _ in range(len(component) + 2):
         if any(s in decoded for s in secrets if s):
             return True
         again = unquote_plus(decoded)
@@ -457,9 +461,9 @@ def main(argv: list[str] | None = None) -> int:
     candidate = "".join(candidate_lines)
     _assert_effective(candidate, new_url, idx)
 
-    parts = urlsplit(new_url)
-    print(f"  用户：{unquote(parts.username or '')}")
-    print(f"  主机：{parts.hostname}")
+    # 这里原先还打印「用户：」「主机：」两行，第七轮验收指出它们与下一行信息重复，
+    # 且会造成「同一屏里主机一处掩、一处不掩」的展示不一致（那两行不走 _mask）。
+    # 删掉，只留一行经过掩码的「将写入」——确认改的是哪个库，这一行就够了。
     print(f"  将写入：{KEY}={_mask(new_url, _password_of(old_url))}")
 
     if args.dry_run:

@@ -558,6 +558,9 @@ def test_main_never_prints_a_path_carried_password(tmp_path, monkeypatch, capsys
     for form in (*PATH_PW_FORMS, NEW_PW, quote(NEW_PW, safe="")):
         assert form not in both, f"终端泄漏了口令：{form}"
     assert "库：" not in out.out, "库名不再单独打印（那一行是漏的源头）"
+    # 第七轮验收指出：`用户：` / `主机：` 两行也不走 `_mask`，且与「将写入」那行信息
+    # 重复、造成「同一屏里主机一处掩、一处不掩」的展示不一致。已删，这里钉住它不再回来。
+    assert "用户：" not in out.out and "主机：" not in out.out, "那两行不该再打印"
 
 
 # 口令不是「整体编码」而是**部分编码**时，逐形态擦除同样认不出来。第六轮验收自造的
@@ -578,7 +581,7 @@ def test_mask_hides_nested_encoding_in_path():
     """嵌套编码要盖住：口令 `x/y` 编码成 `x%2Fy`、再整体编码成 `x%252Fy`。
 
     解一层得到 `x%2Fy`（仍不是原文），解两层才得到 `x/y`——所以逐形态比对必然漏，
-    只有解到不动点才认得出。解码封顶 4 层就为这种嵌套留余量。
+    只有解到不动点才认得出。
     """
     url = f"postgresql://h:5432/db/{quote(quote('x/y', safe=''), safe='')}"
     assert url.endswith("x%252Fy"), "构造前提：path 里是两层编码形态"
@@ -586,6 +589,38 @@ def test_mask_hides_nested_encoding_in_path():
     assert "x%252Fy" not in masked, "两层形态不许留"
     assert "x%2Fy" not in masked, "解一层后的形态也不许留"
     assert "/***" in masked
+
+
+# 第七轮验收实测出的残留：原先解码**封顶 4 层**（`_MAX_DECODE_LAYERS`），于是 5 层嵌套
+# 就漏掩了——终端会把 5 层编码形态原样打出来。修法不是把 4 改成 8，而是**去掉层数上限**：
+# 每次有效解码都让串变短，解到不动点必然在 len(component) 步内结束（论证见脚本 docstring）。
+@pytest.mark.parametrize("layers", [5, 8, 12])
+def test_mask_hides_deeply_nested_encoding(layers):
+    spelling = "a/b"
+    encoded = spelling
+    for _ in range(layers):
+        encoded = quote(encoded, safe="")
+    assert encoded != spelling and encoded.count("%25") >= 1, "构造前提：确实被编码过"
+    # 逐层数清「真的嵌了这么多层」：少解一层就还原不出原文，多解一层刚好还原。
+    # （比数 `%25` 的个数可靠——`%25` 是**非重叠**匹配，层数一多就数不准。）
+    partial = encoded
+    for _ in range(layers - 1):
+        partial = unquote(partial)
+    assert partial != spelling, f"构造前提：{layers} 层编码少解一层不该到原文"
+    assert unquote(partial) == spelling, f"构造前提：再解一层才是原文"
+    url = f"postgresql://h:5432/db/{encoded}"
+    masked = mod._mask(url, spelling)
+    assert encoded not in masked, f"{layers} 层嵌套形态不许留"
+    assert "/***" in masked, f"{layers} 层嵌套没被认出来——这正是第七轮报的漏掩"
+
+
+def test_decodes_to_secret_terminates_on_hostile_input():
+    """兜底上界必须真的存在：由 `%` 与 `+` 堆成的长串不能把解码循环转死或转爆。
+
+    这条守的是「去掉层数上限」引入的新风险——上限没了，万一某个输入不收敛就是死循环。
+    """
+    hostile = "%25" * 500 + "+" * 500
+    assert mod._decodes_to_secret(hostile, "绝不会出现的口令") is False
 
 
 def test_mask_keeps_harmless_path_and_query_readable():
